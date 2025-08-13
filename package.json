@@ -3,7 +3,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build && vite build --ssr",
+        "build": "vite build",
         "dev": "vite"
     },
     "devDependencies": {
@@ -44,6 +44,7 @@
         "@tiptap/pm": "^3.0.9",
         "@tiptap/starter-kit": "^3.0.9",
         "@tiptap/vue-3": "^3.0.9",
+        "@vuepic/vue-datepicker": "^11.0.2",
         "date-fns": "^4.1.0",
         "vue-i18n": "^9.14.5"
     }

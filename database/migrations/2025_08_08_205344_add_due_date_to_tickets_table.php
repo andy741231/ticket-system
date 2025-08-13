@@ -11,8 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            //
+        Schema::table('tickets', function (Blueprint $table) {
+            $table->date('due_date')->nullable()->after('priority');
+            $table->index('due_date');
         });
     }
 
@@ -21,8 +22,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            //
+        Schema::table('tickets', function (Blueprint $table) {
+            $table->dropIndex(['due_date']);
+            $table->dropColumn('due_date');
         });
     }
 };

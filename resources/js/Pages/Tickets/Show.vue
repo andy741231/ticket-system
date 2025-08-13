@@ -32,16 +32,16 @@ console.log('Ticket data:', props.ticket);
 console.log('Attachments:', props.ticket.attachments);
 
 const statusClasses = {
-    'Received': 'bg-uh-teal/20 text-uh-forest',
-    'Approved': 'bg-uh-gold/20 text-uh-ocher',
-    'Rejected': 'bg-uh-red/20 text-uh-brick',
-    'Completed': 'bg-uh-green/20 text-uh-forest',
+    'Received': 'dark:text-uh-cream bg-uh-teal/20 text-uh-forest',
+    'Approved': 'dark:text-uh-cream bg-uh-gold/20 text-uh-ocher',
+    'Rejected': 'dark:text-uh-cream bg-uh-red/20 text-uh-brick',
+    'Completed': 'dark:text-uh-cream bg-uh-green/20 text-uh-forest',
 };
 
 const priorityClasses = {
-    'Low': 'bg-uh-slate/20 text-uh-slate',
-    'Medium': 'bg-uh-teal/20 text-uh-forest',
-    'High': 'bg-uh-red/20 text-uh-brick',
+    'Low': 'dark:text-uh-cream bg-uh-slate/20 text-uh-slate',
+    'Medium': 'dark:text-uh-cream bg-uh-teal/20 text-uh-forest',
+    'High': 'dark:text-uh-cream bg-uh-red/20 text-uh-brick',
 };
 
 const statusOptions = {
@@ -60,11 +60,17 @@ const formatDate = (dateString) => {
     };
     return new Date(dateString).toLocaleDateString(undefined, options);
 };
+import Modal from '@/Components/Modal.vue';
+
+const showDeleteModal = ref(false);
 
 const deleteTicket = () => {
-    if (confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) {
-        router.delete(route('tickets.destroy', props.ticket.id));
-    }
+    showDeleteModal.value = true;
+};
+
+const confirmDelete = () => {
+    showDeleteModal.value = false;
+    router.delete(route('tickets.destroy', props.ticket.id));
 };
 
 const updateStatus = (status) => {
@@ -137,6 +143,37 @@ const getFileUrl = (file) => {
     if (!file) return '#';
     return '/storage/' + file.file_path;
 };
+
+// Ticket URL and clipboard helpers
+const ticketUrl = computed(() => {
+    // Ensure absolute URL whether Ziggy returns relative or absolute
+    try {
+        return new URL(route('tickets.show', props.ticket.id), window.location.origin).toString();
+    } catch (e) {
+        // Fallback to current origin + pathname
+        return `${window.location.origin}${route('tickets.show', props.ticket.id)}`;
+    }
+});
+
+const copied = ref(false);
+const copyTicketUrl = async () => {
+    try {
+        await navigator.clipboard.writeText(ticketUrl.value);
+        copied.value = true;
+        setTimeout(() => (copied.value = false), 1500);
+    } catch (err) {
+        console.error('Failed to copy ticket URL:', err);
+    }
+};
+
+// Local UI state for status changes from the description header toolbar
+const selectedStatus = ref('');
+const applyStatus = () => {
+    if (selectedStatus.value) {
+        updateStatus(selectedStatus.value);
+        selectedStatus.value = '';
+    }
+};
 </script>
 
 <template>
@@ -150,14 +187,14 @@ const getFileUrl = (file) => {
         <div class="py-6">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                 <!-- Status Update Bar (for admins) -->
-                <div v-if="can.changeStatus" class="p-5 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div v-if="can.changeStatus" class="flex justify-between items-center p-5 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                     <div>
-                    <h2 class="p-2 font-semibold text-2xl text-gray-800 dark:text-gray-200 leading-tight">
+                    <h2 class="max-w-3xl p-2 font-semibold text-2xl text-gray-800 dark:text-gray-200 leading-tight">
                         {{ ticket.title }}
                     </h2>
                     </div>
                     <!-- Back to Tickets Button -->
-                <div class="flex justify-end">
+                <div class="">
                     <Link 
                         :href="route('tickets.index')" 
                         class="inline-flex items-center px-4 py-2 bg-uh-slate border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-gray focus:bg-uh-gray active:bg-uh-black focus:outline-none focus:ring-2 focus:ring-uh-slate focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
@@ -175,26 +212,53 @@ const getFileUrl = (file) => {
                             <!-- Main Content -->
                             <div class="md:col-span-2">
                             <div class="flex justify-end items-center">
-                <div class="flex space-x-2">
-                    <Link 
-                        v-if="can.update"
-                        :href="route('tickets.edit', ticket.id)" 
-                        class="inline-flex items-center px-4 py-2 bg-uh-teal border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-green focus:bg-uh-green active:bg-uh-forest focus:outline-none focus:ring-2 focus:ring-uh-teal focus:ring-offset-2 transition ease-in-out duration-150"
-                    >
-                        Edit Ticket
-                    </Link>
-                    <button
-                        v-if="can.delete"
-                        @click="deleteTicket"
-                        class="inline-flex items-center px-4 py-2 bg-uh-red border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-brick focus:bg-uh-brick active:bg-uh-chocolate focus:outline-none focus:ring-2 focus:ring-uh-red focus:ring-offset-2 transition ease-in-out duration-150"
-                    >
-                        Delete Ticket
-                    </button>
-                </div>
+                
             </div>
                                 <!-- Description Section -->
-                                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Description</h3>
-                                <div class="p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-96 prose dark:prose-invert max-w-none break-words" v-html="ticket.description"></div>
+                                <div class="relative">
+                                    <!-- Description Card Header Toolbar -->
+                                    <div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-600/60 backdrop-blur px-3 py-2">
+                                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Actions</h3>
+                                        <div class="flex items-center gap-2">
+                                            <div v-if="can.changeStatus" class="flex items-center gap-2">
+                                                <label for="status-select" class="sr-only">Change status</label>
+                                                <select
+                                                    id="status-select"
+                                                    v-model="selectedStatus"
+                                                    class="text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py- focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
+                                                >
+                                                    <option value="" disabled>Select action</option>
+                                                    <option v-for="(label, status) in statusOptions" :key="status" :value="status">{{ label }}</option>
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    @click="applyStatus"
+                                                    :disabled="!selectedStatus"
+                                                    class="px-3 py-2 font-medium rounded-md text-white bg-uh-teal hover:bg-uh-green disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title="Apply selected status"
+                                                    aria-label="Apply status"
+                                                >
+                                                    Apply
+                                                </button>
+                                            </div>
+                                            <Link
+                                                v-if="can.update"
+                                                :href="route('tickets.edit', ticket.id)"
+                                                class=""
+                                                :aria-label="'Edit description'"
+                                                title="Edit description"
+                                            >
+                                                <div class="flex items-center gap-2 p-2 px-3 text-gray-100 dark:text-gray-100 rounded-md bg-gray-500 dark:bg-gray-600/60 backdrop-blur hover:bg-gray-600 dark:hover:bg-gray-600">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                                                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                                    </svg>
+                                                    <span>Edit</span>
+                                                </div>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                    <div class="p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-96 prose dark:prose-invert max-w-none break-words" v-html="ticket.description"></div>
+                                </div>
                                 
                                 <!-- Attachments Section -->
                                 <div v-if="ticket.files && ticket.files.length > 0" class="mt-8">
@@ -235,26 +299,81 @@ const getFileUrl = (file) => {
                                     
                                     <div class="space-y-3">
                                         <div>
-                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Status</p>
-                                            <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Ticket URL</p>
+                                            <div class="mt-1 flex items-center">
+                                                <input
+                                                    type="text"
+                                                    :value="ticketUrl"
+                                                    readonly
+                                                    class="flex-1 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
+                                                />
+                                                <button
+                                                    @click="copyTicketUrl"
+                                                    type="button"
+                                                    class="inline-flex items-center justify-center px-3 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-uh-teal"
+                                                    :aria-label="copied ? 'Copied' : 'Copy URL'"
+                                                    :title="copied ? 'Copied!' : 'Copy URL'"
+                                                >
+                                                    <svg v-if="!copied" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                                                        <path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                                    </svg>
+                                                    <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-uh-teal">
+                                                        <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="flex justify-start items-center">
+                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Status:</p>
+                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
                                                 <span :class="[statusClasses[ticket.status], 'px-2 py-1 rounded-full text-xs font-medium']">
                                                     {{ ticket.status }}
                                                 </span>
                                             </p>
                                         </div>
                                         
-                                        <div>
-                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Priority</p>
-                                            <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                        <div class="flex justify-start items-center">
+                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Priority:</p>
+                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
                                                 <span :class="[priorityClasses[ticket.priority], 'px-2 py-1 rounded-full text-xs font-medium']">
                                                     {{ ticket.priority }}
                                                 </span>
                                             </p>
                                         </div>
-                                        
+                                        <div class="flex justify-start items-center" v-if="ticket.due_date">
+                                             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Due Date:</p>
+                                             <p class="ml-2 text-sm text-gray-900 dark:text-white">
+                                                 {{ formatDate(ticket.due_date) }}
+                                             </p>
+                                         </div>
+                                        <div class="flex justify-start items-center">
                                         <div>
-                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Created</p>
-                                            <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                                {{ isAdmin ? 'Submitted By:' : 'Your Information' }}
+                                            </p>
+                                                <!-- commented out for circle icon with user name now 
+                                                <div class="ml-2 flex items-center space-x-3">
+                                                    <div class="flex-shrink-0">
+                                                        <div class="h-10 w-10 rounded-full bg-uh-teal/20 flex items-center justify-center">
+                                                            <span class="text-uh-teal font-medium">
+                                                                {{ ticket.user?.name?.charAt(0) || 'U' }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                -->
+                                        </div>
+                                        <div class="ml-2 flex justify-start items-center">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white">
+                                                <a class="underline hover:text-blue-600 hover:underline" :href="ticket.user?.email ? ('mailto:' + ticket.user.email) : '#'" target="_blank" rel="noopener noreferrer">{{ ticket.user?.name || 'Unknown User' }}</a>
+                                            </p>
+                                        </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="flex justify-start items-center">
+                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Created: </p>
+                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
                                                 {{ formatDate(ticket.created_at) }}
                                             </p>
                                         </div>
@@ -270,79 +389,59 @@ const getFileUrl = (file) => {
 
                                 <!-- User Info -->
                                 <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                 <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
                                         Assigned To:
                                     </h3>
-                                    <div class="flex-shrink-0">
-                                            <div class="h-10 w-10 rounded-full bg-uh-teal/20 flex items-center justify-center">
-                                                <span class="text-uh-teal font-medium">
-                                                    {{ ticket.user?.name?.charAt(0) || 'U' }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p class="text-sm font-medium text-gray-900 dark:text-white">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900 dark:text-white">
+                                            <a class="underline hover:text-blue-600 hover:underline" :href="ticket.user?.email ? ('mailto:' + ticket.user.email) : '#'" target="_blank" rel="noopener noreferrer">
                                                 {{ ticket.user?.name || 'Unknown User' }}
-                                            </p>
-                                            <p class="text-sm text-gray-500 dark:text-gray-400">
-                                                {{ ticket.user?.email || 'No email provided' }}
-                                            </p>
-                                        </div>
+                                            </a>
+                                        </p>
+                                    </div>
                                 </div>
-                                <!-- Ticket ID -->
-                                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                                        {{ isAdmin ? 'Submitted By' : 'Your Information' }}
-                                    </h3>
-                                    
-                                    <div class="flex items-center space-x-3">
-                                        <div class="flex-shrink-0">
-                                            <div class="h-10 w-10 rounded-full bg-uh-teal/20 flex items-center justify-center">
-                                                <span class="text-uh-teal font-medium">
-                                                    {{ ticket.user?.name?.charAt(0) || 'U' }}
-                                                </span>
+                                
+                                <div class="flex space-x-2">
+                                    <button
+                                        v-if="can.delete"
+                                        @click="showDeleteModal = true"
+                                        class="inline-flex items-center px-4 py-2 bg-uh-red border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-brick focus:bg-uh-brick active:bg-uh-chocolate focus:outline-none focus:ring-2 focus:ring-uh-red focus:ring-offset-2 transition ease-in-out duration-150"
+                                    >
+                                        Delete Ticket
+                                    </button>
+
+                                    <Modal :show="showDeleteModal" @close="showDeleteModal = false">
+                                        <div class="bg-uh-white dark:bg-gray-700 p-6">
+                                            <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+                                                Delete Ticket
+                                            </h2>
+
+                                            <p class="mt-4 text-gray-600 dark:text-gray-200">
+                                                Are you sure you want to delete this ticket? This action cannot be undone.
+                                            </p>
+
+                                            <div class="mt-6 flex justify-end space-x-3">
+                                                <button
+                                                    @click="showDeleteModal = false"
+                                                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal transition ease-in-out duration-150"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    @click="confirmDelete"
+                                                    class="px-4 py-2 text-sm font-medium text-white bg-uh-red border border-transparent rounded-md shadow-sm hover:bg-uh-brick focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-red transition ease-in-out duration-150"
+                                                >
+                                                    Delete Ticket
+                                                </button>
                                             </div>
                                         </div>
-                                        <div>
-                                            <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                                {{ ticket.user?.name || 'Unknown User' }}
-                                            </p>
-                                            <p class="text-sm text-gray-500 dark:text-gray-400">
-                                                {{ ticket.user?.email || 'No email provided' }}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div class="text-sm text-gray-500 dark:text-gray-400">
-                                    Ticket ID:{{ ticket.id }}
-                                    </div>
-                                    <span class="text-sm text-gray-500 dark:text-gray-400">
-                            Created {{ formatDate(ticket.created_at) }}
-                        </span>
+                                    </Modal>
+                                </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Update Status</h3>
-                    </div>
-                    <div class="p-4">
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                v-for="(label, status) in statusOptions"
-                                :key="status"
-                                @click="updateStatus(status)"
-                                :class="{
-                                    'px-4 py-2 rounded-md text-sm font-medium': true,
-                                    'bg-uh-teal text-white hover:bg-uh-green': status !== 'Rejected',
-                                    'bg-uh-red text-white hover:bg-uh-brick': status === 'Rejected',
-                                }"
-                            >
-                                {{ label }}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
+                
                 <!-- Comments Section (Placeholder for future implementation) -->
                 <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">

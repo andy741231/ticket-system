@@ -1,10 +1,5 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3';
-import { onMounted } from 'vue';
-
-onMounted(() => {
-    router.visit(route('login'));
-});
+import { Head, Link } from '@inertiajs/vue3';
 
 defineProps({
     canLogin: {

@@ -1,6 +1,6 @@
 <script setup>
 import { Head, useForm, router } from '@inertiajs/vue3';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -9,6 +9,8 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import FileUploader from '@/Components/FileUploader.vue';
+import Datepicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css';
 
 const props = defineProps({
     priorities: {
@@ -21,7 +23,25 @@ const form = useForm({
     title: '',
     description: '',
     priority: 'Medium',
+    due_date: '',
     temp_file_ids: [],
+});
+
+// Track Tailwind dark mode to sync with the datepicker theme
+const isDark = ref(false);
+let darkObserver;
+
+onMounted(() => {
+    const updateDark = () => {
+        isDark.value = document.documentElement.classList.contains('dark');
+    };
+    updateDark();
+    darkObserver = new MutationObserver(updateDark);
+    darkObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+});
+
+onUnmounted(() => {
+    if (darkObserver) darkObserver.disconnect();
 });
 
 // Store temporary file IDs that need to be associated with the ticket after creation
@@ -96,6 +116,23 @@ const cancel = () => {
                                     </select>
                                     <InputError class="mt-2" :message="form.errors.priority" />
                                 </div>
+                                <!-- Due Date -->
+                                <div>
+                                    <InputLabel class="text-uh-slate dark:text-uh-cream" for="due_date" value="Due Date" />
+                                    <Datepicker
+                                        id="due_date"
+                                        v-model="form.due_date"
+                                        model-type="yyyy-MM-dd"
+                                        :enable-time-picker="false"
+                                        :dark="isDark"
+                                        :teleport="true"
+                                        :auto-apply="true"
+                                        :hide-input-icon="false"
+                                        input-class-name="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-uh-slate dark:text-uh-cream rounded-md shadow-sm"
+                                        placeholder="Select a due date"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.due_date" />
+                                </div>
                             </div>
 
                             <!-- Description (Tiptap Editor) -->
@@ -112,7 +149,7 @@ const cancel = () => {
                             <div class="mt-6">
                                 <InputLabel class="text-uh-slate dark:text-uh-cream mb-2" value="Attachments" />
                                 <FileUploader
-                                    :ticket-id="0"
+                                    :temp-mode="true"
                                     :existing-files="tempFiles"
                                     @uploaded="handleFilesUploaded"
                                     @removed="handleFileRemoved"

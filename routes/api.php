@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\TicketFileController;
+use App\Http\Controllers\Api\TempFileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,6 +16,12 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware(['web', 'auth'])->group(function () {
+    // Temporary file upload endpoints (before ticket exists)
+    Route::prefix('temp-files')->group(function () {
+        Route::post('/', [TempFileController::class, 'store']);
+        Route::delete('/{file}', [TempFileController::class, 'destroy']);
+    });
+
     // File upload endpoints
     Route::prefix('tickets/{ticket}')->group(function () {
         // Upload files to a ticket

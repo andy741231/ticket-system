@@ -27,6 +27,7 @@ class TicketFactory extends Factory
             'description' => $this->faker->paragraph(),
             'status' => $this->faker->randomElement(['Received', 'Approved', 'Rejected', 'Completed']),
             'priority' => $this->faker->randomElement(['Low', 'Medium', 'High']),
+            'due_date' => $this->faker->optional()->dateTimeBetween('now', '+30 days')->format('Y-m-d'),
             'user_id' => User::factory(),
         ];
     }
