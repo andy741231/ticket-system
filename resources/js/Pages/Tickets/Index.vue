@@ -281,7 +281,7 @@ const timeAgo = (dateString) => {
         <div class="py-6">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div class="">
-                    <div class="p-6 text-gray-900 dark:text-gray-100">
+                    <div class="text-gray-900 dark:text-gray-100">
                         <div class="flex justify-between items-center mb-4">
                             <div>
                             </div>

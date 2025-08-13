@@ -65,11 +65,14 @@ const getPriorityBadgeClass = (priority) => {
 
     <AuthenticatedLayout>
         <template #header>
+            
+        </template>
+
+        <div class="py-6">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div class="flex justify-between items-center">
-                <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                    User: {{ user.name }}
-                </h2>
-                <div class="flex space-x-2">
+               <div></div>
+                <div class="flex space-x-2 mb-4">
                     <Link 
                         v-if="can.update" 
                         :href="route('admin.users.edit', user.id)" 
@@ -89,10 +92,6 @@ const getPriorityBadgeClass = (priority) => {
                     </Link>
                 </div>
             </div>
-        </template>
-
-        <div class="py-6">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- User Details -->
                     <div class="md:col-span-1">
@@ -217,17 +216,6 @@ const getPriorityBadgeClass = (priority) => {
                                     </svg>
                                     <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tickets yet</h3>
                                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">This user hasn't created any support tickets yet.</p>
-                                    <div class="mt-6">
-                                        <Link 
-                                            :href="route('tickets.create', { user_id: user.id })" 
-                                            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                        >
-                                            <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-                                            </svg>
-                                            Create Ticket
-                                        </Link>
-                                    </div>
                                 </div>
 
                                 <div v-if="tickets.length > 0" class="mt-6 text-center">

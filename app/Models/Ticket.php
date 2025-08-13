@@ -22,6 +22,7 @@ class Ticket extends Model
         'description',
         'status',
         'priority',
+        'due_date',
     ];
 
     /**
@@ -32,6 +33,7 @@ class Ticket extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'due_date' => 'date',
     ];
 
     /**
@@ -40,10 +42,10 @@ class Ticket extends Model
     protected static function booted(): void
     {
         static::deleting(function (Ticket $ticket) {
-            // Delete all associated files from storage
-            $ticket->files->each(function ($file) {
-                Storage::disk('public')->delete($file->file_path);
-            });
+            // Delete the entire ticket directory and all files within it
+            // Storage path is 'public/tickets/{ticket_id}' as files are stored via the 'public' disk
+            Storage::disk('public')->deleteDirectory('tickets/' . $ticket->id);
+            // Database records for related files will be removed by FK cascade (see migration)
         });
     }
 

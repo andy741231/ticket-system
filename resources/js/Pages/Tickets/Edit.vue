@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import { watch, ref } from 'vue';
+import { watch, ref, onMounted, onUnmounted } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -9,6 +9,8 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import FileUploader from '@/Components/FileUploader.vue';
+import Datepicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css';
 
 const props = defineProps({
     ticket: {
@@ -25,12 +27,41 @@ const props = defineProps({
     },
 });
 
+// Normalize date for <input type="date"> as YYYY-MM-DD in local time
+const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const d = new Date(dateString);
+    if (isNaN(d)) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const form = useForm({
     title: props.ticket.title,
     description: props.ticket.description,
     priority: props.ticket.priority,
     status: props.ticket.status,
+    due_date: formatDateForInput(props.ticket.due_date) || '',
     _method: 'PUT',
+});
+
+// Track Tailwind dark mode to sync with the datepicker theme
+const isDark = ref(false);
+let darkObserver;
+
+onMounted(() => {
+    const updateDark = () => {
+        isDark.value = document.documentElement.classList.contains('dark');
+    };
+    updateDark();
+    darkObserver = new MutationObserver(updateDark);
+    darkObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+});
+
+onUnmounted(() => {
+    if (darkObserver) darkObserver.disconnect();
 });
 
 // Store the existing files for the ticket
@@ -70,6 +101,7 @@ watch(() => props.ticket, (newTicket) => {
         form.priority = newTicket.priority;
         form.status = newTicket.status;
         form.description = newTicket.description;
+        form.due_date = formatDateForInput(newTicket.due_date) || '';
     }
 }, { deep: true });
 
@@ -157,6 +189,23 @@ const cancel = () => {
                                         </option>
                                     </select>
                                     <InputError class="mt-2" :message="form.errors.status" />
+                                </div>
+                                <!-- Due Date -->
+                                <div>
+                                    <InputLabel class="text-uh-slate dark:text-uh-cream" for="due_date" value="Due Date" />
+                                    <Datepicker
+                                        id="due_date"
+                                        v-model="form.due_date"
+                                        model-type="yyyy-MM-dd"
+                                        :enable-time-picker="false"
+                                        :dark="isDark"
+                                        :teleport="true"
+                                        :auto-apply="true"
+                                        :hide-input-icon="false"
+                                        input-class-name="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-uh-slate dark:text-uh-cream rounded-md shadow-sm"
+                                        placeholder="Select a due date"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.due_date" />
                                 </div>
                             </div>
 
