@@ -83,6 +83,8 @@ class HandleInertiaRequests extends Middleware
                     'canManageRoles' => $user ? $perm->can($user, 'admin.rbac.roles.manage', $teamId) : false,
                     'canManagePermissions' => $user ? $perm->can($user, 'admin.rbac.permissions.manage', $teamId) : false,
                     'canManageOverrides' => $user ? $perm->can($user, 'admin.rbac.overrides.manage', $teamId) : false,
+                    // Global (teamless) super admin management gate
+                    'canManageSuperAdmins' => $user ? $user->isSuperAdmin() : false,
                     'canUpdateTickets' => $user ? $perm->can($user, 'tickets.ticket.update', $teamId) : false,
                     // Cross-app explicit: can the user access Hub area (view or manage) in the Hub app context?
                     'canAccessUsersApp' => $user

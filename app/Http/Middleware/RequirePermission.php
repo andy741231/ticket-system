@@ -28,8 +28,13 @@ class RequirePermission
         // Support multiple permissions separated by '|': pass if any is allowed
         $perms = array_map('trim', explode('|', $permissionList));
         $allowed = false;
+        $evaluations = [];
         foreach ($perms as $perm) {
-            if ($svc->can($user, $perm, $teamId)) {
+            $res = $svc->can($user, $perm, $teamId);
+            if (config('app.debug')) {
+                $evaluations[] = ['perm' => $perm, 'result' => (bool) $res];
+            }
+            if ($res) {
                 $allowed = true;
                 break;
             }
@@ -62,6 +67,16 @@ class RequirePermission
                     // ignore and proceed to forbid
                 }
             }
+        }
+
+        if (config('app.debug')) {
+            logger()->debug('[RequirePermission] evaluation', [
+                'user_id' => $user->id,
+                'teamId' => $teamId,
+                'perms' => $perms,
+                'evaluations' => $evaluations,
+                'allowed' => $allowed,
+            ]);
         }
 
         if (!$allowed) {

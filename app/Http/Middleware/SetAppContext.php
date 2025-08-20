@@ -25,6 +25,10 @@ class SetAppContext
         if ($lookupSlug === 'users') {
             $lookupSlug = 'hub';
         }
+        // Map '/admin' RBAC routes to Hub app context
+        if ($lookupSlug === 'admin') {
+            $lookupSlug = 'hub';
+        }
         if ($lookupSlug) {
             $app = SubApp::query()->where('slug', $lookupSlug)->first();
         }
@@ -46,6 +50,18 @@ class SetAppContext
         } finally {
             // Restore previous team context
             $registrar->setPermissionsTeamId($prev);
+        }
+
+        // Targeted debug logging for context propagation
+        if (config('app.debug')) {
+            logger()->debug('[SetAppContext] resolved context', [
+                'path' => $request->path(),
+                'prefix' => $prefix,
+                'lookupSlug' => $lookupSlug,
+                'teamId' => $teamId,
+                'appId' => $app?->id,
+                'appSlug' => $app?->slug,
+            ]);
         }
 
         return $response;

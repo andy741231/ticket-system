@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 use App\Models\Role;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\PermissionRegistrar;
 
 class UserController extends Controller
@@ -38,8 +39,9 @@ class UserController extends Controller
     {
         $this->authorize('create', User::class);
 
-        // Show all roles across teams for cross-app assignment
+        // Show only team-scoped roles (exclude global/null team) for assignment
         $roles = Role::query()
+            ->whereNotNull('team_id')
             ->orderBy('name')
             ->get();
         
@@ -61,7 +63,10 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'roles' => 'required|array',
-            'roles.*' => 'exists:roles,id',
+            'roles.*' => [
+                'integer',
+                Rule::exists('roles', 'id')->whereNotNull('team_id'),
+            ],
         ]);
 
         $user = User::create([
@@ -77,16 +82,24 @@ class UserController extends Controller
         $registrar = app(PermissionRegistrar::class);
         $prevTeam = method_exists($registrar, 'getPermissionsTeamId') ? ($registrar->getPermissionsTeamId()) : null;
 
-        $selectedRoles = Role::whereIn('id', $validated['roles'])->get();
-        $byTeam = $selectedRoles->groupBy(function ($r) { return $r->team_id; });
+        // Only allow team-scoped roles; model_has_roles.team_id is non-nullable when teams are enabled
+        $selectedRoles = Role::whereIn('id', $validated['roles'])->whereNotNull('team_id')->get();
+        // Group by normalized key so null doesn't become empty-string and break lookups
+        $byTeam = $selectedRoles->groupBy(function ($r) {
+            return is_null($r->team_id) ? 'null' : (string) ((int) $r->team_id);
+        });
 
-        foreach ($byTeam as $teamId => $rolesForTeam) {
-            $registrar->setPermissionsTeamId($teamId);
+        foreach ($byTeam as $teamKey => $rolesForTeam) {
+            $teamIdNorm = ($teamKey === 'null') ? null : (int) $teamKey;
+            $registrar->setPermissionsTeamId($teamIdNorm);
             $user->syncRoles($rolesForTeam);
         }
 
         // restore previous team context
         $registrar->setPermissionsTeamId($prevTeam);
+
+        // Flush permission cache so changes take effect immediately
+        app(\App\Services\PermissionService::class)->flushUserCache($user->id);
 
         return redirect()
             ->route('admin.users.index')
@@ -120,8 +133,9 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
 
-        // Show all roles across teams for cross-app assignment
+        // Show only team-scoped roles (exclude global/null team) for assignment
         $roles = Role::query()
+            ->whereNotNull('team_id')
             ->orderBy('name')
             ->get();
 
@@ -157,7 +171,10 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:8|confirmed',
             'roles' => 'required|array',
-            'roles.*' => 'exists:roles,id',
+            'roles.*' => [
+                'integer',
+                Rule::exists('roles', 'id')->whereNotNull('team_id'),
+            ],
         ]);
 
         $updateData = [
@@ -179,25 +196,36 @@ class UserController extends Controller
             $prevTeam = method_exists($registrar, 'getPermissionsTeamId') ? ($registrar->getPermissionsTeamId()) : null;
 
             // Selected roles grouped by their team
-            $selectedRoles = Role::whereIn('id', $validated['roles'])->get();
-            $selectedByTeam = $selectedRoles->groupBy(function ($r) { return $r->team_id; });
+            // Only allow team-scoped roles; prevent null team_id inserts
+            $selectedRoles = Role::whereIn('id', $validated['roles'])->whereNotNull('team_id')->get();
+            // Normalize grouping keys so that null remains addressable
+            $selectedByTeam = $selectedRoles->groupBy(function ($r) {
+                return is_null($r->team_id) ? 'null' : (string) ((int) $r->team_id);
+            });
 
-            // Existing teams where the user currently has roles
+            // Existing teams where the user currently has roles (normalize to the same key space)
             $existingTeams = DB::table('model_has_roles')
                 ->where('model_type', User::class)
                 ->where('model_id', $user->id)
-                ->pluck('team_id');
+                ->pluck('team_id')
+                ->map(function ($v) {
+                    return is_null($v) ? 'null' : (string) ((int) $v);
+                });
 
-            $allTeams = collect($existingTeams)->merge($selectedByTeam->keys())->unique();
+            $allKeys = collect($existingTeams)->merge($selectedByTeam->keys())->unique()->values();
 
-            foreach ($allTeams as $teamId) {
-                $registrar->setPermissionsTeamId($teamId);
-                $rolesForTeam = $selectedByTeam->get($teamId, collect());
+            foreach ($allKeys as $teamKey) {
+                $teamIdNorm = ($teamKey === 'null') ? null : (int) $teamKey;
+                $registrar->setPermissionsTeamId($teamIdNorm);
+                $rolesForTeam = $selectedByTeam->get($teamKey, collect());
                 $user->syncRoles($rolesForTeam);
             }
 
             // restore previous team context
             $registrar->setPermissionsTeamId($prevTeam);
+
+            // Flush permission cache so changes take effect immediately
+            app(\App\Services\PermissionService::class)->flushUserCache($user->id);
         }
 
         return redirect()
