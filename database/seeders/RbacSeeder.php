@@ -51,7 +51,7 @@ class RbacSeeder extends Seeder
                     'directory.profile.view',
                     'directory.profile.update',
                     'directory.user.lookup',
-                    'hub.user.manage',
+                    'directory.profile.manage',
                 ],
                 'user_role_perms' => [
                     'directory.profile.view',

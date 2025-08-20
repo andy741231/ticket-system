@@ -38,6 +38,13 @@ class PermissionService
 
             // If the permission doesn't exist, deny (and avoid hasPermissionTo throwing)
             if (!$perm) {
+                if (config('app.debug')) {
+                    logger()->debug('[PermissionService] permission not found', [
+                        'user_id' => $user->id,
+                        'permission' => $permissionName,
+                        'teamId' => $teamId,
+                    ]);
+                }
                 return false;
             }
 
@@ -54,11 +61,38 @@ class PermissionService
                 ->first();
 
             if ($override) {
-                return $override->effect === 'allow';
+                $result = $override->effect === 'allow';
+                if (config('app.debug')) {
+                    logger()->debug('[PermissionService] override applied', [
+                        'user_id' => $user->id,
+                        'permission' => $permissionName,
+                        'teamId' => $teamId,
+                        'override_id' => $override->id,
+                        'effect' => $override->effect,
+                        'result' => $result,
+                    ]);
+                }
+                return $result;
             }
 
             // Fallback to role-based permission within team context
-            return $this->withTeamContext($teamId, fn () => $user->hasPermissionTo($permissionName));
+            // Use a fresh user instance to avoid relation cache bleed across team contexts
+            $res = $this->withTeamContext($teamId, function () use ($user, $permissionName) {
+                $u = $user->fresh();
+                if (method_exists($u, 'forgetCachedPermissions')) {
+                    $u->forgetCachedPermissions();
+                }
+                return $u->hasPermissionTo($permissionName);
+            });
+            if (config('app.debug')) {
+                logger()->debug('[PermissionService] role-based check', [
+                    'user_id' => $user->id,
+                    'permission' => $permissionName,
+                    'teamId' => $teamId,
+                    'result' => (bool) $res,
+                ]);
+            }
+            return $res;
         });
     }
 
@@ -83,7 +117,14 @@ class PermissionService
 
         return $this->cache->remember($key, now()->addSeconds(60), function () use ($user, $teamId) {
             // Base permissions from roles (respect team context)
-            $base = $this->withTeamContext($teamId, fn () => $user->getAllPermissions()->pluck('name')->all());
+            // Use a fresh user instance to avoid relation cache bleed across team contexts
+            $base = $this->withTeamContext($teamId, function () use ($user) {
+                $u = $user->fresh();
+                if (method_exists($u, 'forgetCachedPermissions')) {
+                    $u->forgetCachedPermissions();
+                }
+                return $u->getAllPermissions()->pluck('name')->all();
+            });
             $set = array_fill_keys($base, true);
 
             // Apply overrides for this team and global

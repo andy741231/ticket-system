@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\Rbac\DashboardController as RbacDashboardControll
 use App\Http\Controllers\Admin\Rbac\RolesController as RbacRolesController;
 use App\Http\Controllers\Admin\Rbac\PermissionsController as RbacPermissionsController;
 use App\Http\Controllers\Admin\Rbac\OverridesController as RbacOverridesController;
+use App\Http\Controllers\Admin\SuperAdminController;
 use Illuminate\Foundation\Application;
 use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Route;
@@ -111,5 +112,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
     
-    
+    // Super Admin management (global role). Additional server-side checks in controller ensure only super_admins can access.
+    Route::prefix('admin/super-admin')->name('admin.superadmin.')->group(function () {
+        // List page (no password confirmation)
+        Route::get('/', [SuperAdminController::class, 'index'])->name('index');
+        // Mutations
+        Route::post('/grant', [SuperAdminController::class, 'grant'])->name('grant');
+        Route::post('/revoke', [SuperAdminController::class, 'revoke'])->name('revoke');
+    });
+
 });
