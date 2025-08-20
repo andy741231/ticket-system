@@ -4,6 +4,9 @@ window.axios = axios;
 // Set default headers for all axios requests
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 window.axios.defaults.withCredentials = true;
+// Ensure Axios uses Laravel's XSRF cookie/header names
+window.axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
+window.axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
 
 // Add a request interceptor to include the CSRF token
 window.axios.interceptors.request.use(config => {

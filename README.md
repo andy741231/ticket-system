@@ -56,6 +56,14 @@ In order to ensure that the Laravel community is welcoming to all, please review
 
 If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
+## RBAC Documentation
+
+See the project’s RBAC guide for architecture, permissions, middleware, and frontend gating patterns:
+
+- [RBAC Guide](docs/RBAC.md)
+  - [Implementation Status](docs/RBAC.md#implementation-status)
+  - [Deployment Checklist](docs/RBAC.md#deployment-checklist)
+
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).

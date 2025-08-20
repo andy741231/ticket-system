@@ -4,10 +4,12 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import Checkbox from '@/Components/Checkbox.vue';
+import RbacRoleBadge from '@/Components/Rbac/RbacRoleBadge.vue';
 import { computed } from 'vue';
+import { useHasAny } from '@/Extensions/useAuthz';
+import ReadOnlyBanner from '@/Components/ReadOnlyBanner.vue';
 
 const props = defineProps({
     user: {
@@ -30,6 +32,14 @@ const form = useForm({
 
 const page = usePage();
 const isCurrentUser = computed(() => page.props.auth.user?.id === props.user.id);
+
+// Live preview of selected roles using role badges
+const selectedRoles = computed(() => {
+    const selected = new Set((form.roles || []).map((v) => Number(v)));
+    return (props.roles || []).filter((r) => selected.has(Number(r.id)));
+});
+
+const canManageRbacRoles = useHasAny(['admin.rbac.roles.manage']);
 
 const submit = () => {
     form.put(route('admin.users.update', props.user.id), {
@@ -110,12 +120,14 @@ const submit = () => {
                             <!-- Roles -->
                             <div v-if="!isCurrentUser">
                                 <InputLabel value="Roles" />
+                                <ReadOnlyBanner v-if="!canManageRbacRoles" title="Read-only" message="You do not have permission to manage roles." />
                                 <div class="mt-2 space-y-2">
                                     <div v-for="role in roles" :key="role.id" class="flex items-center">
                                         <Checkbox 
                                             :id="`role_${role.id}`" 
                                             :value="role.id" 
                                             v-model:checked="form.roles"
+                                            :disabled="!canManageRbacRoles"
                                             class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                                         />
                                         <label 
@@ -125,6 +137,16 @@ const submit = () => {
                                             {{ role.name }}
                                         </label>
                                     </div>
+                                </div>
+                                <!-- Selected roles preview -->
+                                <div class="mt-3 flex flex-wrap gap-1">
+                                    <RbacRoleBadge
+                                      v-for="r in selectedRoles"
+                                      :key="r.id"
+                                      :name="r.name"
+                                      size="sm"
+                                    />
+                                    <span v-if="selectedRoles.length === 0" class="text-xs text-gray-500 dark:text-gray-400">No roles selected</span>
                                 </div>
                                 <p v-if="isCurrentUser" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
                                     You cannot modify your own roles.
@@ -143,7 +165,7 @@ const submit = () => {
                                     >
                                         Cancel
                                     </Link>
-                                    <PrimaryButton :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
+                                    <PrimaryButton type="submit" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
                                         Update User
                                     </PrimaryButton>
                                 </div>

@@ -15,17 +15,24 @@ class TicketPolicy
      */
     public function viewAny(User $user): bool
     {
-        return true; // The actual filtering is done in the controller
+        // Users with explicit view or manage permission can access listing.
+        // Additional filtering by ownership can still be applied in controllers.
+        return $user->can('tickets.ticket.view') || $user->can('tickets.ticket.manage');
     }
 
     /**
      * Determine whether the user can view the model.
      *
-     * Admins can view any ticket, users can only view their own tickets.
+     * Admins can view any ticket. Users can view their own tickets
+     * and tickets where they are assigned.
      */
     public function view(User $user, Ticket $ticket): bool
     {
-        return $user->hasRole('admin') || $ticket->user_id === $user->id;
+        // Allow if user has manage or view permission, or owns the ticket
+        return $user->can('tickets.ticket.manage')
+            || $user->can('tickets.ticket.view')
+            || $ticket->user_id === $user->id
+            || $ticket->assignees()->where('users.id', $user->id)->exists();
     }
 
     /**
@@ -46,10 +53,12 @@ class TicketPolicy
      */
     public function update(User $user, Ticket $ticket): bool
     {
-        if ($user->hasRole('admin')) {
+        // Users with explicit permission can update any ticket
+        if ($user->can('tickets.ticket.manage') || $user->can('tickets.ticket.update')) {
             return true;
         }
 
+        // Owners can update when ticket is still in 'Received' status
         return $ticket->user_id === $user->id && $ticket->status === 'Received';
     }
 
@@ -60,7 +69,7 @@ class TicketPolicy
      */
     public function delete(User $user, Ticket $ticket): bool
     {
-        return $user->hasRole('admin');
+        return $user->can('tickets.ticket.manage') || $user->can('tickets.ticket.delete');
     }
 
     /**
@@ -70,7 +79,13 @@ class TicketPolicy
      */
     public function changeStatus(User $user, Ticket $ticket): bool
     {
-        return $user->hasRole('admin');
+        // Admins or users with explicit update permission can change any status
+        if ($user->can('tickets.ticket.manage') || $user->can('tickets.ticket.update')) {
+            return true;
+        }
+
+        // Also allow assigned users to change status (controller will restrict to 'Completed')
+        return $ticket->assignees()->where('users.id', $user->id)->exists();
     }
 
     /**
@@ -80,6 +95,6 @@ class TicketPolicy
      */
     public function viewAuthor(User $user, Ticket $ticket): bool
     {
-        return $user->hasRole('admin');
+        return $user->can('tickets.ticket.manage');
     }
 }

@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,14 +33,27 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:'.User::class,
+            // Username optional; will be auto-generated from email if missing
+            'username' => 'sometimes|nullable|string|max:255|unique:'.User::class,
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        $username = $request->input('username');
+        if (empty($username)) {
+            // Generate a username from email local-part and ensure uniqueness
+            $base = Str::slug(Str::before($request->email, '@'));
+            $candidate = $base ?: Str::random(8);
+            $suffix = 1;
+            while (User::where('username', $candidate)->exists()) {
+                $candidate = $base.'-'.$suffix++;
+            }
+            $username = $candidate;
+        }
+
         $user = User::create([
             'name' => $request->name,
-            'username' => $request->username,
+            'username' => $username,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);

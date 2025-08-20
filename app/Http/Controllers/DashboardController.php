@@ -51,9 +51,7 @@ class DashboardController extends Controller
         \Log::info('Data being passed to Inertia:', $data);
         
         $response = Inertia::render('Dashboard', $data);
-        
-        \Log::info('Inertia response data:', $response->getData());
-        
+        // Note: Inertia\Response does not have getData(); props are logged above via $data.
         return $response;
     }
     

@@ -21,7 +21,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Prune expired user permission overrides hourly
+        $schedule->command('rbac:prune-overrides')->hourly();
     }
 
     /**

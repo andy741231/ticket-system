@@ -22,8 +22,8 @@ class RedirectBasedOnRole
             if (Auth::guard($guard)->check()) {
                 $user = Auth::guard($guard)->user();
                 
-                // Check if the user has the admin role
-                if ($user->hasRole('admin')) {
+                // Check if the user is super admin or has Hub user management permission
+                if ((method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) || $user->can('hub.user.manage')) {
                     return redirect()->route('admin.dashboard');
                 }
                 

@@ -9,6 +9,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import FileUploader from '@/Components/FileUploader.vue';
+import MultiSelectCheckbox from '@/Components/MultiSelectCheckbox.vue';
 import Datepicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -17,6 +18,10 @@ const props = defineProps({
         type: Array,
         default: () => ['Low', 'Medium', 'High'],
     },
+    users: {
+        type: Array,
+        required: true,
+    },
 });
 
 const form = useForm({
@@ -24,6 +29,7 @@ const form = useForm({
     description: '',
     priority: 'Medium',
     due_date: '',
+    assigned_user_ids: [],
     temp_file_ids: [],
 });
 
@@ -48,14 +54,19 @@ onUnmounted(() => {
 const tempFiles = ref([]);
 
 const handleFilesUploaded = (files) => {
-    // Store the file IDs to be associated with the ticket
+    // Store the file IDs to be associated with the ticket and update previews
     files.forEach(file => {
         form.temp_file_ids.push(file.id);
-    });};
+    });
+    // Merge newly uploaded files into the tempFiles list for preview
+    tempFiles.value = [...tempFiles.value, ...files];
+};
 
 const handleFileRemoved = (file) => {
     // Remove the file ID from the temp files array
     form.temp_file_ids = form.temp_file_ids.filter(id => id !== file.id);
+    // Also remove the file object from the tempFiles previews
+    tempFiles.value = tempFiles.value.filter(f => f.id !== file.id);
 };
 
 // Handle form submission
@@ -121,18 +132,32 @@ const cancel = () => {
                                     <InputLabel class="text-uh-slate dark:text-uh-cream" for="due_date" value="Due Date" />
                                     <Datepicker
                                         id="due_date"
-                                        v-model="form.due_date"
+                                        v-model="form.due_date" 
                                         model-type="yyyy-MM-dd"
                                         :enable-time-picker="false"
                                         :dark="isDark"
                                         :teleport="true"
                                         :auto-apply="true"
                                         :hide-input-icon="false"
-                                        input-class-name="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-uh-slate dark:text-uh-cream rounded-md shadow-sm"
+                                        input-class-name="mt-1 block w-full bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-300 placeholder-gray-500 dark:placeholder-gray-400 focus:border-uh-teal dark:focus:border-uh-teal focus:ring-uh-teal dark:focus:ring-uh-teal rounded-md shadow-sm h-10 px-3"
                                         placeholder="Select a due date"
                                     />
                                     <InputError class="mt-2" :message="form.errors.due_date" />
                                 </div>
+                            </div>
+
+                            <!-- Assign User -->
+                            <div>
+                                <InputLabel class="text-uh-slate dark:text-uh-cream" for="assigned_user_ids" value="Assign To" />
+                                <MultiSelectCheckbox
+                                    id="assigned_user_ids"
+                                    v-model="form.assigned_user_ids"
+                                    :options="users"
+                                    label-key="name"
+                                    value-key="id"
+                                    placeholder="Select assignees"
+                                />
+                                <InputError class="mt-2" :message="form.errors.assigned_user_ids" />
                             </div>
 
                             <!-- Description (Tiptap Editor) -->
@@ -164,6 +189,7 @@ const cancel = () => {
                                     Cancel
                                 </SecondaryButton>
                                 <PrimaryButton 
+                                    type="submit"
                                     :class="{ 'opacity-25': form.processing }" 
                                     :disabled="form.processing"
                                 >

@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 mx-4" @keydown.esc="resetLinkDialog">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">{{ isEditingLink ? 'Edit Link' : 'Insert Link' }}</h3>
                 
-                <div class="space-y-4">
+                <div class="">
                     <div>
                         <label for="link-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             URL <span class="text-red-500">*</span>
@@ -598,5 +598,15 @@ onBeforeUnmount(() => {
 
 .ProseMirror img.ProseMirror-selectednode {
     outline: 3px solid #3b82f6;
+}
+
+.ProseMirror p {
+  /* “extra row” between paragraphs */
+  margin: 0 0 1rem; /* adjust to taste: 1rem–1.5rem */
+  line-height: 1.7; /* optional: improve readability */
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0; /* avoid trailing extra space */
 }
 </style>

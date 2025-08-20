@@ -2,8 +2,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { ClockIcon, UserGroupIcon, TicketIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/vue/24/outline/index.js';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
+import { useHasAny } from '@/Extensions/useAuthz';
 
 // Create reactive stats object
 const stats = ref({
@@ -38,6 +39,9 @@ onMounted(() => {
     console.log('Dashboard mounted, fetching stats...');
     fetchStats();
 });
+
+// Permission-based UI gating
+const canManageUsers = useHasAny(['hub.user.manage']);
 </script>
 
 <template>
@@ -64,7 +68,7 @@ onMounted(() => {
                     View Tickets
                 </Link>
                 <Link
-                    v-if="$page.props.auth.user.roles?.includes('admin')"
+                    v-if="canManageUsers"
                     :href="route('admin.users.index')"
                     class="inline-flex items-center px-4 py-2 bg-uh-brick text-white border border-transparent rounded-md font-semibold text-xs uppercase tracking-widest hover:bg-uh-brick-dark focus:outline-none focus:border-uh-brick-dark focus:ring focus:ring-uh-brick-light disabled:opacity-25 transition"
                 >

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Ticket;
 use App\Models\TempFile;
 use App\Models\TicketFile;
+use App\Models\User;
+use App\Models\Team;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -21,15 +23,37 @@ class TicketController extends Controller
     public function index(Request $request)
     {
         $this->authorize('viewAny', Ticket::class);
+        
+        $canManage = auth()->user()->can('tickets.ticket.manage');
+        $rawScope = $request->input('scope');
+        $scope = in_array($rawScope, ['assigned', 'submitted'], true)
+            ? $rawScope
+            : null; // default: no explicit scope; we'll apply a base filter for non-managers
 
-        $tickets = Ticket::with('user')
-            ->when(!auth()->user()->hasRole('admin'), function ($query) {
-                return $query->where('user_id', auth()->id());
+        $tickets = Ticket::with(['user', 'assignees'])
+            // Base ownership filter for non-managers when no explicit scope is selected:
+            // include tickets submitted by me OR assigned to me.
+            ->when(!$canManage && $scope === null, function ($query) {
+                $query->where(function($q) {
+                    $q->where('user_id', auth()->id())
+                      ->orWhereHas('assignees', function($sub) {
+                          $sub->where('users.id', auth()->id());
+                      });
+                });
+            })
+            // Explicit ownership scopes (override the base filter above)
+            ->when($scope === 'submitted', function ($query) {
+                $query->where('user_id', auth()->id());
+            })
+            ->when($scope === 'assigned', function ($query) {
+                $query->whereHas('assignees', function($sub) {
+                    $sub->where('users.id', auth()->id());
+                });
             })
             ->when($request->search, function ($query, $search) {
                 $query->where(function($q) use ($search) {
                     $q->where('title', 'like', "%{$search}%")
-                      ->orWhere('description', 'like', "%{$search}%");
+                      ->orWhere('description_text', 'like', "%{$search}%");
                 });
             })
             ->when($request->status, function ($query, $status) {
@@ -39,7 +63,18 @@ class TicketController extends Controller
                 $query->where('priority', $priority);
             })
             ->when($request->assignee, function ($query, $assignee) {
-                $query->where('assigned_to', $assignee);
+                $ids = collect(explode(',', (string) $assignee))
+                    ->filter()
+                    ->map(fn($v) => (int) $v)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (!empty($ids)) {
+                    $query->whereHas('assignees', function($sub) use ($ids) {
+                        $sub->whereIn('users.id', $ids);
+                    });
+                }
             })
             ->when($request->date_from, function ($query, $date) {
                 $query->whereDate('created_at', '>=', $date);
@@ -53,7 +88,10 @@ class TicketController extends Controller
 
         return Inertia::render('Tickets/Index', [
             'tickets' => $tickets,
-            'filters' => $request->only(['search', 'status', 'priority', 'assignee', 'date_from', 'date_to', 'sort_field', 'sort_direction']),
+            'filters' => array_merge(
+                $request->only(['search', 'status', 'priority', 'assignee', 'date_from', 'date_to', 'sort_field', 'sort_direction']),
+                ['scope' => $scope]
+            ),
             'status' => session('status'),
         ]);
     }
@@ -67,6 +105,12 @@ class TicketController extends Controller
 
         return Inertia::render('Tickets/Create', [
             'priorities' => ['Low', 'Medium', 'High'],
+            'users' => User::all()->map(function($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                ];
+            }),
         ]);
     }
 
@@ -82,6 +126,8 @@ class TicketController extends Controller
             'description' => 'required|string',
             'priority' => 'required|in:Low,Medium,High',
             'due_date' => 'nullable|date',
+            'assigned_user_ids' => 'sometimes|array',
+            'assigned_user_ids.*' => 'integer|exists:users,id',
             'temp_file_ids' => 'sometimes|array',
             'temp_file_ids.*' => 'integer',
         ]);
@@ -89,7 +135,19 @@ class TicketController extends Controller
         $ticket = new Ticket($validated);
         $ticket->user_id = auth()->id();
         $ticket->status = 'Received';
+        $ticket->updated_by = auth()->id();
         $ticket->save();
+
+        // Sync multi assignees (pivot)
+        $assignedIds = collect($request->input('assigned_user_ids', []))
+            ->filter()
+            ->map(fn($v) => (int) $v)
+            ->unique()
+            ->values();
+
+        if ($assignedIds->isNotEmpty()) {
+            $ticket->assignees()->sync($assignedIds->all());
+        }
 
         // If there are temporary files, move them to the ticket and create TicketFile records
         $tempIds = collect($request->input('temp_file_ids', []))
@@ -137,17 +195,56 @@ class TicketController extends Controller
     {
         $this->authorize('view', $ticket);
 
-        $ticket->load(['user', 'files']);
+        $ticket->load([
+            'user',
+            'files',
+            'assignees',
+            'updatedBy',
+            'comments' => function ($q) {
+                $q->with(['user:id,name,email'])
+                  ->orderBy('created_at', 'asc');
+            },
+        ]);
+        
+        // Get team member information if user has an email
+        $userWithTeam = null;
+        if ($ticket->user && $ticket->user->email) {
+            $teamMember = Team::where('email', $ticket->user->email)->first();
+            if ($teamMember) {
+                $userWithTeam = [
+                    'id' => $ticket->user->id,
+                    'name' => $ticket->user->name,
+                    'email' => $ticket->user->email,
+                    'is_team_member' => true,
+                    'team_id' => $teamMember->id
+                ];
+            }
+        }
         
         return Inertia::render('Tickets/Show', [
             'ticket' => array_merge($ticket->toArray(), [
-                'files' => $ticket->files
+                'files' => $ticket->files,
+                'user' => $userWithTeam ?: ($ticket->user ? [
+                    'id' => $ticket->user->id,
+                    'name' => $ticket->user->name,
+                    'email' => $ticket->user->email,
+                    'is_team_member' => false
+                ] : null),
+                'updated_by_user' => $ticket->updatedBy ? [
+                    'id' => $ticket->updatedBy->id,
+                    'name' => $ticket->updatedBy->name,
+                    'email' => $ticket->updatedBy->email,
+                ] : null,
             ]),
             'can' => [
                 'update' => auth()->user()->can('update', $ticket),
                 'delete' => auth()->user()->can('delete', $ticket),
                 'changeStatus' => auth()->user()->can('changeStatus', $ticket),
+                // Full control: approve/reject/complete (managers or users with update permission)
+                'changeStatusAll' => auth()->user()->can('tickets.ticket.manage') || auth()->user()->can('tickets.ticket.update'),
             ],
+            'isAssignee' => $ticket->assignees()->where('users.id', auth()->id())->exists(),
+            'authUserId' => auth()->id(),
         ]);
     }
 
@@ -158,13 +255,19 @@ class TicketController extends Controller
     {
         $this->authorize('update', $ticket);
         
-        // Load the files relationship
-        $ticket->load('files');
+        // Load relationships needed for edit (files and assignees)
+        $ticket->load(['files', 'assignees']);
 
         return Inertia::render('Tickets/Edit', [
             'ticket' => $ticket,
             'priorities' => ['Low', 'Medium', 'High'],
             'statuses' => ['Received', 'Approved', 'Rejected', 'Completed'],
+            'users' => User::all()->map(function($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                ];
+            }),
         ]);
     }
 
@@ -181,9 +284,26 @@ class TicketController extends Controller
             'priority' => 'required|in:Low,Medium,High',
             'status' => 'sometimes|required|in:Received,Approved,Rejected,Completed',
             'due_date' => 'nullable|date',
+            'assigned_user_ids' => 'sometimes|array',
+            'assigned_user_ids.*' => 'integer|exists:users,id',
         ]);
 
-        $ticket->update($validated);
+        // Fill allowed fields and update modifier
+        $ticket->fill($validated);
+        $ticket->updated_by = auth()->id();
+        $ticket->save();
+
+        // Sync multi assignees (pivot)
+        $assignedIds = collect($request->input('assigned_user_ids', []))
+            ->filter()
+            ->map(fn($v) => (int) $v)
+            ->unique()
+            ->values();
+
+        // If the field is present, sync (including empty to detach all)
+        if ($request->has('assigned_user_ids')) {
+            $ticket->assignees()->sync($assignedIds->all());
+        }
 
         return redirect()
             ->route('tickets.show', $ticket)
@@ -197,11 +317,18 @@ class TicketController extends Controller
     {
         $this->authorize('changeStatus', $ticket);
 
+        $canChangeAll = auth()->user()->can('tickets.ticket.manage') || auth()->user()->can('tickets.ticket.update');
+
+        // Only managers/updaters can approve/reject; assignees can only complete
+        $allowed = $canChangeAll ? 'Approved,Rejected,Completed' : 'Completed';
+
         $validated = $request->validate([
-            'status' => 'required|in:Approved,Rejected,Completed',
+            'status' => 'required|in:' . $allowed,
         ]);
 
-        $ticket->update($validated);
+        $ticket->status = $validated['status'];
+        $ticket->updated_by = auth()->id();
+        $ticket->save();
 
         return redirect()
             ->back()

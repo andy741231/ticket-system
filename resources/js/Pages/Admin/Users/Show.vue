@@ -4,6 +4,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import { computed } from 'vue';
+import RbacRoleBadge from '@/Components/Rbac/RbacRoleBadge.vue';
+import { useHasAny, useAppContext } from '@/Extensions/useAuthz';
 
 const props = defineProps({
     user: {
@@ -58,6 +60,8 @@ const getPriorityBadgeClass = (priority) => {
             return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     }
 };
+const canManageOverrides = useHasAny(['admin.rbac.overrides.manage']);
+const { currentTeamId } = useAppContext();
 </script>
 
 <template>
@@ -90,6 +94,13 @@ const getPriorityBadgeClass = (priority) => {
                     >
                         Delete User
                     </Link>
+                    <Link 
+                        v-if="canManageOverrides"
+                        :href="route('admin.rbac.overrides.create', { user_id: user.id, team_id: currentTeamId })"
+                        class="inline-flex items-center px-4 py-2 bg-uh-teal border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-teal/90 focus:outline-none focus:ring-2 focus:ring-uh-teal focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
+                    >
+                        Create Override
+                    </Link>
                 </div>
             </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -106,23 +117,14 @@ const getPriorityBadgeClass = (priority) => {
                                     
                                     <div class="mt-4 w-full">
                                         <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Roles</h4>
-                                        <div class="space-y-1">
-                                            <div 
-                                                v-for="role in user.roles" 
-                                                :key="role.id"
-                                                class="px-2 py-1 text-xs font-medium rounded-full text-center"
-                                                :class="{
-                                                    'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': role.name === 'admin',
-                                                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': role.name === 'user',
-                                                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200': !['admin', 'user'].includes(role.name)
-                                                }"
-                                            >
-                                                {{ role.name }}
-                                            </div>
-                                            <div 
-                                                v-if="user.roles.length === 0"
-                                                class="text-sm text-gray-500 dark:text-gray-400 text-center"
-                                            >
+                                        <div class="flex flex-wrap gap-1">
+                                            <RbacRoleBadge
+                                              v-for="role in user.roles"
+                                              :key="role.id ?? role.name"
+                                              :name="role.name"
+                                              size="sm"
+                                            />
+                                            <div v-if="user.roles.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
                                                 No roles assigned
                                             </div>
                                         </div>
