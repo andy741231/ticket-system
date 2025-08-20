@@ -7,8 +7,8 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
+use App\Models\Role;
+use App\Models\Permission;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -60,8 +60,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'edit tickets',
         ]);
 
-        
-
         // Create regular user
         $user = User::firstOrCreate(
             ['email' => 'user@example.com'],
@@ -72,7 +70,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'email_verified_at' => now(),
             ]
         );
-        $user->assignRole('user');
+        // Note: Do not assign roles here when Teams are enabled; per-app role assignments
+        // are handled in RbacSeeder using the appropriate team (app) context.
 
         // Create some sample tickets
         Ticket::create([

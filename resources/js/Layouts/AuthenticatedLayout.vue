@@ -1,10 +1,10 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 
 // Font Awesome
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -17,11 +17,19 @@ import {
     faGear,
     faRightFromBracket,
     faBars,
-    faXmark
+    faXmark,
+    faAddressBook
 } from '@fortawesome/free-solid-svg-icons';
 
+// RBAC composable
+import { useHasAny } from '@/Extensions/useAuthz';
+
 // Add icons to the library
-library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark);
+library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook);
+
+// Permission helpers (team-aware)
+const isSuperAdmin = computed(() => usePage().props.auth?.user?.isSuperAdmin === true);
+const hasAny = (permissions = []) => useHasAny(permissions).value;
 
 // Sidebar state
 // Theme state
@@ -42,6 +50,45 @@ const toggleDarkMode = () => {
     console.log('Dark mode:', darkMode.value ? 'enabled' : 'disabled');
 };
 
+// ----- Global Flash Messages -----
+const page = usePage();
+const showFlash = ref(false);
+const flashMessage = ref('');
+const flashStyle = ref('success'); // success | error | info | warning
+
+const extractFlash = (flash) => {
+    if (!flash) return null;
+    // Support multiple conventions
+    if (flash.success) return { text: flash.success, style: 'success' };
+    if (flash.error) return { text: flash.error, style: 'error' };
+    if (flash.warning) return { text: flash.warning, style: 'warning' };
+    if (flash.info) return { text: flash.info, style: 'info' };
+    if (flash.status && flash.message) return { text: flash.message, style: flash.status };
+    if (flash.message) return { text: flash.message, style: 'info' };
+    return null;
+};
+
+watch(
+    () => page.props.flash,
+    (val) => {
+        const f = extractFlash(val);
+        if (f) {
+            flashMessage.value = f.text;
+            flashStyle.value = f.style;
+            showFlash.value = true;
+            // Auto-dismiss after 4s
+            setTimeout(() => {
+                showFlash.value = false;
+            }, 4000);
+        }
+    },
+    { immediate: true }
+);
+
+const closeFlash = () => {
+    showFlash.value = false;
+};
+
 // Update dark mode class on HTML element based on saved preference
 const updateDarkMode = () => {
     const isDark = localStorage.getItem('darkMode') === 'true' || 
@@ -59,6 +106,10 @@ const updateDarkMode = () => {
 const isSidebarOpen = ref(false);
 const isMobile = ref(false);
 const userMenuOpen = ref(false);
+
+// Media query references for cleanup
+let darkModeMediaQuery = null;
+let darkModeChangeHandler = null;
 
 // Check screen size and handle sidebar state
 const checkScreenSize = () => {
@@ -85,7 +136,12 @@ const handleClickOutside = (event) => {
     const userMenu = document.getElementById('user-menu-button');
     
     // Close sidebar if open and click is outside
-    if (isSidebarOpen.value && sidebar && !sidebar.contains(event.target) && !sidebarToggle.contains(event.target)) {
+    if (
+        isSidebarOpen.value &&
+        sidebar &&
+        !sidebar.contains(event.target) &&
+        (!sidebarToggle || !sidebarToggle.contains(event.target))
+    ) {
         isSidebarOpen.value = false;
     }
     
@@ -102,6 +158,7 @@ const pageTitles = {
     'users': 'Users',
     'dashboard': 'Dashboard',
     'profile': 'My Profile',
+    'directory': 'Directory',
     // Add more special cases as needed
 };
 
@@ -148,26 +205,23 @@ onMounted(() => {
     document.addEventListener('click', handleClickOutside);
     
     // Listen for system color scheme changes
-    const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e) => {
+    darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    darkModeChangeHandler = (e) => {
         if (!('darkMode' in localStorage)) {
             darkMode.value = e.matches;
             updateDarkMode();
         }
     };
-    darkModeMediaQuery.addEventListener('change', handleChange);
-    
-    return () => {
-        window.removeEventListener('resize', checkScreenSize);
-        document.removeEventListener('click', handleClickOutside);
-        darkModeMediaQuery.removeEventListener('change', handleChange);
-    };
+    darkModeMediaQuery.addEventListener('change', darkModeChangeHandler);
 });
 
 // Clean up event listeners
 onUnmounted(() => {
     window.removeEventListener('resize', checkScreenSize);
     document.removeEventListener('click', handleClickOutside);
+    if (darkModeMediaQuery && darkModeChangeHandler) {
+        darkModeMediaQuery.removeEventListener('change', darkModeChangeHandler);
+    }
 });
 
 // Handle navigation
@@ -245,6 +299,7 @@ const navigate = (url) => {
                         </NavLink>
 
                         <NavLink 
+                            v-if="isSuperAdmin || hasAny(['tickets.app.access'])"
                             :href="route('tickets.index')" 
                             :active="route().current('tickets.*')"
                             class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
@@ -267,7 +322,30 @@ const navigate = (url) => {
                         </NavLink>
 
                         <NavLink 
-                            v-if="$page.props.auth.user.roles?.includes('admin')"
+                            v-if="isSuperAdmin || hasAny(['directory.app.access'])"
+                            :href="route('directory.index')" 
+                            :active="route().current('directory.*')"
+                            class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
+                            :class="{
+                                'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20': route().current('directory.*'),
+                                'text-gray-300 hover:bg-gray-800/50 hover:text-white': !route().current('directory.*')
+                            }"
+                            @click="navigate(route('directory.index'))"
+                        >
+                            <span class="absolute left-0 w-1 h-6 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !route().current('directory.*') }"></span>
+                            <font-awesome-icon :icon="['fas', 'address-book']" class="h-5 w-5 flex-shrink-0"
+                                :class="{
+                                    'text-uh-red': route().current('directory.*'),
+                                    'text-gray-400 group-hover:text-white': !route().current('directory.*')
+                                }"
+                            />
+                            <span class="ml-4 text-sm font-medium">
+                                Directory
+                            </span>
+                        </NavLink>
+
+                        <NavLink 
+                            v-if="isSuperAdmin || hasAny(['hub.app.access'])"
                             :href="route('admin.users.index')" 
                             :active="route().current('admin.users.*')"
                             class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
@@ -286,6 +364,29 @@ const navigate = (url) => {
                             />
                             <span class="ml-4 text-sm font-medium">
                                 User Management
+                            </span>
+                        </NavLink>
+
+                        <NavLink 
+                            v-if="isSuperAdmin || hasAny(['admin.rbac.roles.manage', 'admin.rbac.permissions.manage', 'admin.rbac.overrides.manage'])"
+                            :href="route('admin.rbac.dashboard')" 
+                            :active="route().current('admin.rbac.*')"
+                            class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
+                            :class="{
+                                'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20': route().current('admin.rbac.*'),
+                                'text-gray-300 hover:bg-gray-800/50 hover:text-white': !route().current('admin.rbac.*')
+                            }"
+                            @click="navigate(route('admin.rbac.dashboard'))"
+                        >
+                            <span class="absolute left-0 w-1 h-6 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !route().current('admin.rbac.*') }"></span>
+                            <font-awesome-icon :icon="['fas', 'gear']" class="h-5 w-5 flex-shrink-0"
+                                :class="{
+                                    'text-uh-red': route().current('admin.rbac.*'),
+                                    'text-gray-400 group-hover:text-white': !route().current('admin.rbac.*')
+                                }"
+                            />
+                            <span class="ml-4 text-sm font-medium">
+                                RBAC Admin
                             </span>
                         </NavLink>
                     </div>
@@ -307,7 +408,7 @@ const navigate = (url) => {
                             :aria-expanded="isSidebarOpen"
                         >
                             <span class="sr-only">Open sidebar</span>
-                            <font-awesome-icon :icon="isSidebarOpen ? 'bars' : 'bars'" class="h-5 w-5" />
+                            <font-awesome-icon :icon="isSidebarOpen ? ['fas','xmark'] : ['fas','bars']" class="h-5 w-5" />
                         </button>
                         
                         <!-- Page Title -->
@@ -319,6 +420,7 @@ const navigate = (url) => {
                         
                         <div class="flex items-center">
                             <div class="flex items-center space-x-2 md:space-x-3">
+                               
                                 <!-- Theme Toggle Button -->
                                 <button 
                                     @click="toggleDarkMode" 
@@ -417,6 +519,19 @@ const navigate = (url) => {
 
             <!-- Main content area -->
             <main class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+                <!-- Global Flash Message -->
+                <div v-if="showFlash" class="mb-4 rounded-md border p-3"
+                     :class="[
+                        flashStyle === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+                        flashStyle === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
+                        flashStyle === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+                        'bg-blue-50 border-blue-200 text-blue-800'
+                     ]">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="text-sm font-medium">{{ flashMessage }}</div>
+                        <button @click="closeFlash" class="text-xs text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">Dismiss</button>
+                    </div>
+                </div>
                 <!-- Page Heading -->
                 <header class="mb-6" v-if="$slots.header">
                     <div class="px-4 sm:px-0">

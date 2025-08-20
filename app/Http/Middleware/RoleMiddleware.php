@@ -22,7 +22,12 @@ class RoleMiddleware
 
         $user = Auth::user();
         
-        // Check if user has the role using Spatie's hasRole method
+        // Super admins bypass role checks
+        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+            return $next($request);
+        }
+
+        // Check if user has the role using Spatie's hasRole method (team-aware via SetAppContext)
         if (!$user->hasRole($role)) {
             abort(403, 'You do not have permission to access this resource.');
         }

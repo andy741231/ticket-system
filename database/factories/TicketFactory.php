@@ -22,12 +22,13 @@ class TicketFactory extends Factory
      */
     public function definition()
     {
+        $due = $this->faker->optional()->dateTimeBetween('now', '+30 days');
         return [
             'title' => $this->faker->sentence(),
             'description' => $this->faker->paragraph(),
             'status' => $this->faker->randomElement(['Received', 'Approved', 'Rejected', 'Completed']),
             'priority' => $this->faker->randomElement(['Low', 'Medium', 'High']),
-            'due_date' => $this->faker->optional()->dateTimeBetween('now', '+30 days')->format('Y-m-d'),
+            'due_date' => $due ? $due->format('Y-m-d') : null,
             'user_id' => User::factory(),
         ];
     }

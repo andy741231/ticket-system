@@ -7,7 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import FileUploader from '@/Components/FileUploader.vue';
 import FileIcon from '@/Components/FileIcon.vue';
 import { ref, computed } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { useHasAny } from '@/Extensions/useAuthz';
 
 const props = defineProps({
     ticket: {
@@ -20,12 +20,20 @@ const props = defineProps({
             update: false,
             delete: false,
             changeStatus: false,
+            changeStatusAll: false,
         }),
+    },
+    isAssignee: {
+        type: Boolean,
+        default: false,
+    },
+    authUserId: {
+        type: Number,
+        default: null,
     },
 });
 
-const page = usePage();
-const isAdmin = computed(() => page.props.auth.user.roles?.includes('admin') || false);
+const canManageTickets = useHasAny(['tickets.ticket.manage']);
 
 // Debug: Log ticket data to console
 console.log('Ticket data:', props.ticket);
@@ -50,13 +58,23 @@ const statusOptions = {
     'Completed': 'Mark as Completed',
 };
 
+// Computed: allowed options based on permissions
+const filteredStatusOptions = computed(() => {
+    if (props.can?.changeStatusAll) {
+        return statusOptions;
+    }
+    // If user is an assignee (but not full control), only allow completion
+    if (props.isAssignee) {
+        return { 'Completed': statusOptions['Completed'] };
+    }
+    return {};
+});
+
 const formatDate = (dateString) => {
     const options = { 
         year: 'numeric', 
         month: 'long', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+        day: 'numeric'
     };
     return new Date(dateString).toLocaleDateString(undefined, options);
 };
@@ -174,6 +192,45 @@ const applyStatus = () => {
         selectedStatus.value = '';
     }
 };
+
+// Comments state and actions
+const newComment = ref('');
+const posting = ref(false);
+
+const submitComment = () => {
+    if (!newComment.value.trim() || posting.value) return;
+    posting.value = true;
+    router.post(route('tickets.comments.store', { ticket: props.ticket.id }), { body: newComment.value }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            newComment.value = '';
+            // Reload only ticket data to refresh comments
+            router.reload({ only: ['ticket'] });
+        },
+        onFinish: () => { posting.value = false; }
+    });
+};
+
+const canDeleteAnyComment = useHasAny(['tickets.ticket.manage', 'tickets.ticket.delete']);
+const canDeleteComment = (comment) => {
+    // Owner or users with manage/delete permission
+    return (comment.user_id === props.authUserId) || canDeleteAnyComment.value;
+};
+
+const deleting = ref(false);
+const deleteComment = (comment) => {
+    if (deleting.value) return;
+    if (!canDeleteComment(comment)) return;
+    if (!confirm('Delete this comment?')) return;
+    deleting.value = true;
+    router.delete(route('tickets.comments.destroy', { ticket: props.ticket.id, comment: comment.id }), {
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['ticket'] });
+        },
+        onFinish: () => { deleting.value = false; }
+    });
+};
 </script>
 
 <template>
@@ -228,7 +285,7 @@ const applyStatus = () => {
                                                     class="text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py- focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
                                                 >
                                                     <option value="" disabled>Select action</option>
-                                                    <option v-for="(label, status) in statusOptions" :key="status" :value="status">{{ label }}</option>
+                                                    <option v-for="(label, status) in filteredStatusOptions" :key="status" :value="status">{{ label }}</option>
                                                 </select>
                                                 <button
                                                     type="button"
@@ -257,7 +314,7 @@ const applyStatus = () => {
                                             </Link>
                                         </div>
                                     </div>
-                                    <div class="p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-96 prose dark:prose-invert max-w-none break-words" v-html="ticket.description"></div>
+                                    <div class="p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-[500px] prose dark:prose-invert max-w-none break-words" v-html="ticket.description"></div>
                                 </div>
                                 
                                 <!-- Attachments Section -->
@@ -300,17 +357,20 @@ const applyStatus = () => {
                                     <div class="space-y-3">
                                         <div>
                                             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Ticket URL</p>
-                                            <div class="mt-1 flex items-center">
+                                            <div class="mt-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0">
                                                 <input
                                                     type="text"
                                                     :value="ticketUrl"
                                                     readonly
-                                                    class="flex-1 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
+                                                    :title="ticketUrl"
+                                                    @focus="$event.target.select()"
+                                                    spellcheck="false"
+                                                    class="w-full sm:flex-1 rounded-md sm:rounded-l-md sm:rounded-r-none border border-gray-300 dark:border-gray-600 sm:border-r-0 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal truncate"
                                                 />
                                                 <button
                                                     @click="copyTicketUrl"
                                                     type="button"
-                                                    class="inline-flex items-center justify-center px-3 py-2 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-md bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-uh-teal"
+                                                    class="w-full sm:w-auto inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 sm:border-l-0 rounded-md sm:rounded-l-none sm:rounded-r-md bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-uh-teal"
                                                     :aria-label="copied ? 'Copied' : 'Copy URL'"
                                                     :title="copied ? 'Copied!' : 'Copy URL'"
                                                 >
@@ -349,7 +409,7 @@ const applyStatus = () => {
                                         <div class="flex justify-start items-center">
                                         <div>
                                             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">
-                                                {{ isAdmin ? 'Submitted By:' : 'Your Information' }}
+                                               Submitted By:
                                             </p>
                                                 <!-- commented out for circle icon with user name now 
                                                 <div class="ml-2 flex items-center space-x-3">
@@ -365,39 +425,75 @@ const applyStatus = () => {
                                         </div>
                                         <div class="ml-2 flex justify-start items-center">
                                             <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                                <a class="underline hover:text-blue-600 hover:underline" :href="ticket.user?.email ? ('mailto:' + ticket.user.email) : '#'" target="_blank" rel="noopener noreferrer">{{ ticket.user?.name || 'Unknown User' }}</a>
+                                                <template v-if="ticket.user?.email">
+                                                    <Link v-if="ticket.user.is_team_member" :href="route('directory.show', ticket.user.team_id)" class="underline hover:text-blue-600 hover:underline">
+                                                        {{ ticket.user?.name || 'Unknown User' }}
+                                                    </Link>
+                                                    <a v-else :href="'mailto:' + ticket.user.email" class="underline hover:text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+                                                        {{ ticket.user?.name || 'Unknown User' }}
+                                                    </a>
+                                                </template>
+                                                <template v-else>
+                                                    {{ ticket.user?.name || 'Unknown User' }}
+                                                </template>
                                             </p>
                                         </div>
                                         </div>
                                     </div>
                                     <div>
-                                        <div class="flex justify-start items-center">
+                                        <div class="mt-2 flex justify-start items-center">
                                             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Created: </p>
                                             <p class="ml-2 text-sm text-gray-900 dark:text-white">
                                                 {{ formatDate(ticket.created_at) }}
                                             </p>
                                         </div>
                                         
-                                        <div v-if="ticket.updated_at !== ticket.created_at">
-                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated</p>
-                                            <p class="mt-1 text-sm text-gray-900 dark:text-white">
+                                        <div v-if="ticket.updated_at !== ticket.created_at" class="mt-2 flex justify-start items-center">
+                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated: </p>
+                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
                                                 {{ formatDate(ticket.updated_at) }}
                                             </p>
                                         </div>
+                                        <div v-if="ticket.updated_by_user" class="mt-2 flex justify-start items-center">
+                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Last Modified By:</p>
+                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
+                                                <a
+                                                    class="underline hover:text-blue-600 hover:underline"
+                                                    :href="ticket.updated_by_user?.email ? ('mailto:' + ticket.updated_by_user.email) : '#'"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    {{ ticket.updated_by_user?.name || 'Unknown User' }}
+                                                </a>
+                                            </p>
+                                        </div>
+                                        <!-- ticket due date -->
+                                        <div class="pl-2 flex mt-2 justify-start p-2items-center bg-uh-cream" v-if="ticket.due_date">
+                                             <p class="text-sm font-medium text-gray-500">Due Date:</p>
+                                             <p class="ml-2 text-sm text-gray-900 ">
+                                                 {{ formatDate(ticket.due_date) }}
+                                             </p>
+                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- User Info -->
                                 <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                                     <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                                        Assigned To:
+                                        Assignees
                                     </h3>
-                                    <div>
-                                        <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                            <a class="underline hover:text-blue-600 hover:underline" :href="ticket.user?.email ? ('mailto:' + ticket.user.email) : '#'" target="_blank" rel="noopener noreferrer">
-                                                {{ ticket.user?.name || 'Unknown User' }}
-                                            </a>
-                                        </p>
+                                    <div class="flex items-center gap-1 flex-wrap">
+                                        <template v-if="ticket.assignees && ticket.assignees.length">
+                                            <span v-for="user in ticket.assignees" :key="user.id" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/10 dark:bg-uh-teal/20 text-uh-slate dark:text-uh-cream">
+                                                <!-- simple user icon -->
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 mr-1 text-uh-teal dark:text-uh-teal/80">
+                                                    <path d="M10 10a4 4 0 100-8 4 4 0 000 8z" />
+                                                    <path fill-rule="evenodd" d="M.458 16.042A9.956 9.956 0 0110 12c3.866 0 7.236 2.2 8.942 5.458A.75.75 0 0118.25 19H1.75a.75.75 0 01-1.292-.958z" clip-rule="evenodd" />
+                                                </svg>
+                                                {{ user.name }}
+                                            </span>
+                                        </template>
+                                        <span v-else class="text-gray-400">Unassigned</span>
                                     </div>
                                 </div>
                                 
@@ -441,14 +537,67 @@ const applyStatus = () => {
                             </div>
                         </div>
                     </div>
-                
-                <!-- Comments Section (Placeholder for future implementation) -->
+            </div>
+        </div>
+
+        <!-- Comments Section -->
+        <div class="py-6">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
                         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Comments</h3>
-                        <p class="text-gray-500 dark:text-gray-400 italic">
-                            Comments functionality will be implemented in a future update.
-                        </p>
+
+                        <!-- List -->
+                        <div v-if="ticket.comments && ticket.comments.length" class="space-y-4 mb-6">
+                            <div v-for="comment in ticket.comments" :key="comment.id" class="p-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="h-9 w-9 rounded-full bg-uh-teal/20 flex items-center justify-center text-uh-teal font-semibold">
+                                            {{ (comment.user?.name || 'U').charAt(0).toUpperCase() }}
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ comment.user?.name || 'Unknown User' }}</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">{{ new Date(comment.created_at).toLocaleString() }}</div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        v-if="canDeleteComment(comment)"
+                                        @click="deleteComment(comment)"
+                                        class="text-sm text-uh-red hover:text-uh-brick"
+                                        :aria-label="`Delete comment by ${comment.user?.name || 'user'}`"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                                <div class="mt-3 text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap break-words">{{ comment.body }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Empty state -->
+                        <div v-else class="text-gray-500 dark:text-gray-400 italic mb-6">No comments yet.</div>
+
+                        <!-- Create Form -->
+                        <div class="mt-4">
+                            <label for="new-comment" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Add a comment</label>
+                            <textarea
+                                id="new-comment"
+                                v-model="newComment"
+                                rows="3"
+                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-3 focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
+                                placeholder="Write your comment..."
+                                maxlength="5000"
+                            ></textarea>
+                            <div class="mt-3 flex justify-end">
+                                <button
+                                    type="button"
+                                    @click="submitComment"
+                                    :disabled="posting || !newComment.trim()"
+                                    class="inline-flex items-center px-4 py-2 bg-uh-teal border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-green focus:bg-uh-green active:bg-uh-forest disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-uh-teal focus:ring-offset-2 transition ease-in-out duration-150"
+                                >
+                                    {{ posting ? 'Posting...' : 'Post Comment' }}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -7,7 +7,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
-use Spatie\Permission\Models\Role;
+use App\Models\Role;
+use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 
 class UserController extends Controller
 {
@@ -32,11 +34,14 @@ class UserController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
         $this->authorize('create', User::class);
 
-        $roles = Role::all();
+        // Show all roles across teams for cross-app assignment
+        $roles = Role::query()
+            ->orderBy('name')
+            ->get();
         
         return Inertia::render('Admin/Users/Create', [
             'roles' => $roles,
@@ -57,7 +62,6 @@ class UserController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'roles' => 'required|array',
             'roles.*' => 'exists:roles,id',
-            'description' => 'nullable|string',
         ]);
 
         $user = User::create([
@@ -66,12 +70,23 @@ class UserController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'email_verified_at' => now(),
-            'description' => $validated['description'],
         ]);
 
-        // Assign roles
-        $roles = Role::whereIn('id', $validated['roles'])->pluck('name');
-        $user->syncRoles($roles);
+        // Assign roles across teams: group selected roles by team_id and sync per team
+        /** @var PermissionRegistrar $registrar */
+        $registrar = app(PermissionRegistrar::class);
+        $prevTeam = method_exists($registrar, 'getPermissionsTeamId') ? ($registrar->getPermissionsTeamId()) : null;
+
+        $selectedRoles = Role::whereIn('id', $validated['roles'])->get();
+        $byTeam = $selectedRoles->groupBy(function ($r) { return $r->team_id; });
+
+        foreach ($byTeam as $teamId => $rolesForTeam) {
+            $registrar->setPermissionsTeamId($teamId);
+            $user->syncRoles($rolesForTeam);
+        }
+
+        // restore previous team context
+        $registrar->setPermissionsTeamId($prevTeam);
 
         return redirect()
             ->route('admin.users.index')
@@ -101,19 +116,28 @@ class UserController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(User $user)
+    public function edit(Request $request, User $user)
     {
         $this->authorize('update', $user);
 
-        $user->load('roles');
-        $roles = Role::all();
+        // Show all roles across teams for cross-app assignment
+        $roles = Role::query()
+            ->orderBy('name')
+            ->get();
+
+        // Preselect all assigned role IDs across all teams (ignore registrar team context)
+        $assignedRoleIds = DB::table('model_has_roles')
+            ->where('model_type', User::class)
+            ->where('model_id', $user->id)
+            ->pluck('role_id')
+            ->toArray();
         
         return Inertia::render('Admin/Users/Edit', [
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'roles' => $user->roles->pluck('id')->toArray(),
+                'roles' => $assignedRoleIds,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
             ],
@@ -148,10 +172,32 @@ class UserController extends Controller
 
         $user->update($updateData);
 
-        // Sync roles if the current user is not editing themselves
+        // Sync roles across teams (only when editing someone else)
         if (auth()->user()->id !== $user->id) {
-            $roles = Role::whereIn('id', $validated['roles'])->pluck('name');
-            $user->syncRoles($roles);
+            /** @var PermissionRegistrar $registrar */
+            $registrar = app(PermissionRegistrar::class);
+            $prevTeam = method_exists($registrar, 'getPermissionsTeamId') ? ($registrar->getPermissionsTeamId()) : null;
+
+            // Selected roles grouped by their team
+            $selectedRoles = Role::whereIn('id', $validated['roles'])->get();
+            $selectedByTeam = $selectedRoles->groupBy(function ($r) { return $r->team_id; });
+
+            // Existing teams where the user currently has roles
+            $existingTeams = DB::table('model_has_roles')
+                ->where('model_type', User::class)
+                ->where('model_id', $user->id)
+                ->pluck('team_id');
+
+            $allTeams = collect($existingTeams)->merge($selectedByTeam->keys())->unique();
+
+            foreach ($allTeams as $teamId) {
+                $registrar->setPermissionsTeamId($teamId);
+                $rolesForTeam = $selectedByTeam->get($teamId, collect());
+                $user->syncRoles($rolesForTeam);
+            }
+
+            // restore previous team context
+            $registrar->setPermissionsTeamId($prevTeam);
         }
 
         return redirect()

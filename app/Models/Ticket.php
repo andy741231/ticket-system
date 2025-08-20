@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
@@ -47,6 +48,12 @@ class Ticket extends Model
             Storage::disk('public')->deleteDirectory('tickets/' . $ticket->id);
             // Database records for related files will be removed by FK cascade (see migration)
         });
+
+        static::saving(function (Ticket $ticket) {
+            if ($ticket->isDirty('description')) {
+                $ticket->description_text = strip_tags($ticket->description);
+            }
+        });
     }
 
     /**
@@ -65,11 +72,37 @@ class Ticket extends Model
         return $this->belongsTo(User::class);
     }
 
+    
+
+    /**
+     * User who last modified the ticket.
+     */
+    public function updatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * Users assigned to the ticket (many-to-many).
+     */
+    public function assignees(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withTimestamps();
+    }
+
     /**
      * Scope a query to only include tickets for a specific user.
      */
     public function scopeForUser($query, $userId)
     {
         return $query->where('user_id', $userId);
+    }
+
+    /**
+     * Comments on the ticket.
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(TicketComment::class);
     }
 }

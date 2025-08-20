@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
 
 class FileUploadTest extends TestCase
 {
@@ -20,13 +21,19 @@ class FileUploadTest extends TestCase
         Storage::fake('public');
     }
 
-    /** @test */
+    #[Test]
     public function user_can_upload_file_to_ticket()
     {
         $user = User::factory()->create();
         $ticket = Ticket::factory()->create(['user_id' => $user->id]);
 
         $this->actingAs($user);
+
+        // Ensure app context and permission for uploads
+        $ticketsApp = \App\Models\App::firstOrCreate(['slug' => 'tickets'], ['name' => 'Tickets']);
+        \App\Models\Permission::firstOrCreate(['name' => 'tickets.file.upload', 'guard_name' => 'web']);
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($ticketsApp->id);
+        $user->givePermissionTo('tickets.file.upload');
 
         $file = UploadedFile::fake()->create('document.pdf', 1000, 'application/pdf');
 
@@ -57,7 +64,7 @@ class FileUploadTest extends TestCase
         Storage::disk('public')->assertExists($uploadedFile->file_path);
     }
 
-    /** @test */
+    #[Test]
     public function user_can_remove_file_from_ticket()
     {
         $user = User::factory()->create();
@@ -77,6 +84,12 @@ class FileUploadTest extends TestCase
 
         $this->actingAs($user);
 
+        // Ensure app context and permission for file deletion
+        $ticketsApp = \App\Models\App::firstOrCreate(['slug' => 'tickets'], ['name' => 'Tickets']);
+        \App\Models\Permission::firstOrCreate(['name' => 'tickets.file.upload', 'guard_name' => 'web']);
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($ticketsApp->id);
+        $user->givePermissionTo('tickets.file.upload');
+
         $response = $this->deleteJson("/api/tickets/{$ticket->id}/files/{$ticketFile->id}");
 
         $response->assertStatus(200);
@@ -84,14 +97,26 @@ class FileUploadTest extends TestCase
         Storage::disk('public')->assertMissing($path);
     }
 
-    /** @test */
+    #[Test]
     public function files_are_deleted_when_ticket_is_deleted()
     {
         $user = User::factory()->create();
         
         // Create and assign admin role to user to allow ticket deletion
-        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        // The tickets.destroy route is prefixed with 'tickets', so SetAppContext sets team to the 'tickets' app id.
+        $ticketsApp = \App\Models\App::firstOrCreate(['slug' => 'tickets'], ['name' => 'Tickets']);
+        $teamId = $ticketsApp->id;
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($teamId);
+        $role = \Spatie\Permission\Models\Role::firstOrCreate([
+            'name' => 'admin',
+            'guard_name' => 'web',
+            'team_id' => $teamId,
+        ]);
         $user->assignRole($role);
+
+        // Ensure permission exists and is granted for delete
+        \App\Models\Permission::firstOrCreate(['name' => 'tickets.ticket.delete', 'guard_name' => 'web']);
+        $user->givePermissionTo('tickets.ticket.delete');
         
         $ticket = Ticket::factory()->create(['user_id' => $user->id]);
         
@@ -129,13 +154,19 @@ class FileUploadTest extends TestCase
         }
     }
 
-    /** @test */
+    #[Test]
     public function file_upload_validates_file_types()
     {
         $user = User::factory()->create();
         $ticket = Ticket::factory()->create(['user_id' => $user->id]);
 
         $this->actingAs($user);
+
+        // Ensure app context and permission for uploads
+        $ticketsApp = \App\Models\App::firstOrCreate(['slug' => 'tickets'], ['name' => 'Tickets']);
+        \App\Models\Permission::firstOrCreate(['name' => 'tickets.file.upload', 'guard_name' => 'web']);
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($ticketsApp->id);
+        $user->givePermissionTo('tickets.file.upload');
 
         $invalidFile = UploadedFile::fake()->create('script.exe', 1000, 'application/x-msdownload');
 
@@ -147,13 +178,19 @@ class FileUploadTest extends TestCase
         $response->assertJsonValidationErrors(['files.0']);
     }
 
-    /** @test */
+    #[Test]
     public function file_upload_validates_file_size()
     {
         $user = User::factory()->create();
         $ticket = Ticket::factory()->create(['user_id' => $user->id]);
 
         $this->actingAs($user);
+
+        // Ensure app context and permission for uploads
+        $ticketsApp = \App\Models\App::firstOrCreate(['slug' => 'tickets'], ['name' => 'Tickets']);
+        \App\Models\Permission::firstOrCreate(['name' => 'tickets.file.upload', 'guard_name' => 'web']);
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($ticketsApp->id);
+        $user->givePermissionTo('tickets.file.upload');
 
         // 15MB file (larger than the 10MB limit)
         $largeFile = UploadedFile::fake()->create('large.pdf', 15000, 'application/pdf');

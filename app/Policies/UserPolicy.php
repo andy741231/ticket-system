@@ -14,7 +14,7 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('admin');
+        return $user->can('hub.user.view') || $user->can('hub.user.manage');
     }
 
     /**
@@ -24,7 +24,7 @@ class UserPolicy
      */
     public function view(User $user, User $model): bool
     {
-        return $user->hasRole('admin') || $user->id === $model->id;
+        return $user->can('hub.user.manage') || $user->can('hub.user.view') || $user->id === $model->id;
     }
 
     /**
@@ -34,7 +34,7 @@ class UserPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('admin');
+        return $user->can('hub.user.manage') || $user->can('hub.user.create');
     }
 
     /**
@@ -44,7 +44,7 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
-        return $user->hasRole('admin') || $user->id === $model->id;
+        return $user->can('hub.user.manage') || $user->can('hub.user.update') || $user->id === $model->id;
     }
 
     /**
@@ -54,7 +54,7 @@ class UserPolicy
      */
     public function delete(User $user, User $model): bool
     {
-        return $user->hasRole('admin') && $user->id !== $model->id;
+        return ($user->can('hub.user.manage') || $user->can('hub.user.delete')) && $user->id !== $model->id;
     }
 
     /**
@@ -64,7 +64,7 @@ class UserPolicy
      */
     public function changeRole(User $user, User $model): bool
     {
-        return $user->hasRole('admin') && $user->id !== $model->id;
+        return $user->can('hub.user.manage') && $user->id !== $model->id;
     }
 
     /**
@@ -74,6 +74,6 @@ class UserPolicy
      */
     public function viewTickets(User $user, User $model): bool
     {
-        return $user->hasRole('admin') || $user->id === $model->id;
+        return $user->can('hub.user.manage') || $user->id === $model->id;
     }
 }

@@ -18,6 +18,7 @@ import TableRow from '@tiptap/extension-table-row';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { onBeforeUnmount } from 'vue';
+import { useHasAny } from '@/Extensions/useAuthz';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import TaskList from '@tiptap/extension-task-list';
@@ -90,6 +91,8 @@ const addImage = () => {
         editor.value.chain().focus().setImage({ src: url }).run();
     }
 };
+
+const canManageRbacRoles = useHasAny(['admin.rbac.roles.manage']);
 </script>
 
 <template>
@@ -109,27 +112,27 @@ const addImage = () => {
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <InputLabel for="name" value="Name" />
-                                    <TextInput id="name" type="text" class="mt-1 block w-full" v-model="form.name" required autofocus />
+                                    <TextInput id="name" type="text" class="dark:bg-gray-700 mt-1 block w-full" v-model="form.name" required autofocus />
                                     <InputError class="mt-2" :message="form.errors.name" />
                                 </div>
                                 <div>
                                     <InputLabel for="username" value="Username" />
-                                    <TextInput id="username" type="text" class="mt-1 block w-full" v-model="form.username" required />
+                                    <TextInput id="username" type="text" class="dark:bg-gray-700 mt-1 block w-full" v-model="form.username" required />
                                     <InputError class="mt-2" :message="form.errors.username" />
                                 </div>
                                 <div>
                                     <InputLabel for="email" value="Email" />
-                                    <TextInput id="email" type="email" class="mt-1 block w-full" v-model="form.email" required />
+                                    <TextInput id="email" type="email" class="dark:bg-gray-700 mt-1 block w-full" v-model="form.email" required />
                                     <InputError class="mt-2" :message="form.errors.email" />
                                 </div>
                                 <div>
                                     <InputLabel for="password" value="Password" />
-                                    <TextInput id="password" type="password" class="mt-1 block w-full" v-model="form.password" required />
+                                    <TextInput id="password" type="password" class="dark:bg-gray-700 mt-1 block w-full" v-model="form.password" required />
                                     <InputError class="mt-2" :message="form.errors.password" />
                                 </div>
                                 <div>
                                     <InputLabel for="password_confirmation" value="Confirm Password" />
-                                    <TextInput id="password_confirmation" type="password" class="mt-1 block w-full" v-model="form.password_confirmation" required />
+                                    <TextInput id="password_confirmation" type="password" class="dark:bg-gray-700 mt-1 block w-full" v-model="form.password_confirmation" required />
                                     <InputError class="mt-2" :message="form.errors.password_confirmation" />
                                 </div>
                             </div>
@@ -137,10 +140,13 @@ const addImage = () => {
                             <!-- Roles -->
                             <div>
                                 <InputLabel value="Roles" />
+                                <div v-if="!canManageRbacRoles" class="mt-2 rounded-md border border-yellow-300 bg-yellow-50 p-2 text-xs text-yellow-900">
+                                    Read-only: you do not have permission to manage roles.
+                                </div>
                                 <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div v-for="role in roles" :key="role.id" class="flex items-center">
-                                        <Checkbox :id="`role_${role.id}`" :value="role.id" v-model:checked="form.roles" />
-                                        <label :for="`role_${role.id}`" class="ml-2">{{ role.name }}</label>
+                                        <Checkbox :id="`role_${role.id}`" :value="role.id" v-model:checked="form.roles" :disabled="!canManageRbacRoles" class="dark:bg-gray-700"/>
+                                        <label :for="`role_${role.id}`" class="ml-2 ">{{ role.name }}</label>
                                     </div>
                                 </div>
                                 <InputError class="mt-2" :message="form.errors.roles" />
@@ -152,7 +158,7 @@ const addImage = () => {
                                 <Link :href="route('admin.users.index')" class="inline-flex items-center px-4 py-2 bg-uh-slate border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-gray focus:bg-uh-gray active:bg-uh-black focus:outline-none focus:ring-2 focus:ring-uh-slate focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
                                     Cancel
                                 </Link>
-                                <PrimaryButton :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
+                                <PrimaryButton type="submit" :class="{ 'opacity-25': form.processing }" :disabled="form.processing">
                                     Create User
                                 </PrimaryButton>
                             </div>

@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import { watch, ref, onMounted, onUnmounted } from 'vue';
+import { watch, ref, onMounted, onUnmounted, computed } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -9,8 +9,10 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import FileUploader from '@/Components/FileUploader.vue';
+import MultiSelectCheckbox from '@/Components/MultiSelectCheckbox.vue';
 import Datepicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
+import { useHasAny } from '@/Extensions/useAuthz';
 
 const props = defineProps({
     ticket: {
@@ -24,6 +26,10 @@ const props = defineProps({
     statuses: {
         type: Array,
         default: () => ['Received', 'Approved', 'Rejected', 'Completed'],
+    },
+    users: {
+        type: Array,
+        required: true,
     },
 });
 
@@ -44,6 +50,7 @@ const form = useForm({
     priority: props.ticket.priority,
     status: props.ticket.status,
     due_date: formatDateForInput(props.ticket.due_date) || '',
+    assigned_user_ids: (props.ticket.assignees || []).map(u => u.id),
     _method: 'PUT',
 });
 
@@ -102,8 +109,12 @@ watch(() => props.ticket, (newTicket) => {
         form.status = newTicket.status;
         form.description = newTicket.description;
         form.due_date = formatDateForInput(newTicket.due_date) || '';
+        form.assigned_user_ids = (newTicket.assignees || []).map(u => u.id);
     }
 }, { deep: true });
+
+// Permission-based UI gating for status field
+const canChangeStatus = useHasAny(['tickets.ticket.manage', 'tickets.ticket.update']);
 
 const submit = () => {
     form.put(route('tickets.update', props.ticket.id), {
@@ -176,8 +187,8 @@ const cancel = () => {
                                     <InputError class="mt-2" :message="form.errors.priority" />
                                 </div>
 
-                                <!-- Status (only for admins) -->
-                                <div v-if="$page.props.auth.user.roles?.includes('admin')">
+                                <!-- Status (requires manage or update permission) -->
+                                <div v-if="canChangeStatus">
                                     <InputLabel class="text-uh-slate dark:text-uh-cream" for="status" value="Status" />
                                     <select
                                         id="status"
@@ -207,7 +218,22 @@ const cancel = () => {
                                     />
                                     <InputError class="mt-2" :message="form.errors.due_date" />
                                 </div>
+                                <!-- Assign User -->
+                            <div class="">
+                                <InputLabel class="text-uh-slate dark:text-uh-cream" for="assigned_user_ids" value="Assign To" />
+                                <MultiSelectCheckbox
+                                    id="assigned_user_ids"
+                                    v-model="form.assigned_user_ids"
+                                    :options="props.users"
+                                    label-key="name"
+                                    value-key="id"
+                                    placeholder="Select assignees"
+                                />
+                                <InputError class="mt-2" :message="form.errors.assigned_user_ids" />
                             </div>
+                            </div>
+
+                            
 
                             <!-- Description (Tiptap Editor) -->
                             <div>
@@ -241,6 +267,7 @@ const cancel = () => {
                                     Cancel
                                 </SecondaryButton>
                                 <PrimaryButton 
+                                    type="submit"
                                     :class="{ 'opacity-25': form.processing }" 
                                     :disabled="form.processing"
                                 >

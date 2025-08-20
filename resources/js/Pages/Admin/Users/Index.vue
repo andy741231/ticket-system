@@ -2,8 +2,8 @@
 import { Head, Link } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import { ref, computed } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { useHasAny } from '@/Extensions/useAuthz';
+import RbacRoleBadge from '@/Components/Rbac/RbacRoleBadge.vue';
 
 const props = defineProps({
     users: {
@@ -12,8 +12,7 @@ const props = defineProps({
     },
 });
 
-const page = usePage();
-const isSuperAdmin = computed(() => page.props.auth.user.roles?.includes('admin') || false);
+const canManageUsers = useHasAny(['hub.user.manage']);
 
 const formatDate = (dateString) => {
     const options = { 
@@ -40,7 +39,7 @@ const formatDate = (dateString) => {
 
             <div class="flex justify-between items-center mb-4">
           <div></div>
-                <Link v-if="isSuperAdmin" :href="route('admin.users.create')" as="button">
+                <Link v-if="canManageUsers" :href="route('admin.users.create')" as="button">
                     <PrimaryButton>
                         <font-awesome-icon icon="plus" class="h-5 w-5 mr-1" />
                         New User
@@ -102,23 +101,17 @@ const formatDate = (dateString) => {
                                                 title="View"
                                             >
                                                 <div class="flex flex-wrap gap-1">
-                                                    <span 
-                                                        v-for="role in user.roles" 
-                                                        :key="role.id"
-                                                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                                                        :class="{
-                                                            'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': role.name === 'admin',
-                                                            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': role.name === 'user',
-                                                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200': !['admin', 'user'].includes(role.name)
-                                                        }"
+                                                    <RbacRoleBadge
+                                                      v-for="role in user.roles"
+                                                      :key="role.id ?? role.name"
+                                                      :name="role.name"
+                                                      size="sm"
+                                                    />
+                                                    <span
+                                                      v-if="user.roles.length === 0"
+                                                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                                                     >
-                                                        {{ role.name }}
-                                                    </span>
-                                                    <span 
-                                                        v-if="user.roles.length === 0"
-                                                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                                                    >
-                                                        No roles assigned
+                                                      No roles assigned
                                                     </span>
                                                 </div>
                                             </Link>

@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Services\PermissionService;
+use App\Models\Permission as PermissionModel;
+use Spatie\Permission\PermissionRegistrar;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Policies\TicketPolicy;
@@ -17,7 +20,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(PermissionService::class, function ($app) {
+            return new PermissionService();
+        });
     }
 
     /**
@@ -30,5 +35,31 @@ class AppServiceProvider extends ServiceProvider
         // Register policies
         Gate::policy(Ticket::class, TicketPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
+
+        // Delegate string-based abilities to PermissionService (with team context)
+        Gate::before(function ($user, string $ability) {
+            if (!is_string($ability)) {
+                return null; // not our concern
+            }
+
+            // Super admin bypass
+            if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+                return true;
+            }
+
+            // Only handle abilities that correspond to a known permission
+            $exists = PermissionModel::query()->where('name', $ability)->where('guard_name', 'web')->exists();
+            if (!$exists) {
+                return null; // Let other gates/policies handle
+            }
+
+            /** @var PermissionRegistrar $registrar */
+            $registrar = app(PermissionRegistrar::class);
+            $teamId = method_exists($registrar, 'getPermissionsTeamId') ? $registrar->getPermissionsTeamId() : null;
+
+            /** @var PermissionService $svc */
+            $svc = app(PermissionService::class);
+            return $svc->can($user, $ability, $teamId);
+        });
     }
 }

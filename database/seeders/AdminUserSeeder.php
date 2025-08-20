@@ -22,7 +22,7 @@ class AdminUserSeeder extends Seeder
                 'email' => 'admin@example.com',
                 'password' => bcrypt('123'),
                 'email_verified_at' => now(),
-            ])->assignRole('admin');
+            ]);
         } else {
             // Update existing admin user with the correct password and role
             $admin->update([
@@ -30,7 +30,8 @@ class AdminUserSeeder extends Seeder
                 'password' => bcrypt('123'),
                 'email_verified_at' => now(),
             ]);
-            $admin->syncRoles(['admin']);
+            // Note: Do not assign roles here when Teams are enabled. Per-app role assignments
+            // are handled in RbacSeeder using the appropriate team (app) context.
         }
     }
 }

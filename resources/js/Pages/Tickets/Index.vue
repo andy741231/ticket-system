@@ -2,8 +2,10 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import { ref, computed, watch, onBeforeUnmount, defineComponent } from 'vue';
+import MultiSelectCheckbox from '@/Components/MultiSelectCheckbox.vue';
+import { ref, computed, watch, onBeforeUnmount, onMounted, defineComponent } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import { useHasAny } from '@/Extensions/useAuthz';
 import { format, formatDistanceToNow } from 'date-fns';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -57,6 +59,7 @@ const props = defineProps({
             date_to: '',
             sort_field: 'created_at',
             sort_direction: 'desc',
+            scope: null,
         }),
     },
     users: {
@@ -66,6 +69,7 @@ const props = defineProps({
 });
 
 const statuses = ['Received', 'Approved', 'Rejected', 'Completed'];
+const statusOptions = statuses.map(s => ({ id: s, name: s }));
 const selectedStatuses = ref(props.filters.status ? props.filters.status.split(',') : []);
 
 // Select all statuses
@@ -81,10 +85,64 @@ const clearAllStatuses = () => {
 const viewMode = ref('card'); // 'card' or 'list'
 const sortField = ref('created_at');
 const sortDirection = ref('desc');
+// Ownership scope: 'assigned' | 'submitted' | null (no scope for managers)
+const ownershipScope = ref((props.filters && ['assigned','submitted'].includes(props.filters.scope)) ? props.filters.scope : null);
 
 const page = usePage();
 const authUser = computed(() => page.props.auth.user);
-const isAdmin = computed(() => authUser.value.roles?.includes('admin') || false);
+const canManageTickets = useHasAny(['tickets.ticket.manage']);
+const canUpdateTickets = useHasAny(['tickets.ticket.update', 'tickets.ticket.manage']);
+
+// Local storage keys (scoped per user)
+const getViewModeKey = () => `tickets.index.viewMode.${authUser.value?.id ?? 'guest'}`;
+const getStatusesKey = () => `tickets.index.statuses.${authUser.value?.id ?? 'guest'}`;
+const getScopeKey = () => `tickets.index.scope.${authUser.value?.id ?? 'guest'}`;
+
+// Initialize user preferences from localStorage
+onMounted(() => {
+    try {
+        const savedView = localStorage.getItem(getViewModeKey());
+        if (savedView === 'card' || savedView === 'list') {
+            viewMode.value = savedView;
+        }
+    } catch (e) { /* noop */ }
+
+    try {
+        const savedStatuses = localStorage.getItem(getStatusesKey());
+        if (savedStatuses) {
+            const parsed = JSON.parse(savedStatuses);
+            if (Array.isArray(parsed)) {
+                // Only keep valid statuses
+                selectedStatuses.value = parsed.filter(s => statuses.includes(s));
+            }
+        }
+    } catch (e) { /* noop */ }
+
+    // Initialize ownership scope from localStorage, then fall back to server-provided filters
+    try {
+        const savedScope = localStorage.getItem(getScopeKey());
+        if (savedScope === 'assigned' || savedScope === 'submitted') {
+            ownershipScope.value = savedScope;
+        } else if (props.filters && typeof props.filters.scope === 'string' && ['assigned','submitted'].includes(props.filters.scope)) {
+            ownershipScope.value = props.filters.scope;
+        }
+    } catch (e) { /* noop */ }
+});
+
+// Persist view mode changes
+watch(viewMode, (val) => {
+    try { localStorage.setItem(getViewModeKey(), val); } catch (e) { /* noop */ }
+});
+
+// Persist ownership scope changes (only when valid)
+watch(ownershipScope, (val) => {
+    if (val === 'assigned' || val === 'submitted') {
+        try { localStorage.setItem(getScopeKey(), val); } catch (e) { /* noop */ }
+    } else {
+        // Clear saved preference when unsetting scope
+        try { localStorage.removeItem(getScopeKey()); } catch (e) { /* noop */ }
+    }
+});
 
 // Sort tickets based on current sort field and direction
 const sortedTickets = computed(() => {
@@ -133,8 +191,8 @@ const getSortIndicator = (field) => {
 const canEdit = (ticket) => {
     if (!authUser.value) return false;
     
-    // Admins can edit any ticket
-    if (isAdmin.value) return true;
+    // Users with update/manage permission can edit any ticket
+    if (canUpdateTickets.value) return true;
     
     // Users can only edit their own tickets that are not resolved/closed
     const isOwner = ticket.user_id === authUser.value.id;
@@ -187,8 +245,8 @@ const visibleColumns = ref({
     actions: true,
 });
 
-// Watch for admin status changes and update visibleColumns
-watch(isAdmin, (newValue) => {
+// Watch for ticket management permission changes and update visibleColumns
+watch(canManageTickets, (newValue) => {
     visibleColumns.value.assignee = newValue;
 }, { immediate: true });
 
@@ -203,23 +261,24 @@ onBeforeUnmount(() => {
 
 // Function to perform the search
 const performSearch = () => {
-    router.get(route('tickets.index'), 
-        { 
-            search: search.value,
-            status: selectedStatuses.value.join(','),
-            priority: props.filters.priority,
-            assignee: props.filters.assignee,
-            date_from: props.filters.date_from,
-            date_to: props.filters.date_to,
-            sort_field: sortField.value,
-            sort_direction: sortDirection.value
-        }, 
-        {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-        }
-    );
+    const params = {
+        search: search.value,
+        status: selectedStatuses.value.join(','),
+        priority: props.filters.priority,
+        assignee: props.filters.assignee,
+        date_from: props.filters.date_from,
+        date_to: props.filters.date_to,
+        sort_field: sortField.value,
+        sort_direction: sortDirection.value,
+    };
+    if (ownershipScope.value === 'assigned' || ownershipScope.value === 'submitted') {
+        params.scope = ownershipScope.value;
+    }
+    router.get(route('tickets.index'), params, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
 };
 
 // Watch for search input changes with debounce
@@ -228,12 +287,18 @@ watch(search, () => {
     searchTimeout = setTimeout(performSearch, 500);
 });
 
-watch(selectedStatuses, () => {
+watch(selectedStatuses, (val) => {
+    try { localStorage.setItem(getStatusesKey(), JSON.stringify(val)); } catch (e) { /* noop */ }
     performSearch();
 }, { deep: true });
 
+// Trigger search on ownership scope change
+watch(ownershipScope, () => {
+    performSearch();
+});
+
 // Perform initial search if there's an initial search query
-if (props.filters.search || props.filters.status) {
+if (props.filters.search || props.filters.status || props.filters.scope) {
     performSearch();
 }
 
@@ -278,9 +343,9 @@ const timeAgo = (dateString) => {
             
         </template>
 
-        <div class="py-6">
+        <div class="">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="">
+                <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg p-6">
                     <div class="text-gray-900 dark:text-gray-100">
                         <div class="flex justify-between items-center mb-4">
                             <div>
@@ -295,7 +360,7 @@ const timeAgo = (dateString) => {
 
                         <!-- Search and Filter Controls -->
                         <div class="flex justify-between items-center mb-4">
-                            <div class="bg-uh-gray/10 dark:bg-gray-600/50 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 p-4 flex flex-col md:flex-row gap-4 w-full">
+                            <div class="bg-uh-gray/10 dark:bg-gray-700 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 p-4 flex flex-col md:flex-row gap-4 w-full">
                                 <!-- Search Bar -->
                                 <div class="relative flex-1 max-w-2xl">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -305,7 +370,7 @@ const timeAgo = (dateString) => {
                                         type="text"
                                         v-model="search"
                                         class="h-full block w-full pl-10 pr-10 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-uh-teal/50 focus:border-uh-teal transition-colors duration-200"
-                                        placeholder="Search tickets by title, description, or ID..."
+                                        placeholder="Search tickets by title or description..."
                                     />
                                     <button 
                                         v-if="search"
@@ -317,43 +382,56 @@ const timeAgo = (dateString) => {
                                     </button>
                                 </div>
 
+                                <!-- Ownership Scope -->
+                                <div class="border border-gray-200 dark:border-gray-600 flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 shrink-0">
+                                    <button 
+                                        @click="ownershipScope = (ownershipScope === 'assigned' ? null : 'assigned')" 
+                                        :class="{'bg-gray-200 dark:bg-transparent text-uh-slate dark:text-uh-cream': ownershipScope === 'assigned', 'text-gray-500 dark:text-gray-400': ownershipScope !== 'assigned'}" 
+                                        class="p-3 rounded-md text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-uh-teal/50"
+                                        aria-label="Assigned to me"
+                                        :aria-pressed="ownershipScope === 'assigned'"
+                                        title="Assigned to me"
+                                    >
+                                        <font-awesome-icon :icon="['fas', 'user']" class="h-5 w-5" />
+                                        <span class="sr-only">Assigned to me</span>
+                                    </button>
+                                    <button 
+                                        @click="ownershipScope = (ownershipScope === 'submitted' ? null : 'submitted')" 
+                                        :class="{'bg-gray-200 dark:bg-transparent text-uh-slate dark:text-uh-cream': ownershipScope === 'submitted', 'text-gray-500 dark:text-gray-400': ownershipScope !== 'submitted'}" 
+                                        class="p-3 rounded-md text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-uh-teal/50"
+                                        aria-label="Submitted by me"
+                                        :aria-pressed="ownershipScope === 'submitted'"
+                                        title="Submitted by me"
+                                    >
+                                        <font-awesome-icon :icon="['fas', 'inbox']" class="h-5 w-5" />
+                                        <span class="sr-only">Submitted by me</span>
+                                    </button>
+                                </div>
+
                                 <!-- Status Filters -->
-                                <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 flex flex-wrap items-center gap-3">
-                                    
-                                    
-                                    <div class="flex flex-wrap items-center gap-3">
-                                        <div v-for="status in statuses" :key="status" class="flex items-center">
-                                            <div class="relative flex items-center">
-                                                <input
-                                                    :id="`status_${status}`"
-                                                    type="checkbox"
-                                                    :value="status"
-                                                    v-model="selectedStatuses"
-                                                    class="h-4 w-4 rounded border-gray-300 text-uh-teal focus:ring-uh-teal/50 cursor-pointer"
-                                                />
-                                                <label 
-                                                    :for="`status_${status}`" 
-                                                    class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:text-gray-900 dark:hover:text-gray-100 transition-colors duration-200"
-                                                >
-                                                    {{ status }}
-                                                </label>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                        <button 
-                                            @click="clearAllStatuses" 
-                                            class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal/50"
-                                        >
-                                            Clear All
-                                        </button>
-                                    </div>
+                                <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                                    <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full">
+                                      <div class="w-full sm:w-64 sm:flex-none min-w-0">
+                                        <MultiSelectCheckbox
+                                          v-model="selectedStatuses"
+                                          :options="statusOptions"
+                                          placeholder="Filter by status"
+                                          class="ms-status"
+                                        />
+                                      </div>
+                                      <button 
+                                        @click="clearAllStatuses" 
+                                        class="w-full sm:w-auto shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal/50"
+                                      >
+                                        Clear All
+                                      </button>
                                     </div>
                                 </div>
                                 <!-- View Mode -->
                                 <div class="border border-gray-200 dark:border-gray-600 flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                                     <button 
                                         @click="viewMode = 'card'" 
-                                        :class="{'bg-white dark:bg-gray-800 text-uh-slate dark:text-uh-cream': viewMode === 'card', 'text-gray-500 dark:text-gray-400': viewMode !== 'card'}" 
+                                        :class="{'bg-gray-200 dark:bg-transparent text-uh-slate dark:text-uh-cream': viewMode === 'card', 'text-gray-500 dark:text-gray-400': viewMode !== 'card'}" 
                                         class="p-3 rounded-md text-sm font-medium focus:outline-none"
                                         aria-label="Card view"
                                     >
@@ -361,7 +439,7 @@ const timeAgo = (dateString) => {
                                     </button>
                                     <button 
                                         @click="viewMode = 'list'" 
-                                        :class="{'bg-white dark:bg-gray-800 text-uh-slate dark:text-uh-cream': viewMode === 'list', 'text-gray-500 dark:text-gray-400': viewMode !== 'list'}" 
+                                        :class="{'bg-gray-200 dark:bg-transparent text-uh-slate dark:text-uh-cream': viewMode === 'list', 'text-gray-500 dark:text-gray-400': viewMode !== 'list'}" 
                                         class="p-3 rounded-md text-sm font-medium focus:outline-none"
                                         aria-label="List view"
                                     >
@@ -387,7 +465,7 @@ const timeAgo = (dateString) => {
                                 </div>
                             </div>
 
-                            <div v-for="ticket in tickets.data" :key="ticket.id" class="hover:bg-uh-mustard/20 bg-uh-slate/5 hover:dark:bg-gray-500/50 dark:bg-gray-600/50 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                            <div v-for="ticket in tickets.data" :key="ticket.id" class="block bg-white dark:bg-gray-700 rounded-lg shadow overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col w-full">
                                <Link :href="route('tickets.show', ticket)">
                                 <div class="p-6">
                                     <div class="flex justify-between items-start">
@@ -402,13 +480,6 @@ const timeAgo = (dateString) => {
                                         </div>
                                     </div>
                                     <div class="mt-4 flex justify-between items-center">
-                                        <div class="flex items-center space-x-2 text-sm text-uh-gray dark:text-uh-cream/70">
-                                            <span :class="['inline-flex items-center px-2.5 py-1.5 text-center rounded-full text-xs font-medium', priorityBadgeClasses[ticket.priority]?.class || 'bg-uh-cream text-uh-ocher']">
-                                                {{ ticket.priority }} Priority
-                                            </span>
-                                            <span>&middot;</span>
-                                            <span>{{ timeAgo(ticket.created_at) }}</span>
-                                        </div>
                                         <div class="flex items-center">
                                             <img class="h-6 w-6 rounded-full" :src="`https://ui-avatars.com/api/?name=${ticket.user.name}&background=random`" alt="">
                                             <span class="ml-2 text-sm text-uh-slate dark:text-uh-cream">{{ ticket.user.name }}</span>
@@ -445,12 +516,11 @@ const timeAgo = (dateString) => {
                                                                 <span class="ml-1">{{ getSortIndicator('priority') }}</span>
                                                             </div>
                                                         </th>
-                                                        <th v-if="isAdmin" @click="sortBy('assigned_to_id')" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-uh-slate dark:text-uh-cream lg:table-cell cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                                            <div class="flex items-center">
-                                                                Assignee
-                                                                <span class="ml-1">{{ getSortIndicator('assigned_to_id') }}</span>
-                                                            </div>
-                                                        </th>
+                                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-uh-slate dark:text-uh-cream lg:table-cell">
+                                                        <div class="flex items-center">
+                                                            Assignee
+                                                        </div>
+                                                    </th>
                                                         <th @click="sortBy('created_at')" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-uh-slate dark:text-uh-cream cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30">
                                                             <div class="flex items-center">
                                                                 <span>Created</span>
@@ -501,17 +571,16 @@ const timeAgo = (dateString) => {
                                                                 {{ ticket.priority || 'Not set' }}
                                                             </span>
                                                         </td>
-                                                        <!-- Assignee (Admin Only) -->
-                                                        <td v-if="isAdmin" class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400 lg:table-cell">
-                                                            <div class="flex items-center">
-                                                                <div v-if="ticket.assignee" class="h-8 w-8 flex-shrink-0">
-                                                                    <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-uh-teal/10 dark:bg-uh-teal/20">
-                                                                        <font-awesome-icon :icon="['fas', 'user']" class="h-4 w-4 text-uh-teal dark:text-uh-teal/80" />
+                                                        <!-- Assignees (Admin Only) -->
+                                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400 lg:table-cell">
+                                                            <div class="flex items-center gap-1 flex-wrap">
+                                                                <template v-if="ticket.assignees && ticket.assignees.length">
+                                                                    <span v-for="user in ticket.assignees" :key="user.id" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/10 dark:bg-uh-teal/20 text-uh-slate dark:text-uh-cream">
+                                                                        <font-awesome-icon :icon="['fas', 'user']" class="h-3 w-3 mr-1 text-uh-teal dark:text-uh-teal/80" />
+                                                                        {{ user.name }}
                                                                     </span>
-                                                                </div>
-                                                                <div class="ml-2">
-                                                                    <div class="text-gray-900 dark:text-gray-100">{{ ticket.assignee?.name || 'Unassigned' }}</div>
-                                                                </div>
+                                                                </template>
+                                                                <span v-else class="text-gray-400">Unassigned</span>
                                                             </div>
                                                         </td>
                                                         <!-- Created At -->
@@ -568,5 +637,13 @@ const timeAgo = (dateString) => {
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+/* Override MultiSelectCheckbox button bg in dark mode to gray-800 */
+.dark .ms-status :deep(button) {
+  /* Preferred if @apply works in your setup */
+  @apply bg-gray-800;
+
+  /* Or fallback without Tailwind @apply */
+  /* background-color: rgb(55 65 81) !important; */
 }
 </style>
