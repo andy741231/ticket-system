@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Aug 20, 2025 at 09:39 PM
+-- Generation Time: Aug 22, 2025 at 08:59 PM
 -- Server version: 8.0.43
 -- PHP Version: 8.2.29
 
@@ -42,7 +42,8 @@ CREATE TABLE `apps` (
 INSERT INTO `apps` (`id`, `slug`, `name`, `created_at`, `updated_at`) VALUES
 (1, 'hub', 'Hub', '2025-08-20 03:57:21', '2025-08-20 03:57:21'),
 (2, 'tickets', 'Tickets', '2025-08-20 03:57:21', '2025-08-20 03:57:21'),
-(3, 'directory', 'Directory', '2025-08-20 03:57:21', '2025-08-20 03:57:21');
+(3, 'directory', 'Directory', '2025-08-20 03:57:21', '2025-08-20 03:57:21'),
+(4, 'newsletter', 'Newsletter', '2025-08-23 00:51:23', '2025-08-23 00:51:23');
 
 -- --------------------------------------------------------
 
@@ -204,17 +205,16 @@ CREATE TABLE `model_has_roles` (
 INSERT INTO `model_has_roles` (`role_id`, `model_type`, `model_id`, `team_id`) VALUES
 (3, 'App\\Models\\User', 1, 1),
 (3, 'App\\Models\\User', 2, 1),
-(3, 'App\\Models\\User', 8, 1),
 (5, 'App\\Models\\User', 2, 2),
-(6, 'App\\Models\\User', 4, 2),
-(6, 'App\\Models\\User', 5, 2),
-(6, 'App\\Models\\User', 6, 2),
-(6, 'App\\Models\\User', 8, 2),
+(5, 'App\\Models\\User', 10, 2),
+(6, 'App\\Models\\User', 1, 2),
+(6, 'App\\Models\\User', 2, 2),
+(7, 'App\\Models\\User', 1, 3),
 (7, 'App\\Models\\User', 2, 3),
-(7, 'App\\Models\\User', 7, 3),
 (9, 'App\\Models\\User', 3, 1),
 (9, 'App\\Models\\User', 3, 2),
-(9, 'App\\Models\\User', 3, 3);
+(9, 'App\\Models\\User', 3, 3),
+(17, 'App\\Models\\User', 2, 4);
 
 -- --------------------------------------------------------
 
@@ -283,7 +283,8 @@ INSERT INTO `permissions` (`id`, `name`, `key`, `description`, `guard_name`, `is
 (31, 'hub.user.delete', NULL, 'Hub user delete', 'web', 1, '2025-08-20 03:57:21', '2025-08-20 03:57:21'),
 (32, 'hub.user.manage', NULL, 'Hub user manage', 'web', 1, '2025-08-20 03:57:21', '2025-08-20 03:57:21'),
 (33, 'directory.app.access', NULL, 'Directory app access', 'web', 1, '2025-08-20 04:54:31', '2025-08-20 04:54:31'),
-(34, 'directory.profile.manage', NULL, 'Directory profile manage', 'web', 1, '2025-08-20 23:48:28', '2025-08-20 23:48:28');
+(34, 'directory.profile.manage', NULL, 'Directory profile manage', 'web', 1, '2025-08-20 23:48:28', '2025-08-20 23:48:28'),
+(35, 'newsletter.app.access', NULL, 'Newsletter app access', 'web', 1, '2025-08-23 01:05:59', '2025-08-23 01:05:59');
 
 -- --------------------------------------------------------
 
@@ -316,7 +317,11 @@ INSERT INTO `roles` (`id`, `team_id`, `name`, `slug`, `description`, `guard_name
 (8, 3, 'directory-user', 'user', 'User role for directory app', 'web', 1, '2025-08-15 03:40:11', '2025-08-19 03:21:21'),
 (9, NULL, 'super_admin', 'super-admin', 'Super Admin role (global)', 'web', 0, '2025-08-15 03:40:11', '2025-08-15 21:26:44'),
 (13, NULL, 'admin', 'admin', 'Administrator (Global)', 'web', 0, '2025-08-20 03:59:08', '2025-08-20 03:59:08'),
-(14, NULL, 'user', 'user', 'directory.app.access', 'web', 1, '2025-08-20 03:59:08', '2025-08-20 05:16:15');
+(14, NULL, 'user', 'user', 'directory.app.access', 'web', 1, '2025-08-20 03:59:08', '2025-08-20 05:16:15'),
+(17, 4, 'admin', 'admin', 'Administrator', 'web', 0, '2025-08-23 00:51:23', '2025-08-23 00:51:23'),
+(18, 4, 'user', 'user', 'Standard User', 'web', 1, '2025-08-23 00:51:23', '2025-08-23 00:51:23'),
+(19, 5, 'admin', 'admin', 'Administrator', 'web', 0, '2025-08-23 00:52:23', '2025-08-23 00:52:23'),
+(20, 5, 'user', 'user', 'Standard User', 'web', 1, '2025-08-23 00:52:23', '2025-08-23 00:52:23');
 
 -- --------------------------------------------------------
 
@@ -356,7 +361,8 @@ INSERT INTO `role_has_permissions` (`permission_id`, `role_id`) VALUES
 (24, 7),
 (33, 7),
 (34, 7),
-(22, 8);
+(22, 8),
+(35, 17);
 
 -- --------------------------------------------------------
 
@@ -378,7 +384,9 @@ CREATE TABLE `sessions` (
 --
 
 INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
-('y0VCMxcKJwv1xtBv4JT505q9IvDIsZ09gGCJxYip', 1, '127.0.0.1', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:141.0) Gecko/20100101 Firefox/141.0', 'YTo1OntzOjY6Il90b2tlbiI7czo0MDoickhvNFBla2NqNlJEMXNQSmpidjE5YzRGdDBvaEFVMFQwYk0zeVRsZCI7czozOiJ1cmwiO2E6MDp7fXM6OToiX3ByZXZpb3VzIjthOjE6e3M6MzoidXJsIjtzOjMxOiJodHRwOi8vbG9jYWxob3N0OjgwMDAvZGFzaGJvYXJkIjt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319czo1MDoibG9naW5fd2ViXzU5YmEzNmFkZGMyYjJmOTQwMTU4MGYwMTRjN2Y1OGVhNGUzMDk4OWQiO2k6MTt9', 1755536887);
+('getERoJP3ziC18V27rX7wbEGADbd5v6XlHWyTqir', 1, '127.0.0.1', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:142.0) Gecko/20100101 Firefox/142.0', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoiMU9rM3pkU3BScTRZZzhJcGR6TWN4WjJKc3hIN2hVYklJaVJwNExUcCI7czo5OiJfcHJldmlvdXMiO2E6MTp7czozOiJ1cmwiO3M6MTAyOiJodHRwOi8vbG9jYWxob3N0OjgwMDAvdGlja2V0cz9zY29wZT1hc3NpZ25lZCZzZWFyY2g9JnNvcnRfZGlyZWN0aW9uPWRlc2Mmc29ydF9maWVsZD1jcmVhdGVkX2F0JnN0YXR1cz0iO31zOjY6Il9mbGFzaCI7YToyOntzOjM6Im9sZCI7YTowOnt9czozOiJuZXciO2E6MDp7fX1zOjUwOiJsb2dpbl93ZWJfNTliYTM2YWRkYzJiMmY5NDAxNTgwZjAxNGM3ZjU4ZWE0ZTMwOTg5ZCI7aToxO30=', 1755896078),
+('GFRIQ1zPPgDofO0fdPciA27wgPZsvzyDlqF7bWrX', 1, '127.0.0.1', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:142.0) Gecko/20100101 Firefox/142.0', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoieHliSG9lcXhqMFdCbmxUT2lQekFLczZIekNWdW9EVDlkNmxxQkRVQyI7czo5OiJfcHJldmlvdXMiO2E6MTp7czozOiJ1cmwiO3M6MzI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODAwMC90aWNrZXRzLzk0Ijt9czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319czo1MDoibG9naW5fd2ViXzU5YmEzNmFkZGMyYjJmOTQwMTU4MGYwMTRjN2Y1OGVhNGUzMDk4OWQiO2k6MTt9', 1755893426),
+('TxTFrGkxGdF4jiJBCEsmKRDoo0rnIhNHRjS4Op3w', 3, '127.0.0.1', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:142.0) Gecko/20100101 Firefox/142.0', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoieEFzZjVBeWJlVEhYa05Iclc0U2hOTmd0dlpXZG1JaGt6ejFHTVBNUyI7czo2OiJfZmxhc2giO2E6Mjp7czozOiJvbGQiO2E6MDp7fXM6MzoibmV3IjthOjA6e319czo1MDoibG9naW5fd2ViXzU5YmEzNmFkZGMyYjJmOTQwMTU4MGYwMTRjN2Y1OGVhNGUzMDk4OWQiO2k6MztzOjk6Il9wcmV2aW91cyI7YToxOntzOjM6InVybCI7czozMjoiaHR0cDovL2xvY2FsaG9zdDo4MDAwL3RpY2tldHMvOTUiO319', 1755896174);
 
 -- --------------------------------------------------------
 
@@ -438,9 +446,10 @@ INSERT INTO `tickets` (`id`, `user_id`, `title`, `description`, `description_tex
 (4, 1, 'First Sample Ticket', 'This is a sample ticket created by the seeder.', 'This is a sample ticket created by the seeder.', 'Received', 'Medium', NULL, '2025-08-15 03:42:34', '2025-08-20 04:26:38', NULL),
 (5, 1, 'Second Sample Ticket', 'Another sample ticket with high priority.', 'Another sample ticket with high priority.', 'Approved', 'High', NULL, '2025-08-15 03:42:34', '2025-08-20 04:26:38', NULL),
 (6, 1, 'Completed Ticket', 'This ticket has been completed.', 'This ticket has been completed.', 'Completed', 'Low', NULL, '2025-08-15 03:42:34', '2025-08-20 04:26:38', NULL),
-(15, 3, 'an example task', '<p>create a brochure for AIM AHEAD. need to follow <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-blue-600 hover:underline\" href=\"https://abc.com\">UH branding.</a></p>', 'create a brochure for AIM AHEAD. need to follow UH branding.', 'Received', 'Medium', NULL, '2025-08-19 04:45:12', '2025-08-20 19:50:54', 3),
-(16, 3, 'Add glossary to CTPH glossary site', '<p><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" class=\"text-blue-600 hover:underline\" href=\"https://ctph.dept-eit.com/\">https://ctph.dept-eit.com/</a></p><p>add</p><h2>Stakeholder Engagement</h2><p>Consensus Definition</p><p>The process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.</p><h3>Conversational / Short Definition</h3><p></p><p>The process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.</p><p>ab</p>', 'https://ctph.dept-eit.com/addStakeholder EngagementConsensus DefinitionThe process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.Conversational / Short DefinitionThe process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.ab', 'Received', 'Medium', '2025-08-11', '2025-08-19 22:36:11', '2025-08-20 04:26:38', 3),
-(20, 3, 'Add glossary to CHPH glossary site 2', '<p>add image to the site: <a target=\"_blank\" rel=\"noopener noreferrer nofollow\" class=\"text-blue-600 hover:underline\" href=\"http://www.google.com\">www.google.com</a></p><p></p>', 'add image to the site: www.google.com', 'Completed', 'Medium', '2025-08-20', '2025-08-20 04:05:17', '2025-08-20 04:26:38', 3);
+(15, 3, 'an example task', '<p>create a brochure for AIM AHEAD. need to follow <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-blue-600 hover:underline\" href=\"https://abc.com\">UH branding.</a></p>', 'create a brochure for AIM AHEAD. need to follow UH branding.', 'Approved', 'Medium', NULL, '2025-08-19 04:45:12', '2025-08-21 22:33:06', 3),
+(16, 3, 'Add glossary to CTPH glossary site', '<p><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" class=\"text-blue-600 hover:underline\" href=\"https://ctph.dept-eit.com/\">https://ctph.dept-eit.com/</a></p><p>add</p><h2>Stakeholder Engagement</h2><p>Consensus Definition</p><p>The process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.</p><h3>Conversational / Short Definition</h3><p></p><p>The process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.</p><p>ab</p>', 'https://ctph.dept-eit.com/addStakeholder EngagementConsensus DefinitionThe process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.Conversational / Short DefinitionThe process of involving relevant parties (e.g., researchers, clinicians, patients, policymakers) in various stages of the translational process.ab', 'Approved', 'Medium', '2025-08-10', '2025-08-19 22:36:11', '2025-08-22 20:05:21', 3),
+(94, 3, 'fdaf', '<p>abc</p>', 'abc', 'Received', 'Medium', '2025-08-11', '2025-08-23 00:40:33', '2025-08-23 00:41:41', 3),
+(95, 1, 'fdasf', '<p>fadfdaf</p>', 'fadfdaf', 'Approved', 'Medium', '2025-08-06', '2025-08-23 01:54:35', '2025-08-23 01:54:57', 3);
 
 -- --------------------------------------------------------
 
@@ -463,10 +472,12 @@ CREATE TABLE `ticket_comments` (
 
 INSERT INTO `ticket_comments` (`id`, `ticket_id`, `user_id`, `body`, `created_at`, `updated_at`) VALUES
 (1, 15, 3, 'abv', '2025-08-19 07:32:20', '2025-08-19 07:32:20'),
-(2, 15, 1, 'abcfada', '2025-08-19 07:33:13', '2025-08-19 07:33:13'),
 (4, 16, 3, 'abc', '2025-08-19 22:37:02', '2025-08-19 22:37:02'),
-(5, 20, 3, 'hi how are you', '2025-08-20 04:06:59', '2025-08-20 04:06:59'),
-(6, 20, 3, 'I am good and you', '2025-08-20 04:07:08', '2025-08-20 04:07:08');
+(14, 16, 1, 'abc', '2025-08-22 04:54:46', '2025-08-22 04:54:46'),
+(16, 16, 1, 'fdasfjdj afkldj fkjdafk jdafdj asklfj dakl;fjdakl;fjeio ajfkd afkle;j eioafj kdlas;feiajfiod jasklfj eaklfjeioawfj dklsaj;flej aiofje klajfd;ka', '2025-08-22 21:02:28', '2025-08-22 21:02:28'),
+(17, 94, 3, 'abc', '2025-08-23 00:41:19', '2025-08-23 00:41:19'),
+(24, 94, 1, 'abc', '2025-08-23 00:49:17', '2025-08-23 00:49:17'),
+(25, 95, 1, 'abc', '2025-08-23 01:54:38', '2025-08-23 01:54:38');
 
 -- --------------------------------------------------------
 
@@ -490,8 +501,7 @@ CREATE TABLE `ticket_files` (
 --
 
 INSERT INTO `ticket_files` (`id`, `ticket_id`, `file_path`, `original_name`, `mime_type`, `size`, `created_at`, `updated_at`) VALUES
-(2, 15, 'tickets/15/BHAvWwldlkucnTudRky6JOgEitejG46RVWHspCCd.jpg', '20250811.jpg', 'image/jpeg', 819079, '2025-08-19 04:45:12', '2025-08-19 04:45:12'),
-(9, 20, 'tickets/20/eZEMuEIbOkPotwTVYalq0m1zhIz2T0bifipY91uI.png', '20250818_health_colloquium.png', 'image/png', 639262, '2025-08-20 04:05:17', '2025-08-20 04:05:17');
+(2, 15, 'tickets/15/BHAvWwldlkucnTudRky6JOgEitejG46RVWHspCCd.jpg', '20250811.jpg', 'image/jpeg', 819079, '2025-08-19 04:45:12', '2025-08-19 04:45:12');
 
 -- --------------------------------------------------------
 
@@ -512,13 +522,14 @@ CREATE TABLE `ticket_user` (
 --
 
 INSERT INTO `ticket_user` (`id`, `ticket_id`, `user_id`, `created_at`, `updated_at`) VALUES
-(4, 15, 1, '2025-08-19 04:45:12', '2025-08-19 04:45:12'),
-(5, 15, 2, '2025-08-19 04:45:12', '2025-08-19 04:45:12'),
 (6, 15, 3, '2025-08-19 04:45:12', '2025-08-19 04:45:12'),
 (8, 16, 3, '2025-08-19 22:36:11', '2025-08-19 22:36:11'),
 (9, 16, 1, '2025-08-19 22:36:11', '2025-08-19 22:36:11'),
-(13, 20, 3, '2025-08-20 04:05:17', '2025-08-20 04:05:17'),
-(14, 20, 4, '2025-08-20 04:05:17', '2025-08-20 04:05:17');
+(26, 15, 10, '2025-08-21 22:32:37', '2025-08-21 22:32:37'),
+(37, 16, 10, '2025-08-22 20:05:21', '2025-08-22 20:05:21'),
+(38, 94, 3, '2025-08-23 00:40:33', '2025-08-23 00:40:33'),
+(39, 94, 1, '2025-08-23 00:41:41', '2025-08-23 00:41:41'),
+(40, 95, 3, '2025-08-23 01:54:35', '2025-08-23 01:54:35');
 
 -- --------------------------------------------------------
 
@@ -546,12 +557,8 @@ INSERT INTO `users` (`id`, `name`, `username`, `email`, `email_verified_at`, `pa
 (1, 'Regular User', 'user', 'user@example.com', '2025-08-15 03:35:18', '$2y$12$yJVUFc1SbMPSA7REutiqyewZoOQ0U9r5vIDRks7UpDbrvlKXVIeVS', NULL, '2025-08-15 03:35:18', '2025-08-15 03:35:18'),
 (2, 'Admin', 'admin', 'admin@example.com', '2025-08-15 03:42:34', '$2y$12$gQ/mPTh5Zl1Cm9B0ob17Ru0mYLp8Em5ZtQMw/A4K/QfQVjA5SQ1by', NULL, '2025-08-15 03:40:10', '2025-08-19 02:46:26'),
 (3, 'Andy Chan', 'mchan3', 'mchan3@central.uh.edu', NULL, '$2y$12$UD4ECpwj1SNdCoDckLcmF.TCxF7Fl3fA77R1bDJyNTDaVIThztvge', NULL, '2025-08-15 03:40:11', '2025-08-19 05:58:55'),
-(4, 'user 1', 'user 1', '2@2.com', NULL, '$2y$12$rz0W43ALz1SGZ7CStsAfNu511QqI5DSbE6AilbrT4KQBdzqJCbsi2', NULL, '2025-08-19 04:30:39', '2025-08-19 04:30:39'),
-(5, 'user 2', 'user2', '2@2.comd', NULL, '$2y$12$UhYoVRRmVpqQ5WZ8jRMT6uPRasYiB57LEzavn4KI4qVb9r1wx3Zsu', NULL, '2025-08-19 04:32:48', '2025-08-19 04:32:48'),
-(6, 'fadfaf', 'dafdsafd', 'afdasfdsafdsafdsafda@fd.com', NULL, '$2y$12$zO8I790H8yGypYwvoW07NuNOnoOfvpP9yneyYqIXErHNTVFWwvyp6', NULL, '2025-08-20 00:42:53', '2025-08-20 00:42:53'),
-(7, 'fafda', 'fafdsf', 'fda@cl.com', NULL, '$2y$12$7VuUnrw4XT.6cS/c/5/39ONWpkyl7IaR5/bHpbJGJ0oaoNt94IU5K', NULL, '2025-08-20 00:43:36', '2025-08-20 00:43:36'),
-(8, 'afa', 'fafa', 'suer@suer.comf', NULL, '$2y$12$/61M03KKZEU0.zZaUeBfW.XysssHd/Q9hF40sXa6FUIrV2mf9j3R.', NULL, '2025-08-20 00:43:53', '2025-08-20 00:43:53'),
-(9, 'Test Admin', 'testadmin', 'testadmin@example.com', '2025-08-20 05:18:08', '$2y$12$7LIsWzNiz7by8SEVlBxPfeUmHagjE0LIz2ZuXgiwdGU3LVEt/HmrG', NULL, '2025-08-20 05:18:08', '2025-08-20 05:18:08');
+(9, 'Test Admin', 'testadmin', 'testadmin@example.com', '2025-08-20 05:18:08', '$2y$12$7LIsWzNiz7by8SEVlBxPfeUmHagjE0LIz2ZuXgiwdGU3LVEt/HmrG', NULL, '2025-08-20 05:18:08', '2025-08-20 05:18:08'),
+(10, 'ticket admin', 'ticket', 'andy741231@hotmail.com', NULL, '$2y$12$7oLF7YzPjOufcBGV9EbiVemzXZ4wvdEM23lcENGhlPx9o/aANCyX2', NULL, '2025-08-21 04:22:09', '2025-08-21 04:22:09');
 
 -- --------------------------------------------------------
 
@@ -744,19 +751,19 @@ ALTER TABLE `user_permission_overrides`
 -- AUTO_INCREMENT for table `apps`
 --
 ALTER TABLE `apps`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `failed_jobs`
 --
 ALTER TABLE `failed_jobs`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `jobs`
 --
 ALTER TABLE `jobs`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=96;
 
 --
 -- AUTO_INCREMENT for table `migrations`
@@ -768,13 +775,13 @@ ALTER TABLE `migrations`
 -- AUTO_INCREMENT for table `permissions`
 --
 ALTER TABLE `permissions`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT for table `roles`
 --
 ALTER TABLE `roles`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `temp_files`
@@ -786,31 +793,31 @@ ALTER TABLE `temp_files`
 -- AUTO_INCREMENT for table `tickets`
 --
 ALTER TABLE `tickets`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=96;
 
 --
 -- AUTO_INCREMENT for table `ticket_comments`
 --
 ALTER TABLE `ticket_comments`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `ticket_files`
 --
 ALTER TABLE `ticket_files`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `ticket_user`
 --
 ALTER TABLE `ticket_user`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `user_permission_overrides`

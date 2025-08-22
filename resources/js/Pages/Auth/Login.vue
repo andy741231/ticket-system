@@ -33,7 +33,7 @@ const submit = () => {
     <GuestLayout>
         <Head title="Log in" />
 
-        <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
+        <div v-if="status" class="dark:bg-gray-600/50 mb-4 text-sm font-medium text-green-600">
             {{ status }}
         </div>
 
@@ -44,7 +44,7 @@ const submit = () => {
                 <TextInput
                     id="username"
                     type="text"
-                    class="mt-1 block w-full"
+                    class="dark:bg-gray-600 mt-1 block w-full"
                     v-model="form.username"
                     required
                     autofocus
@@ -60,7 +60,7 @@ const submit = () => {
                 <TextInput
                     id="password"
                     type="password"
-                    class="mt-1 block w-full"
+                    class="dark:bg-gray-600 mt-1 block w-full"
                     v-model="form.password"
                     required
                     autocomplete="current-password"

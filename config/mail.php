@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'default' => env('MAIL_MAILER', 'log'),
+    'default' => env('MAIL_MAILER', 'campus_smtp'),
 
     /*
     |--------------------------------------------------------------------------
@@ -39,14 +39,39 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
-            'url' => env('MAIL_URL'),
+            // Explicitly configure without DSN so we can control encryption directly
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
+            // If MAIL_ENCRYPTION is empty, coerce to null to disable STARTTLS
+            'encryption' => env('MAIL_ENCRYPTION') ?: null,
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            // Disable TLS peer verification to allow self-signed certificates when encryption is enabled
+            'stream' => [
+                'ssl' => [
+                    'allow_self_signed' => true,
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ],
+        ],
+
+        // Dedicated mailer for campus relay over port 25 with TLS disabled and peer verification off
+        'campus_smtp' => [
+            'transport' => 'smtp',
+            // DSN explicitly disables STARTTLS and verification; allows self-signed certs
+            'url' => env('CAMPUS_SMTP_DSN', 'smtp://post-office.uh.edu:25?tls=0&verify_peer=0&verify_peer_name=0&allow_self_signed=1'),
+            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            // Keep stream options for completeness when DSN is not used
+            'stream' => [
+                'ssl' => [
+                    'allow_self_signed' => true,
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ],
         ],
 
         'ses' => [

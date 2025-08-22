@@ -19,14 +19,15 @@ import {
     faBars,
     faXmark,
     faAddressBook,
-    faChevronDown
+    faChevronDown,
+    faNewspaper
 } from '@fortawesome/free-solid-svg-icons';
 
 // RBAC composable
 import { useHasAny } from '@/Extensions/useAuthz';
 
 // Add icons to the library
-library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown);
+library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper);
 
 // Permission helpers (team-aware)
 const isSuperAdmin = computed(() => usePage().props.auth?.user?.isSuperAdmin === true);
@@ -37,6 +38,12 @@ const hasAny = (permissions = []) => useHasAny(permissions).value;
 // Theme state
 const darkMode = ref(localStorage.getItem('darkMode') === 'true' || 
                    (!('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches));
+
+// Animation state
+const sunOpacity = ref(0);
+const moonOpacity = ref(0);
+let sunFadeTimeout = null;
+let moonFadeTimeout = null;
 
 // Toggle dark mode
 const toggleDarkMode = () => {
@@ -50,6 +57,8 @@ const toggleDarkMode = () => {
     // Save preference to localStorage
     localStorage.setItem('darkMode', darkMode.value);
     console.log('Dark mode:', darkMode.value ? 'enabled' : 'disabled');
+
+    
 };
 
 // ----- Global Flash Messages -----
@@ -109,7 +118,7 @@ const isSidebarOpen = ref(false);
 const isMobile = ref(false);
 const userMenuOpen = ref(false);
 // Collapsible state for User Management submenu
-const userMgmtOpen = ref(false);
+const userMgmtOpen = ref(route().current('admin.*'));
 
 // Media query references for cleanup
 let darkModeMediaQuery = null;
@@ -163,6 +172,7 @@ const pageTitles = {
     'dashboard': 'Dashboard',
     'profile': 'My Profile',
     'directory': 'Directory',
+    'newsletter': 'Newsletter',
     // Add more special cases as needed
 };
 
@@ -208,6 +218,15 @@ onMounted(() => {
     window.addEventListener('resize', checkScreenSize);
     document.addEventListener('click', handleClickOutside);
     
+    // Set initial animation state
+    if (darkMode.value) {
+        sunOpacity.value = 0;
+        moonOpacity.value = 0;
+    } else {
+        sunOpacity.value = 0;
+        moonOpacity.value = 0;
+    }
+
     // Listen for system color scheme changes
     darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     darkModeChangeHandler = (e) => {
@@ -239,7 +258,9 @@ const navigate = (url) => {
 </script>
 
 <template>
-    <div :class="{ 'dark': darkMode }" class="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden font-sans">
+    <div :class="{ 'dark': darkMode }" class="relative flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden font-sans">
+        
+
         <!-- Mobile sidebar backdrop -->
         <transition
             enter-active-class="transition-opacity ease-linear duration-200"
@@ -259,7 +280,7 @@ const navigate = (url) => {
         <!-- Sidebar -->
         <aside 
             id="sidebar"
-            class="fixed inset-y-0 left-0 z-30 flex flex-col w-64 transform overflow-y-auto bg-gradient-to-b from-gray-900 to-gray-800 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0"
+            class="fixed inset-y-0 left-0 z-30 flex flex-col w-64 transform overflow-y-auto bg-uh-white text-uh-black dark:bg-gray-800 dark:text-uh-white transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0"
             :class="{
                 '-translate-x-full': !isSidebarOpen && isMobile,
                 'translate-x-0': isSidebarOpen || !isMobile,
@@ -268,7 +289,7 @@ const navigate = (url) => {
         >
             <div class="flex h-full flex-col">
                 <!-- Logo -->
-                <div class="flex h-20 shrink-0 items-center px-4 border-b border-gray-700/50">
+                <div class="flex h-20 shadow shrink-0 items-center px-4">
                     <Link :href="route('dashboard')" class="flex items-center">
                         <img class="rounded-lg h-12 w-12" src="https://placehold.co/60/c8102e/fff?text=UHPH">
                         <span class="text-white ml-3 text-xl font-bold whitespace-nowrap">
@@ -279,176 +300,212 @@ const navigate = (url) => {
 
                 <!-- Navigation Links -->
                 <nav class="mt-6 px-2 overflow-hidden flex-1">
-                    <div class="space-y-1">
+                    <div class="space-y-2">
                         <NavLink 
                             :href="route('dashboard')" 
                             :active="route().current('dashboard')"
-                            class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
-                            :class="{
-                                'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20': route().current('dashboard'),
-                                'text-gray-300 hover:bg-gray-800/50 hover:text-white': !route().current('dashboard')
-                            }"
+                            class="group flex items-center px-3 py-2.5 rounded-md text-sm font-medium"
+                            :class="[
+                                route().current('dashboard')
+                                    ? 'bg-uh-red text-white shadow-md'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                            ]"
                             @click="navigate(route('dashboard'))"
                         >
-                            <span class="absolute left-0 w-1 h-6 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !route().current('dashboard') }"></span>
-                            <font-awesome-icon :icon="['fas', 'house']" class="h-5 w-5 flex-shrink-0" 
-                                :class="{
-                                    'text-uh-red': route().current('dashboard'),
-                                    'text-gray-400 group-hover:text-white': !route().current('dashboard')
-                                }" 
+                            <font-awesome-icon 
+                                :icon="['fas', 'house']" 
+                                class="h-5 w-5 flex-shrink-0"
+                                :class="[
+                                    route().current('dashboard')
+                                        ? 'text-white'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                ]"
                             />
-                            <span class="ml-4 text-sm font-medium">
-                                Dashboard
-                            </span>
+                            <span class="ml-3 font-medium">Dashboard</span>
                         </NavLink>
 
                         <NavLink 
                             v-if="isSuperAdmin || hasAny(['tickets.app.access'])"
                             :href="route('tickets.index')" 
                             :active="route().current('tickets.*')"
-                            class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
-                            :class="{
-                                'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20': route().current('tickets.*'),
-                                'text-gray-300 hover:bg-gray-800/50 hover:text-white': !route().current('tickets.*')
-                            }"
+                            class="group flex items-center px-3 py-2.5 rounded-md text-sm font-medium"
+                            :class="[
+                                route().current('tickets.*')
+                                    ? 'bg-uh-red text-white shadow-md'
+                                    : 'text-uh-slate dark:text-gray-400     hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                            ]"
                             @click="navigate(route('tickets.index'))"
                         >
-                            <span class="absolute left-0 w-1 h-6 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !route().current('tickets.*') }"></span>
-                            <font-awesome-icon :icon="['fas', 'ticket']" class="h-5 w-5 flex-shrink-0"
-                                :class="{
-                                    'text-uh-red': route().current('tickets.*'),
-                                    'text-gray-400 group-hover:text-white': !route().current('tickets.*')
-                                }"
+                            <font-awesome-icon 
+                                :icon="['fas', 'ticket']" 
+                                class="h-5 w-5 flex-shrink-0 transition-colors duration-200"
+                                :class="[
+                                    route().current('tickets.*')
+                                        ? 'text-white'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                ]"
                             />
-                            <span class="ml-4 text-sm font-medium">
-                                Tickets
-                            </span>
+                            <span class="ml-3 font-medium">Tickets</span>
                         </NavLink>
 
                         <NavLink 
                             v-if="isSuperAdmin || hasAny(['directory.app.access'])"
                             :href="route('directory.index')" 
                             :active="route().current('directory.*')"
-                            class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
-                            :class="{
-                                'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20': route().current('directory.*'),
-                                'text-gray-300 hover:bg-gray-800/50 hover:text-white': !route().current('directory.*')
-                            }"
+                            class="group flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
+                            :class="[
+                                route().current('directory.*')
+                                    ? 'bg-uh-red text-white shadow-md'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                            ]"
                             @click="navigate(route('directory.index'))"
                         >
-                            <span class="absolute left-0 w-1 h-6 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !route().current('directory.*') }"></span>
-                            <font-awesome-icon :icon="['fas', 'address-book']" class="h-5 w-5 flex-shrink-0"
-                                :class="{
-                                    'text-uh-red': route().current('directory.*'),
-                                    'text-gray-400 group-hover:text-white': !route().current('directory.*')
-                                }"
+                            <font-awesome-icon 
+                                :icon="['fas', 'address-book']" 
+                                class="h-5 w-5 flex-shrink-0 transition-colors duration-200"
+                                :class="[
+                                    route().current('directory.*')
+                                        ? 'text-white'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                ]"
                             />
-                            <span class="ml-4 text-sm font-medium">
-                                Directory
-                            </span>
+                            <span class="ml-3 font-medium">Directory</span>
                         </NavLink>
 
                         <NavLink 
-                            v-if="
-                                isSuperAdmin ||
-                                hasAny(['hub.app.access']) ||
-                                hasAny(['admin.rbac.roles.manage', 'admin.rbac.permissions.manage', 'admin.rbac.overrides.manage']) ||
-                                canManageSuperAdmins
-                            "
-                            :href="route('admin.users.index')" 
-                            :active="
-                                route().current('admin.users.*') ||
-                                route().current('admin.rbac.*') ||
-                                route().current('admin.superadmin.*')
-                            "
-                            class="group flex items-center rounded-lg px-3 py-3 text-sm font-medium relative"
-                            :class="{
-                                'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20':
-                                    route().current('admin.users.*') || route().current('admin.rbac.*') || route().current('admin.superadmin.*'),
-                                'text-gray-300 hover:bg-gray-800/50 hover:text-white':
-                                    !(route().current('admin.users.*') || route().current('admin.rbac.*') || route().current('admin.superadmin.*'))
-                            }"
-                            @click="navigate(route('admin.users.index'))"
+                            v-if="isSuperAdmin || hasAny(['newsletter.app.access'])"
+                            :href="route('newsletter.index')" 
+                            :active="route().current('newsletter.*')"
+                            class="group flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
+                            :class="[
+                                route().current('newsletter.*')
+                                    ? 'bg-uh-red text-white shadow-md'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                            ]"
+                            @click="navigate(route('newsletter.index'))"
                         >
-                            <span class="absolute left-0 w-1 h-6 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !(route().current('admin.users.*') || route().current('admin.rbac.*') || route().current('admin.superadmin.*')) }"></span>
-                            <font-awesome-icon :icon="['fas', 'users']" class="h-5 w-5 flex-shrink-0"
-                                :class="{
-                                    'text-uh-red': route().current('admin.users.*') || route().current('admin.rbac.*') || route().current('admin.superadmin.*'),
-                                    'text-gray-400 group-hover:text-white': !(route().current('admin.users.*') || route().current('admin.rbac.*') || route().current('admin.superadmin.*'))
-                                }"
+                            <font-awesome-icon 
+                                :icon="['fas', 'newspaper']" 
+                                class="h-5 w-5 flex-shrink-0 transition-colors duration-200"
+                                :class="[
+                                    route().current('newsletter.*')
+                                        ? 'text-white'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                ]"
                             />
-                            <span class="ml-4 text-sm font-medium">
-                                User Management
-                            </span>
-                            <button
-                                class="ml-auto p-1 rounded hover:bg-gray-800/30"
-                                aria-label="Toggle User Management submenu"
-                                @click.stop.prevent="userMgmtOpen = !userMgmtOpen"
-                            >
-                                <font-awesome-icon :icon="['fas','chevron-down']" class="h-4 w-4 transition-transform duration-200"
-                                    :class="{
-                                        'rotate-180 text-uh-red': userMgmtOpen || route().current('admin.users.*') || route().current('admin.rbac.*') || route().current('admin.superadmin.*'),
-                                        'text-gray-400 group-hover:text-white': !(userMgmtOpen || route().current('admin.users.*') || route().current('admin.rbac.*') || route().current('admin.superadmin.*'))
-                                    }"
-                                />
-                            </button>
+                            <span class="ml-3 font-medium">Newsletter</span>
                         </NavLink>
 
-                        <!-- User Management Submenu -->
-                        <div
-                            v-show="
-                                userMgmtOpen ||
-                                route().current('admin.users.*') ||
-                                route().current('admin.rbac.*') ||
-                                route().current('admin.superadmin.*')
-                            "
-                            class="ml-6 pl-2 border-l border-gray-700/40 space-y-1"
-                        >
-                            <NavLink 
-                                v-if="isSuperAdmin || hasAny(['admin.rbac.roles.manage', 'admin.rbac.permissions.manage', 'admin.rbac.overrides.manage'])"
-                                :href="route('admin.rbac.dashboard')" 
-                                :active="route().current('admin.rbac.*')"
-                                class="group flex items-center rounded-lg px-3 py-2 text-sm font-medium relative"
-                                :class="{
-                                    'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20': route().current('admin.rbac.*'),
-                                    'text-gray-300 hover:bg-gray-800/50 hover:text-white': !route().current('admin.rbac.*')
-                                }"
-                                @click="navigate(route('admin.rbac.dashboard'))"
+                        <!-- User Management Section -->
+                        <div v-if="
+                            isSuperAdmin ||
+                            hasAny(['hub.app.access']) ||
+                            hasAny(['admin.rbac.roles.manage', 'admin.rbac.permissions.manage', 'admin.rbac.overrides.manage']) ||
+                            canManageSuperAdmins
+                        ">
+                            <button
+                                @click="userMgmtOpen = !userMgmtOpen"
+                                class="group flex items-center w-full px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    (userMgmtOpen || route().current('admin.*'))
+                                        ? 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
                             >
-                                <span class="absolute left-0 w-1 h-5 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !route().current('admin.rbac.*') }"></span>
-                                <font-awesome-icon :icon="['fas', 'gear']" class="h-4 w-4 flex-shrink-0 ml-4"
-                                    :class="{
-                                        'text-uh-red': route().current('admin.rbac.*'),
-                                        'text-gray-400 group-hover:text-white': !route().current('admin.rbac.*')
-                                    }"
+                                <font-awesome-icon 
+                                    :icon="['fas', 'users']" 
+                                    class="h-5 w-5 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('admin.*')
+                                            ? 'text-white'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                    ]"
                                 />
-                                <span class="ml-4 text-sm font-medium">
-                                    RBAC Admin
-                                </span>
-                            </NavLink>
+                                <span class="ml-3 font-medium flex-1 text-left">User Management</span>
+                                <font-awesome-icon 
+                                    :icon="['fas','chevron-down']" 
+                                    class="h-4 w-4 transition-transform duration-200"
+                                    :class="{ 'rotate-180': userMgmtOpen }"
+                                />
+                            </button>
 
-                            <NavLink 
-                                v-if="canManageSuperAdmins"
-                                :href="route('admin.superadmin.index')" 
-                                :active="route().current('admin.superadmin.*')"
-                                class="group flex items-center rounded-lg px-3 py-2 text-sm font-medium relative"
-                                :class="{
-                                    'bg-gradient-to-r from-uh-red/20 to-transparent text-white shadow-uh-red/20': route().current('admin.superadmin.*'),
-                                    'text-gray-300 hover:bg-gray-800/50 hover:text-white': !route().current('admin.superadmin.*')
-                                }"
-                                @click="navigate(route('admin.superadmin.index'))"
+                            <!-- User Management Submenu -->
+                            <div
+                                v-show="userMgmtOpen"
+                                class="pl-5 space-y-1 mt-2"
                             >
-                                <span class="absolute left-0 w-1 h-5 bg-uh-red rounded-r-lg" :class="{ 'opacity-0': !route().current('admin.superadmin.*') }"></span>
-                                <font-awesome-icon :icon="['fas', 'user']" class="h-4 w-4 flex-shrink-0 ml-4"
-                                    :class="{
-                                        'text-uh-red': route().current('admin.superadmin.*'),
-                                        'text-gray-400 group-hover:text-white': !route().current('admin.superadmin.*')
-                                    }"
-                                />
-                                <span class="ml-4 text-sm font-medium">
-                                    Super Admin
-                                </span>
-                            </NavLink>
+                                <NavLink 
+                                    v-if="isSuperAdmin || hasAny(['hub.app.access'])"
+                                    :href="route('admin.users.index')" 
+                                    :active="route().current('admin.users.*')"
+                                    class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                    :class="[
+                                        route().current('admin.users.*')
+                                            ? 'bg-uh-red text-white shadow-md'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                    ]"
+                                    @click="navigate(route('admin.users.index'))"
+                                >
+                                    <font-awesome-icon 
+                                        :icon="['fas', 'users']" 
+                                        class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                        :class="[
+                                            route().current('admin.users.*')
+                                                ? 'text-white'
+                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                        ]"
+                                    />
+                                    <span class="ml-3 font-medium">All Users</span>
+                                </NavLink>
+
+                                <NavLink 
+                                    v-if="isSuperAdmin || hasAny(['admin.rbac.roles.manage', 'admin.rbac.permissions.manage', 'admin.rbac.overrides.manage'])"
+                                    :href="route('admin.rbac.dashboard')" 
+                                    :active="route().current('admin.rbac.*')"
+                                    class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                    :class="[
+                                        route().current('admin.rbac.*')
+                                            ? 'bg-uh-red text-white shadow-md'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                    ]"
+                                    @click="navigate(route('admin.rbac.dashboard'))"
+                                >
+                                    <font-awesome-icon 
+                                        :icon="['fas', 'gear']" 
+                                        class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                        :class="[
+                                            route().current('admin.rbac.*')
+                                                ? 'text-white'
+                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                        ]"
+                                    />
+                                    <span class="ml-3 font-medium">RBAC Admin</span>
+                                </NavLink>
+
+                                <NavLink 
+                                    v-if="canManageSuperAdmins"
+                                    :href="route('admin.superadmin.index')" 
+                                    :active="route().current('admin.superadmin.*')"
+                                    class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                    :class="[
+                                        route().current('admin.superadmin.*')
+                                            ? 'bg-uh-red text-white shadow-md'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                    ]"
+                                    @click="navigate(route('admin.superadmin.index'))"
+                                >
+                                    <font-awesome-icon 
+                                        :icon="['fas', 'user']" 
+                                        class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                        :class="[
+                                            route().current('admin.superadmin.*')
+                                                ? 'text-white'
+                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                        ]"
+                                    />
+                                    <span class="ml-3 font-medium">Super Admin</span>
+                                </NavLink>
+                            </div>
                         </div>
                     </div>
                 </nav>
@@ -456,15 +513,15 @@ const navigate = (url) => {
         </aside>
 
         <!-- Main content -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <div class="relative z-10 flex-1 flex flex-col overflow-hidden">
             <!-- Top navigation -->
-            <header class="bg-white dark:bg-gray-800 shadow-sm h-20">
+            <header class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-sm h-20">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
                     <div class="flex justify-between items-center">
                         <!-- Sidebar Toggle Button -->
                         <button 
                             @click="toggleSidebar"
-                            class="lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none rounded-full transition-colors duration-200"
+                            class="lg:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none rounded-full"
                             aria-controls="mobile-sidebar"
                             :aria-expanded="isSidebarOpen"
                         >
@@ -473,12 +530,13 @@ const navigate = (url) => {
                         </button>
                         
                         <!-- Page Title -->
-                        <div class="hidden md:block flex-1 px-4">
+                        <!-- <div class="hidden md:block flex-1 px-4">
                             <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-200">
                                 {{ formatPageTitle($page.component) }}
                             </h1>
                         </div>
-                        
+                        -->
+                        <div></div>
                         <div class="flex items-center">
                             <div class="flex items-center space-x-2 md:space-x-3">
                                
@@ -486,8 +544,8 @@ const navigate = (url) => {
                                 <button 
                                     @click="toggleDarkMode" 
                                     class="p-3 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 
-                                           focus:outline-none ring-uh-teal dark:ring-uh-red/50 ring-2 focus:ring-uh-red
-                                           transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                           focus:outline-none shadow dark:bg-gray-900
+                                           hover:bg-gray-100 dark:hover:bg-gray-700"
                                     :title="darkMode ? 'Switch to light mode' : 'Switch to dark mode'"
                                     aria-label="Toggle dark mode"
                                 >
@@ -503,9 +561,9 @@ const navigate = (url) => {
                                 <div class="relative" @click.stop>
                                     <button 
                                         type="button" 
-                                        class="flex items-center p-1.5 rounded-full bg-white dark:bg-gray-800 text-sm 
-                                               focus:outline-none ring-uh-teal dark:ring-uh-red/50 ring-2 focus:ring-uh-teal 
-                                               hover:ring-uh-teal hover:ring-2 hover:ring-gray-200 dark:hover:ring-gray-600 transition-all duration-200"
+                                        class="p-1.5 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 
+                                           focus:outline-none shadow dark:bg-gray-900
+                                           hover:bg-gray-100 dark:hover:bg-gray-700"
                                         @click="userMenuOpen = !userMenuOpen"
                                         id="user-menu-button" 
                                         :aria-expanded="userMenuOpen"
@@ -579,7 +637,7 @@ const navigate = (url) => {
             </header>
 
             <!-- Main content area -->
-            <main class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+            <main class="flex-1 overflow-y-auto bg-transparent p-4 md:p-6">
                 <!-- Global Flash Message -->
                 <div v-if="showFlash" class="mb-4 rounded-md border p-3"
                      :class="[
@@ -587,7 +645,10 @@ const navigate = (url) => {
                         flashStyle === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
                         flashStyle === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
                         'bg-blue-50 border-blue-200 text-blue-800'
-                     ]">
+                     ]"
+                     :role="flashStyle === 'error' ? 'alert' : 'status'"
+                     aria-live="polite"
+                >
                     <div class="flex items-start justify-between gap-4">
                         <div class="text-sm font-medium">{{ flashMessage }}</div>
                         <button @click="closeFlash" class="text-xs text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">Dismiss</button>

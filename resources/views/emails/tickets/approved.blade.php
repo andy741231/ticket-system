@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ticket #{{ $ticketId }} Approved</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; margin: 0; padding: 0; }
+        .container { max-width: 640px; margin: 0 auto; padding: 24px; }
+        .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; }
+        h1 { font-size: 20px; margin: 0 0 12px; }
+        p { line-height: 1.5; margin: 0 0 12px; }
+        .meta { background: #f9fafb; padding: 12px; border-radius: 6px; margin: 12px 0; }
+        .btn { display: inline-block; background: #2563eb; color: #ffffff !important; text-decoration: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; }
+        .muted { color: #6b7280; font-size: 12px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>Ticket #{{ $ticketId }} Approved</h1>
+        <p>A ticket you are assigned to has been approved in The Hub.</p>
+
+        <div class="meta">
+            <p><strong>Title:</strong> {{ $title }}</p>
+            <p><strong>Priority:</strong> {{ $priority }}</p>
+            <p><strong>Status:</strong> {{ $status }}</p>
+            <p><strong>Submitted by:</strong> {{ $submitterName }}</p>
+        </div>
+
+        <p>
+            <a class="btn" href="{{ $ticketUrl }}">Open Ticket</a>
+        </p>
+
+        <p class="muted">You are receiving this because you are assigned to this ticket.</p>
+    </div>
+</div>
+</body>
+</html>
