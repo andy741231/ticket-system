@@ -57,6 +57,14 @@ class RbacSeeder extends Seeder
                     'directory.profile.view',
                 ],
             ],
+            'newsletter' => [
+                'permissions' => [
+                    'newsletter.app.access',
+                ],
+                'user_role_perms' => [
+                    // Optionally grant basic access to standard users later
+                ],
+            ],
         ];
 
         foreach ($definitions as $appSlug => $def) {

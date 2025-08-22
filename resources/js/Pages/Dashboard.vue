@@ -57,6 +57,7 @@ const canManageUsers = useHasAny(['hub.user.manage']);
             <div class="bg-uh-red/80 text-white rounded-lg shadow-md mb-8 p-6">
                 <h1 class="text-2xl font-bold mb-2">Welcome {{ $page.props.auth.user.name }},</h1>
                 <p class="text-uh-cream">Manage and track all support tickets in one place</p>
+                <!-- TODO: Add health related trivia -->
             </div>
 
             <!-- Action Buttons --> 

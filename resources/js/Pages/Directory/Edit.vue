@@ -109,7 +109,7 @@ const showMessageEditor = ref(false);
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <InputLabel for="name" value="Name" />
-                                <TextInput id="name" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.name" autofocus />
+                                <TextInput id="name" type="text" class="dark:bg-gray-700 text-gray-100 mt-1 block w-full" v-model="form.name" autofocus />
                                 <InputError class="mt-2" :message="form.errors.name" />
                             </div>
 

@@ -77,6 +77,13 @@ const canManageOverrides = useHasAny(['admin.rbac.overrides.manage']);
                 View Permissions
               </Link>
               <Link
+                v-if="canManagePermissions"
+                :href="route('admin.rbac.apps.index')"
+                class="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-800"
+              >
+                Manage Apps
+              </Link>
+              <Link
                 v-if="canManageOverrides"
                 :href="route('admin.rbac.overrides.index')"
                 class="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-800"

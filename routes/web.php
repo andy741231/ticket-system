@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\Rbac\DashboardController as RbacDashboardControll
 use App\Http\Controllers\Admin\Rbac\RolesController as RbacRolesController;
 use App\Http\Controllers\Admin\Rbac\PermissionsController as RbacPermissionsController;
 use App\Http\Controllers\Admin\Rbac\OverridesController as RbacOverridesController;
+use App\Http\Controllers\Admin\Rbac\AppsController as RbacAppsController;
 use App\Http\Controllers\Admin\SuperAdminController;
 use Illuminate\Foundation\Application;
 use App\Http\Controllers\HomeController;
@@ -66,6 +67,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/{team}/image', [DirectoryController::class, 'updateImage'])->name('updateImage')->middleware('perm:directory.profile.manage');
     });
 
+    // Newsletter route
+    Route::get('/newsletter', fn () => Inertia::render('Newsletter/index'))
+        ->name('newsletter.index');
+
     // Dashboard route - accessible to all authenticated users
     Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])
         ->middleware(['auth'])
@@ -104,6 +109,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Permissions management
         Route::middleware(['perm:admin.rbac.permissions.manage'])->group(function () {
             Route::resource('permissions', RbacPermissionsController::class)->except(['show']);
+
+            // Apps management (create/list apps)
+            Route::get('apps', [RbacAppsController::class, 'index'])->name('apps.index');
+            Route::post('apps', [RbacAppsController::class, 'store'])->name('apps.store');
         });
 
         // Overrides management
