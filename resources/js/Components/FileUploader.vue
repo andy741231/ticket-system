@@ -120,7 +120,13 @@ export default {
   props: {
     ticketId: {
       type: [Number, String],
-      required: true,
+      required: false,
+      default: null,
+    },
+    // When true, uploads go to /api/temp-files and deletions use /api/temp-files/{id}
+    tempMode: {
+      type: Boolean,
+      default: false,
     },
     multiple: {
       type: Boolean,
@@ -263,7 +269,10 @@ export default {
         cancelTokenSource = axios.CancelToken.source();
         
         // Single request with all files
-        const response = await axios.post(`/api/tickets/${props.ticketId}/files`, formData, {
+        const uploadUrl = props.tempMode
+          ? `/api/temp-files`
+          : `/api/tickets/${props.ticketId}/files`;
+        const response = await axios.post(uploadUrl, formData, {
           cancelToken: cancelTokenSource.token,
           headers: {
             'Content-Type': 'multipart/form-data',
@@ -314,7 +323,10 @@ export default {
 
     const removeFile = async (fileId) => {
       try {
-        await axios.delete(`/api/tickets/${props.ticketId}/files/${fileId}`, {
+        const deleteUrl = props.tempMode
+          ? `/api/temp-files/${fileId}`
+          : `/api/tickets/${props.ticketId}/files/${fileId}`;
+        await axios.delete(deleteUrl, {
           headers: {
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'

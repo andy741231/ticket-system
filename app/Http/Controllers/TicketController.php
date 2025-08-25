@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
+use App\Models\TempFile;
+use App\Models\TicketFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Support\Facades\Storage;
 
 class TicketController extends Controller
 {
@@ -78,12 +81,49 @@ class TicketController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'priority' => 'required|in:Low,Medium,High',
+            'due_date' => 'nullable|date',
+            'temp_file_ids' => 'sometimes|array',
+            'temp_file_ids.*' => 'integer',
         ]);
 
         $ticket = new Ticket($validated);
         $ticket->user_id = auth()->id();
         $ticket->status = 'Received';
         $ticket->save();
+
+        // If there are temporary files, move them to the ticket and create TicketFile records
+        $tempIds = collect($request->input('temp_file_ids', []))
+            ->filter();
+
+        if ($tempIds->isNotEmpty()) {
+            // Fetch only the current user's temp files by IDs
+            $tempFiles = TempFile::whereIn('id', $tempIds)
+                ->where('user_id', auth()->id())
+                ->get();
+
+            foreach ($tempFiles as $temp) {
+                // Determine new path under tickets/{ticket_id}
+                $fileName = basename($temp->file_path);
+                $newPath = 'tickets/' . $ticket->id . '/' . $fileName;
+
+                // Move file within public disk
+                if (Storage::disk('public')->exists($temp->file_path)) {
+                    Storage::disk('public')->move($temp->file_path, $newPath);
+                }
+
+                // Create TicketFile record
+                TicketFile::create([
+                    'ticket_id' => $ticket->id,
+                    'file_path' => $newPath,
+                    'original_name' => $temp->original_name,
+                    'mime_type' => $temp->mime_type,
+                    'size' => $temp->size,
+                ]);
+
+                // Remove temp file record
+                $temp->delete();
+            }
+        }
 
         return redirect()
             ->route('tickets.show', $ticket)
@@ -140,6 +180,7 @@ class TicketController extends Controller
             'description' => 'required|string',
             'priority' => 'required|in:Low,Medium,High',
             'status' => 'sometimes|required|in:Received,Approved,Rejected,Completed',
+            'due_date' => 'nullable|date',
         ]);
 
         $ticket->update($validated);

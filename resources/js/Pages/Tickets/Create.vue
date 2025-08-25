@@ -21,6 +21,7 @@ const form = useForm({
     title: '',
     description: '',
     priority: 'Medium',
+    due_date: '',
     temp_file_ids: [],
 });
 
@@ -96,6 +97,17 @@ const cancel = () => {
                                     </select>
                                     <InputError class="mt-2" :message="form.errors.priority" />
                                 </div>
+                                <!-- Due Date -->
+                                <div>
+                                    <InputLabel class="text-uh-slate dark:text-uh-cream" for="due_date" value="Due Date" />
+                                    <TextInput
+                                        id="due_date"
+                                        type="date"
+                                        class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-uh-slate dark:text-uh-cream"
+                                        v-model="form.due_date"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.due_date" />
+                                </div>
                             </div>
 
                             <!-- Description (Tiptap Editor) -->
@@ -112,7 +124,7 @@ const cancel = () => {
                             <div class="mt-6">
                                 <InputLabel class="text-uh-slate dark:text-uh-cream mb-2" value="Attachments" />
                                 <FileUploader
-                                    :ticket-id="0"
+                                    :temp-mode="true"
                                     :existing-files="tempFiles"
                                     @uploaded="handleFilesUploaded"
                                     @removed="handleFileRemoved"

@@ -25,11 +25,23 @@ const props = defineProps({
     },
 });
 
+// Normalize date for <input type="date"> as YYYY-MM-DD in local time
+const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const d = new Date(dateString);
+    if (isNaN(d)) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const form = useForm({
     title: props.ticket.title,
     description: props.ticket.description,
     priority: props.ticket.priority,
     status: props.ticket.status,
+    due_date: formatDateForInput(props.ticket.due_date) || '',
     _method: 'PUT',
 });
 
@@ -70,6 +82,7 @@ watch(() => props.ticket, (newTicket) => {
         form.priority = newTicket.priority;
         form.status = newTicket.status;
         form.description = newTicket.description;
+        form.due_date = formatDateForInput(newTicket.due_date) || '';
     }
 }, { deep: true });
 
@@ -157,6 +170,17 @@ const cancel = () => {
                                         </option>
                                     </select>
                                     <InputError class="mt-2" :message="form.errors.status" />
+                                </div>
+                                <!-- Due Date -->
+                                <div>
+                                    <InputLabel class="text-uh-slate dark:text-uh-cream" for="due_date" value="Due Date" />
+                                    <TextInput
+                                        id="due_date"
+                                        type="date"
+                                        class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-uh-slate dark:text-uh-cream"
+                                        v-model="form.due_date"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.due_date" />
                                 </div>
                             </div>
 
