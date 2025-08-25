@@ -20,6 +20,23 @@ use Inertia\Inertia;
 // Public routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
+// Public newsletter routes (no auth required)
+Route::prefix('newsletter/public')->name('newsletter.public.')->group(function () {
+    Route::get('/unsubscribe/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'unsubscribe'])->name('unsubscribe');
+    Route::post('/unsubscribe/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'unsubscribe']);
+    Route::get('/track-open/{campaign}/{subscriber}/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'trackOpen'])->name('track-open');
+    Route::get('/track-click/{campaign}/{subscriber}/{url}/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'trackClick'])->name('track-click');
+    Route::get('/archive', [\App\Http\Controllers\Newsletter\PublicController::class, 'archive'])->name('archive');
+    Route::get('/campaigns/{campaign}/view', [\App\Http\Controllers\Newsletter\PublicController::class, 'viewCampaign'])->name('campaign.view');
+});
+
+// Public API routes for newsletter
+Route::prefix('api/newsletter')->name('api.newsletter.')->group(function () {
+    Route::post('/subscribe', [\App\Http\Controllers\Newsletter\PublicController::class, 'subscribe'])->name('subscribe');
+    Route::put('/preferences/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'updatePreferences'])->name('preferences.update');
+    Route::get('/archive', [\App\Http\Controllers\Newsletter\PublicController::class, 'archive'])->name('archive');
+});
+
 // Auth routes
 use App\Http\Controllers\ImageUploadController;
 
@@ -67,9 +84,69 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/{team}/image', [DirectoryController::class, 'updateImage'])->name('updateImage')->middleware('perm:directory.profile.manage');
     });
 
-    // Newsletter route
-    Route::get('/newsletter', fn () => Inertia::render('Newsletter/index'))
-        ->name('newsletter.index');
+    // Newsletter routes
+    Route::prefix('newsletter')->name('newsletter.')->group(function () {
+        Route::get('/', fn () => Inertia::render('Newsletter/index'))->name('index');
+        
+        // Subscriber management
+        Route::prefix('subscribers')->name('subscribers.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'index'])->name('index');
+            Route::post('/', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'store'])->name('store');
+            Route::get('/{subscriber}', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'show'])->name('show');
+            Route::put('/{subscriber}', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'update'])->name('update');
+            Route::delete('/{subscriber}', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'destroy'])->name('destroy');
+            
+            // Bulk operations
+            Route::post('/bulk-import', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'bulkImport'])->name('bulk-import');
+            Route::get('/bulk-export', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'bulkExport'])->name('bulk-export');
+            Route::post('/bulk-delete', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'bulkDelete'])->name('bulk-delete');
+            Route::post('/bulk-update-status', [\App\Http\Controllers\Newsletter\SubscriberController::class, 'bulkUpdateStatus'])->name('bulk-update-status');
+        });
+        
+        // Group management
+        Route::prefix('groups')->name('groups.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Newsletter\GroupController::class, 'index'])->name('index');
+            Route::post('/', [\App\Http\Controllers\Newsletter\GroupController::class, 'store'])->name('store');
+            Route::get('/{group}', [\App\Http\Controllers\Newsletter\GroupController::class, 'show'])->name('show');
+            Route::put('/{group}', [\App\Http\Controllers\Newsletter\GroupController::class, 'update'])->name('update');
+            Route::delete('/{group}', [\App\Http\Controllers\Newsletter\GroupController::class, 'destroy'])->name('destroy');
+            Route::post('/{group}/add-subscribers', [\App\Http\Controllers\Newsletter\GroupController::class, 'addSubscribers'])->name('add-subscribers');
+            Route::post('/{group}/remove-subscribers', [\App\Http\Controllers\Newsletter\GroupController::class, 'removeSubscribers'])->name('remove-subscribers');
+        });
+        
+        // Campaign management
+        Route::prefix('campaigns')->name('campaigns.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Newsletter\CampaignController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Newsletter\CampaignController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Newsletter\CampaignController::class, 'store'])->name('store');
+            Route::get('/{campaign}', [\App\Http\Controllers\Newsletter\CampaignController::class, 'show'])->name('show');
+            Route::get('/{campaign}/edit', [\App\Http\Controllers\Newsletter\CampaignController::class, 'edit'])->name('edit');
+            Route::put('/{campaign}', [\App\Http\Controllers\Newsletter\CampaignController::class, 'update'])->name('update');
+            Route::delete('/{campaign}', [\App\Http\Controllers\Newsletter\CampaignController::class, 'destroy'])->name('destroy');
+            Route::get('/{campaign}/preview', [\App\Http\Controllers\Newsletter\CampaignController::class, 'preview'])->name('preview');
+            
+            // Campaign actions
+            Route::post('/{campaign}/send', [\App\Http\Controllers\Newsletter\CampaignController::class, 'send'])->name('send');
+            Route::post('/{campaign}/pause', [\App\Http\Controllers\Newsletter\CampaignController::class, 'pause'])->name('pause');
+            Route::post('/{campaign}/resume', [\App\Http\Controllers\Newsletter\CampaignController::class, 'resume'])->name('resume');
+            Route::post('/{campaign}/cancel', [\App\Http\Controllers\Newsletter\CampaignController::class, 'cancel'])->name('cancel');
+            Route::post('/{campaign}/duplicate', [\App\Http\Controllers\Newsletter\CampaignController::class, 'duplicate'])->name('duplicate');
+        });
+        
+        // Template management
+        Route::prefix('templates')->name('templates.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Newsletter\TemplateController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Newsletter\TemplateController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Newsletter\TemplateController::class, 'store'])->name('store');
+            Route::get('/{template}/edit', [\App\Http\Controllers\Newsletter\TemplateController::class, 'edit'])->name('edit');
+            Route::get('/{template}', [\App\Http\Controllers\Newsletter\TemplateController::class, 'show'])->name('show');
+            Route::put('/{template}', [\App\Http\Controllers\Newsletter\TemplateController::class, 'update'])->name('update');
+            Route::delete('/{template}', [\App\Http\Controllers\Newsletter\TemplateController::class, 'destroy'])->name('destroy');
+        });
+        
+        // Analytics
+        Route::get('/analytics', [\App\Http\Controllers\Newsletter\DashboardController::class, 'analytics'])->name('analytics');
+    });
 
     // Dashboard route - accessible to all authenticated users
     Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\TicketFileController;
 use App\Http\Controllers\Api\TempFileController;
+use App\Http\Controllers\Newsletter\PublicController as NewsletterPublicController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -31,3 +32,8 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::delete('/files/{file}', [TicketFileController::class, 'destroy'])->middleware('perm:tickets.file.upload');
     });
 });
+
+// Public Newsletter Subscription API (no auth)
+Route::post('/subscribe', [NewsletterPublicController::class, 'subscribe']);
+Route::get('/unsubscribe/{token}', [NewsletterPublicController::class, 'unsubscribeApi']);
+Route::put('/subscriber/{token}', [NewsletterPublicController::class, 'updatePreferences']);
