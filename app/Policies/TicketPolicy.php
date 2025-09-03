@@ -23,14 +23,15 @@ class TicketPolicy
     /**
      * Determine whether the user can view the model.
      *
-     * Admins can view any ticket. Users can view their own tickets
-     * and tickets where they are assigned.
+     * Admins can view any ticket. Non-admins can only view their own tickets
+     * and tickets where they are assigned. Possessing a generic "view" permission
+     * does not grant access to arbitrary tickets by ID.
      */
     public function view(User $user, Ticket $ticket): bool
     {
-        // Allow if user has manage or view permission, or owns the ticket
+        // Allow if user manages or can update tickets, owns the ticket, or is assigned
         return $user->can('tickets.ticket.manage')
-            || $user->can('tickets.ticket.view')
+            || $user->can('tickets.ticket.update')
             || $ticket->user_id === $user->id
             || $ticket->assignees()->where('users.id', $user->id)->exists();
     }

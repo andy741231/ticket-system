@@ -50,9 +50,10 @@ const props = defineProps({
     teamName: String,
     teamId: Number,
     renderButton: { type: Boolean, default: true },
+    handleUpload: { type: Function, default: null },
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'on-upload']);
 
 const fileInput = ref(null);
 const showCropper = ref(false);
@@ -125,15 +126,13 @@ const cropAndUpload = async () => {
         });
 
         const formData = new FormData();
-        formData.append('image', blob, 'image.jpg');
+                        const uploadFilename = props.teamName ? `${props.teamName.trim().replace(/\s+/g, '_')}.jpg` : 'image.jpg';
+        formData.append('image', blob, uploadFilename);
         formData.append('name', props.teamName || 'profile');
 
         // CSRF headers are set globally in resources/js/bootstrap.js
-        // Use Ziggy route() to ensure we call the Laravel backend origin, not the Vite dev server
-        const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
-        const uploadResp = await axios.post(window.route('image.upload'), formData, {
+        const uploadResp = await axios.post('/api/tmp_upload', formData, {
             headers: {
-                ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
                 'Accept': 'application/json'
             },
             onUploadProgress: (e) => {
@@ -143,13 +142,8 @@ const cropAndUpload = async () => {
             },
         });
 
-        const url = uploadResp.data.url;
-        await axios.patch(
-            window.route('directory.updateImage', { team: props.teamId }),
-            { img: url },
-            { headers: { ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}), 'Accept': 'application/json' } }
-        );
-        emit('update:modelValue', url);
+                const { folder, filename } = uploadResp.data;
+        emit('on-upload', { folder, filename, dataUrl: canvas.toDataURL('image/jpeg') });
 
         closeCropper();
     } catch (error) {

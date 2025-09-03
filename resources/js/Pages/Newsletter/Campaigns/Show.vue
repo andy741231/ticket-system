@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import {
   PencilIcon,
   PlayIcon,
@@ -20,6 +20,18 @@ const props = defineProps({
 
 const showPreview = ref(false);
 
+// Loading state for actions to prevent duplicate submissions and provide UX feedback
+const isLoading = ref({
+  send: false,
+  pause: false,
+  resume: false,
+  cancel: false,
+  duplicate: false,
+});
+
+// Safe default to avoid accessing length of undefined
+const recentEventsSafe = computed(() => props.recentEvents ?? []);
+
 const statusColors = {
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
   scheduled: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -28,6 +40,28 @@ const statusColors = {
   paused: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
+
+// If campaign finished processing but all deliveries failed, present as "failed"
+const statusLabel = computed(() => {
+  if (
+    props.campaign.status === 'sent' &&
+    props.campaign.sent_count === 0 &&
+    props.campaign.failed_count > 0
+  ) {
+    return 'failed';
+  }
+  return props.campaign.status;
+});
+
+const statusClass = computed(() => {
+  const key = statusLabel.value;
+  // Map failed to red styling reusing cancelled palette for consistency
+  const map = {
+    ...statusColors,
+    failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  };
+  return map[key] ?? statusColors.draft;
+});
 
 const progressPercentage = computed(() => {
   if (props.campaign.total_recipients === 0) return 0;
@@ -43,31 +77,56 @@ const metrics = computed(() => ({
 }));
 
 function sendCampaign() {
-  if (confirm(`Are you sure you want to send "${props.campaign.name}" to ${props.campaign.total_recipients} recipients?`)) {
-    router.post(route('newsletter.campaigns.send', props.campaign.id));
-  }
+  if (!confirm(`Are you sure you want to send "${props.campaign.name}" to ${props.campaign.total_recipients} recipients?`)) return;
+  isLoading.value.send = true;
+  router.post(route('newsletter.campaigns.send', props.campaign.id), {}, {
+    preserveScroll: true,
+    onSuccess: () => { reloadCampaign(); },
+    onError: () => alert('Failed to start sending. Please check the campaign and try again.'),
+    onFinish: () => { isLoading.value.send = false; },
+  });
 }
 
 function pauseCampaign() {
-  if (confirm(`Are you sure you want to pause "${props.campaign.name}"?`)) {
-    router.post(route('newsletter.campaigns.pause', props.campaign.id));
-  }
+  if (!confirm(`Are you sure you want to pause "${props.campaign.name}"?`)) return;
+  isLoading.value.pause = true;
+  router.post(route('newsletter.campaigns.pause', props.campaign.id), {}, {
+    preserveScroll: true,
+    onSuccess: () => { reloadCampaign(); },
+    onError: () => alert('Failed to pause campaign.'),
+    onFinish: () => { isLoading.value.pause = false; },
+  });
 }
 
 function resumeCampaign() {
-  if (confirm(`Are you sure you want to resume sending "${props.campaign.name}"?`)) {
-    router.post(route('newsletter.campaigns.resume', props.campaign.id));
-  }
+  if (!confirm(`Are you sure you want to resume sending "${props.campaign.name}"?`)) return;
+  isLoading.value.resume = true;
+  router.post(route('newsletter.campaigns.resume', props.campaign.id), {}, {
+    preserveScroll: true,
+    onSuccess: () => { reloadCampaign(); },
+    onError: () => alert('Failed to resume campaign.'),
+    onFinish: () => { isLoading.value.resume = false; },
+  });
 }
 
 function cancelCampaign() {
-  if (confirm(`Are you sure you want to cancel "${props.campaign.name}"? This action cannot be undone.`)) {
-    router.post(route('newsletter.campaigns.cancel', props.campaign.id));
-  }
+  if (!confirm(`Are you sure you want to cancel "${props.campaign.name}"? This action cannot be undone.`)) return;
+  isLoading.value.cancel = true;
+  router.post(route('newsletter.campaigns.cancel', props.campaign.id), {}, {
+    preserveScroll: true,
+    onSuccess: () => { reloadCampaign(); },
+    onError: () => alert('Failed to cancel campaign.'),
+    onFinish: () => { isLoading.value.cancel = false; },
+  });
 }
 
 function duplicateCampaign() {
-  router.post(route('newsletter.campaigns.duplicate', props.campaign.id));
+  isLoading.value.duplicate = true;
+  router.post(route('newsletter.campaigns.duplicate', props.campaign.id), {}, {
+    preserveScroll: true,
+    onError: () => alert('Failed to duplicate campaign.'),
+    onFinish: () => { isLoading.value.duplicate = false; },
+  });
 }
 
 function formatDate(dateString) {
@@ -83,20 +142,68 @@ function getEventIcon(eventType) {
     default: return '📧';
   }
 }
+
+// --- Real-time polling for status/metrics while sending or paused ---
+let pollTimer = null;
+
+function reloadCampaign() {
+  router.reload({
+    only: ['campaign', 'analytics', 'recentEvents'],
+    preserveScroll: true,
+  });
+}
+
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(() => {
+    reloadCampaign();
+  }, 4000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+onMounted(() => {
+  if (['sending', 'paused'].includes(props.campaign.status)) {
+    startPolling();
+  }
+});
+
+watch(() => props.campaign.status, (newStatus) => {
+  if (['sending', 'paused'].includes(newStatus)) {
+    startPolling();
+  } else {
+    stopPolling();
+  }
+});
+
+onBeforeUnmount(() => {
+  stopPolling();
+});
 </script>
 
 <template>
   <Head :title="campaign.name" />
   <AuthenticatedLayout>
     <template #header>
-      <div class="flex justify-between items-start">
+      
+    </template>
+
+    <div class="">
+      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+
+        <div class="flex justify-between items-start">
         <div>
           <div class="flex items-center gap-3 mb-2">
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
               {{ campaign.name }}
             </h2>
-            <span :class="`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[campaign.status]}`">
-              {{ campaign.status }}
+            <span :class="`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`">
+              {{ statusLabel }}
             </span>
           </div>
           <p class="text-sm text-gray-600 dark:text-gray-400">
@@ -125,55 +232,63 @@ function getEventIcon(eventType) {
           <button
             v-if="campaign.status === 'draft'"
             @click="sendCampaign"
-            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700"
+            :disabled="isLoading.send"
+            :aria-busy="isLoading.send"
+            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PlayIcon class="w-4 h-4 mr-2" />
-            Send Now
+            {{ isLoading.send ? 'Sending...' : 'Send Now' }}
           </button>
 
           <button
             v-if="campaign.status === 'sending'"
             @click="pauseCampaign"
-            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-yellow-600 border border-transparent rounded-md hover:bg-yellow-700"
+            :disabled="isLoading.pause"
+            :aria-busy="isLoading.pause"
+            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-yellow-600 border border-transparent rounded-md hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PauseIcon class="w-4 h-4 mr-2" />
-            Pause
+            {{ isLoading.pause ? 'Pausing...' : 'Pause' }}
           </button>
 
           <button
             v-if="campaign.status === 'paused'"
             @click="resumeCampaign"
-            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700"
+            :disabled="isLoading.resume"
+            :aria-busy="isLoading.resume"
+            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PlayIcon class="w-4 h-4 mr-2" />
-            Resume
+            {{ isLoading.resume ? 'Resuming...' : 'Resume' }}
           </button>
 
           <button
             v-if="['scheduled', 'sending', 'paused'].includes(campaign.status)"
             @click="cancelCampaign"
-            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700"
+            :disabled="isLoading.cancel"
+            :aria-busy="isLoading.cancel"
+            class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <StopIcon class="w-4 h-4 mr-2" />
-            Cancel
+            {{ isLoading.cancel ? 'Cancelling...' : 'Cancel' }}
           </button>
 
           <button
             @click="duplicateCampaign"
-            class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+            :disabled="isLoading.duplicate"
+            :aria-busy="isLoading.duplicate"
+            class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <DocumentDuplicateIcon class="w-4 h-4 mr-2" />
-            Duplicate
+            {{ isLoading.duplicate ? 'Duplicating...' : 'Duplicate' }}
           </button>
         </div>
       </div>
-    </template>
-
-    <div class="py-12">
-      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
         
         <!-- Campaign Overview -->
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
+
+          
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="text-center">
               <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -198,6 +313,30 @@ function getEventIcon(eventType) {
                 {{ campaign.click_rate }}%
               </div>
               <div class="text-sm text-gray-500 dark:text-gray-400">Click Rate</div>
+            </div>
+          </div>
+
+          <!-- All failed notice with error details -->
+          <div
+            v-if="campaign.status === 'sent' && campaign.sent_count === 0 && campaign.failed_count > 0"
+            class="mt-4 p-3 rounded-md bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm"
+          >
+            <div class="font-semibold mb-2">All delivery attempts failed. No emails were delivered.</div>
+            <div v-if="campaign.last_error" class="mt-2 p-2 bg-white dark:bg-gray-800 rounded border border-red-200 dark:border-red-800 overflow-auto max-h-40">
+              <div class="font-medium mb-1">Error Details:</div>
+              <pre class="text-xs whitespace-pre-wrap">{{ campaign.last_error }}</pre>
+            </div>
+            <div v-else class="text-sm mt-2">
+              No specific error details available. Please check your mail configuration and server logs.
+            </div>
+            <div class="mt-3 text-sm">
+              Common issues:
+              <ul class="list-disc pl-5 mt-1 space-y-1">
+                <li>Mail server configuration</li>
+                <li>API keys or SMTP credentials</li>
+                <li>Email sending limits</li>
+                <li>DNS settings (SPF, DKIM, DMARC)</li>
+              </ul>
             </div>
           </div>
 
@@ -320,10 +459,10 @@ function getEventIcon(eventType) {
             </h3>
           </div>
           <div class="divide-y divide-gray-200 dark:divide-gray-700">
-            <div v-if="recentEvents.length === 0" class="p-6 text-center text-gray-500 dark:text-gray-400">
+            <div v-if="recentEventsSafe.length === 0" class="p-6 text-center text-gray-500 dark:text-gray-400">
               No activity yet
             </div>
-            <div v-for="event in recentEvents" :key="event.id" class="p-6 flex items-center gap-4">
+            <div v-for="event in recentEventsSafe" :key="event.id" class="p-6 flex items-center gap-4">
               <div class="text-2xl">{{ getEventIcon(event.event_type) }}</div>
               <div class="flex-1">
                 <div class="text-sm font-medium text-gray-900 dark:text-gray-100">

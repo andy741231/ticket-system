@@ -46,10 +46,10 @@ watch(() => searchForm.query, () => {
       <div class="flex justify-between items-center mb-4">
           <div>
           </div>
-          <Link v-if="canAddStaff" :href="route('admin.users.create')" as="button">
+          <Link v-if="canAddStaff" :href="route('directory.create')" as="button">
               <PrimaryButton>
                   <font-awesome-icon icon="plus" class="h-5 w-5 mr-1" />
-                  Add Staff
+                  Add Team Member
               </PrimaryButton>
           </Link>
        </div>

@@ -22,14 +22,14 @@ function formatDate(d) {
   <Head title="Email Templates" />
   <AuthenticatedLayout>
     <template #header>
-      <div class="flex items-center justify-between">
+      
+    </template>
+
+    <div class="">
+      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between">
         <div>
-          <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Email Templates
-          </h2>
-          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Create reusable templates for your newsletters
-          </p>
+         
         </div>
         <Link
           :href="route('newsletter.templates.create')"
@@ -38,10 +38,6 @@ function formatDate(d) {
           New Template
         </Link>
       </div>
-    </template>
-
-    <div class="py-12">
-      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

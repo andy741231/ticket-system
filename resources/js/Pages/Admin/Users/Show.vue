@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import Avatar from '@/Components/Avatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
@@ -109,9 +110,7 @@ const { currentTeamId } = useAppContext();
                         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                             <div class="p-6">
                                 <div class="flex flex-col items-center">
-                                    <div class="h-24 w-24 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-4xl font-bold text-indigo-600 dark:text-indigo-300 mb-4">
-                                        {{ user.name.charAt(0) }}
-                                    </div>
+                                    <Avatar :user="user" size="xl" class="mb-4" />
                                     <h3 class="text-lg font-medium text-gray-900 dark:text-white">{{ user.name }}</h3>
                                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ user.email }}</p>
                                     

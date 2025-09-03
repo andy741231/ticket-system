@@ -82,14 +82,27 @@ class PublicController extends Controller
 
     public function trackOpen(Request $request, $campaign, $subscriber, $token)
     {
+        // Ensure consistent data types for token verification
+        $campaignId = (string)$campaign;
+        $subscriberId = (string)$subscriber;
+        
         // Verify token
-        $expectedToken = hash('sha256', $campaign . $subscriber . config('app.key'));
+        $expectedToken = hash('sha256', $campaignId . $subscriberId . config('app.key'));
+        
         if (!hash_equals($expectedToken, $token)) {
-            abort(404);
+            \Log::warning('Invalid tracking token', [
+                'campaign' => $campaignId,
+                'subscriber' => $subscriberId,
+                'expected_token' => $expectedToken,
+                'received_token' => $token,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
+            abort(404, 'Invalid tracking token');
         }
 
-        $campaignModel = Campaign::find($campaign);
-        $subscriberModel = Subscriber::find($subscriber);
+        $campaignModel = Campaign::find($campaignId);
+        $subscriberModel = Subscriber::find($subscriberId);
 
         if ($campaignModel && $subscriberModel) {
             // Check if already tracked to avoid duplicates
@@ -174,6 +187,44 @@ class PublicController extends Controller
             'message' => 'Successfully subscribed to newsletter',
             'subscriber' => $subscriber->load('groups'),
         ]);
+    }
+
+    public function preferences(Request $request, $token)
+    {
+        $subscriber = Subscriber::where('unsubscribe_token', $token)->first();
+
+        if (!$subscriber) {
+            abort(404, 'Invalid preferences link');
+        }
+
+        $groups = \App\Models\Newsletter\Group::all();
+
+        return view('newsletter.preferences', compact('subscriber', 'groups'));
+    }
+
+    public function updatePreferencesWeb(Request $request, $token)
+    {
+        $subscriber = Subscriber::where('unsubscribe_token', $token)->first();
+
+        if (!$subscriber) {
+            abort(404, 'Invalid preferences link');
+        }
+
+        $request->validate([
+            'name' => ['nullable', 'string', 'max:255'],
+            'first_name' => ['nullable', 'string', 'max:255'],
+            'last_name' => ['nullable', 'string', 'max:255'],
+            'groups' => ['nullable', 'array'],
+            'groups.*' => ['exists:newsletter_groups,id'],
+        ]);
+
+        $subscriber->update($request->only(['name', 'first_name', 'last_name']));
+
+        if ($request->has('groups')) {
+            $subscriber->groups()->sync($request->groups ?? []);
+        }
+
+        return view('newsletter.preferences-updated', compact('subscriber'));
     }
 
     public function updatePreferences(Request $request, $token)

@@ -1,5 +1,6 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import Avatar from '@/Components/Avatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import MultiSelectCheckbox from '@/Components/MultiSelectCheckbox.vue';
@@ -179,6 +180,7 @@ const sortBy = (field) => {
         sortField.value = field;
         sortDirection.value = 'asc';
     }
+    performSearch();
 };
 
 // Get sort indicator for a column
@@ -274,12 +276,14 @@ const performSearch = () => {
     if (ownershipScope.value === 'assigned' || ownershipScope.value === 'submitted') {
         params.scope = ownershipScope.value;
     }
+    // Fetch filtered/sorted results from the server
     router.get(route('tickets.index'), params, {
         preserveState: true,
-        preserveScroll: true,
         replace: true,
+        preserveScroll: true,
+        only: ['tickets', 'filters'],
     });
-};
+}
 
 // Watch for search input changes with debounce
 watch(search, () => {
@@ -481,7 +485,8 @@ const timeAgo = (dateString) => {
                                     </div>
                                     <div class="mt-4 flex justify-between items-center">
                                         <div class="flex items-center">
-                                            <img class="h-6 w-6 rounded-full" :src="`https://ui-avatars.com/api/?name=${ticket.user.name}&background=random`" alt="">
+                                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400 mr-2">Submitted By:</span>
+                                            <Avatar :user="ticket.user" size="xs" />
                                             <span class="ml-2 text-sm text-uh-slate dark:text-uh-cream">{{ ticket.user.name }}</span>
                                         </div>
                                     </div>
@@ -576,7 +581,7 @@ const timeAgo = (dateString) => {
                                                             <div class="flex items-center gap-1 flex-wrap">
                                                                 <template v-if="ticket.assignees && ticket.assignees.length">
                                                                     <span v-for="user in ticket.assignees" :key="user.id" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/10 dark:bg-uh-teal/20 text-uh-slate dark:text-uh-cream">
-                                                                        <font-awesome-icon :icon="['fas', 'user']" class="h-3 w-3 mr-1 text-uh-teal dark:text-uh-teal/80" />
+                                                                        <Avatar :user="user" size="xs" class="mr-1" />
                                                                         {{ user.name }}
                                                                     </span>
                                                                 </template>

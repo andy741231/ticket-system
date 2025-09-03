@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Newsletter;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendCampaign;
+use App\Jobs\ProcessRecurringCampaigns;
+use App\Jobs\ProcessScheduledSends;
 use App\Models\Newsletter\Campaign;
 use App\Models\Newsletter\Group;
 use App\Models\Newsletter\Subscriber;
@@ -44,7 +46,19 @@ class CampaignController extends Controller
     public function create()
     {
         $templates = Template::orderBy('is_default', 'desc')->orderBy('name')->get();
-        $groups = Group::active()->get();
+        $groups = Group::active()
+            ->withCount(['activeSubscribers'])
+            ->get()
+            ->map(function ($group) {
+                return [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'description' => $group->description,
+                    'color' => $group->color,
+                    'is_active' => $group->is_active,
+                    'active_subscriber_count' => $group->active_subscribers_count,
+                ];
+            });
 
         return Inertia::render('Newsletter/Campaigns/Create', [
             'templates' => $templates,
@@ -55,48 +69,135 @@ class CampaignController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'max:255'],
-            'subject' => ['required', 'string', 'max:255'],
-            'preview_text' => ['nullable', 'string', 'max:255'],
-            'content' => ['required', 'array'],
-            'html_content' => ['required', 'string'],
-            'template_id' => ['nullable', 'exists:newsletter_templates,id'],
-            'send_type' => ['required', Rule::in(['immediate', 'scheduled', 'recurring'])],
-            'scheduled_at' => ['required_if:send_type,scheduled,recurring', 'nullable', 'date', 'after:now'],
-            'recurring_config' => ['required_if:send_type,recurring', 'nullable', 'array'],
-            'target_groups' => ['nullable', 'array'],
-            'target_groups.*' => ['exists:newsletter_groups,id'],
-            'send_to_all' => ['boolean'],
+            'name' => 'required|string|max:255',
+            'subject' => 'required|string|max:255',
+            'content' => 'required|array',
+            'html_content' => 'nullable|string',
+            'from_name' => 'required|string|max:255',
+            'from_email' => 'required|email|max:255',
+            'reply_to' => 'nullable|email|max:255',
+            'send_type' => 'required|in:immediate,scheduled,recurring',
+            'scheduled_at' => 'required_if:send_type,scheduled|date|after:now',
+            'target_groups' => 'required_without:send_to_all|array',
+            'target_groups.*' => 'exists:newsletter_groups,id',
+            'send_to_all' => 'boolean',
+            'recurring_config' => 'required_if:send_type,recurring|array',
+            'recurring_config.frequency' => 'required_if:send_type,recurring|in:daily,weekly,monthly,quarterly',
+            'recurring_config.days_of_week' => 'required_if:recurring_config.frequency,weekly|array',
+            'recurring_config.days_of_week.*' => 'integer|min:0|max:6',
+            'recurring_config.day_of_month' => 'required_if:recurring_config.frequency,monthly|integer|min:1|max:31',
+            'recurring_config.has_end_date' => 'boolean',
+            'recurring_config.end_date' => 'required_if:recurring_config.has_end_date,true|date|after:today',
+            'recurring_config.occurrences' => 'nullable|integer|min:1',
         ]);
 
         if ($validator->fails()) {
-            return back()->withErrors($validator)->withInput();
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $data = $validator->validated();
         $data['created_by'] = auth()->id();
-        $data['status'] = $data['send_type'] === 'immediate' ? 'draft' : 'scheduled';
-
-        // Calculate total recipients
-        $recipientQuery = Subscriber::active();
-        if (!$data['send_to_all'] && !empty($data['target_groups'])) {
-            $recipientQuery->whereHas('groups', function ($q) use ($data) {
-                $q->whereIn('newsletter_groups.id', $data['target_groups']);
-            });
+        
+        // Set default empty content if not provided
+        if (!isset($data['content'])) {
+            $data['content'] = [];
         }
-        $data['total_recipients'] = $recipientQuery->count();
-
-        $campaign = Campaign::create($data);
-
+        
+        // Ensure target_groups is always an array
+        $data['target_groups'] = $data['target_groups'] ?? [];
+        
+        // Set the initial status based on send type
         if ($data['send_type'] === 'immediate') {
-            return redirect()->route('newsletter.campaigns.show', $campaign)
-                           ->with('success', 'Campaign created successfully. Ready to send.');
+            $data['status'] = 'draft';
+        } elseif ($data['send_type'] === 'recurring') {
+            $data['status'] = 'active'; // Recurring campaigns are active by default
+        } else {
+            $data['status'] = 'scheduled';
         }
 
-        return redirect()->route('newsletter.campaigns.index')
-                       ->with('success', 'Campaign scheduled successfully.');
+        // Format recurring config
+        if ($data['send_type'] === 'recurring') {
+            $data['recurring_config'] = [
+                'frequency' => $data['recurring_config']['frequency'],
+                'days_of_week' => $data['recurring_config']['days_of_week'] ?? [],
+                'day_of_month' => $data['recurring_config']['day_of_month'] ?? null,
+                'end_date' => $data['recurring_config']['has_end_date'] ? $data['recurring_config']['end_date'] : null,
+                'occurrences' => $data['recurring_config']['occurrences'] ?? null,
+                'last_scheduled_at' => null,
+                'next_scheduled_at' => now(), // Will be calculated by the job
+            ];
+            
+            // For recurring campaigns, scheduled_at is when the first send should occur
+            if (empty($data['scheduled_at'])) {
+                $data['scheduled_at'] = now();
+            }
+        } else {
+            $data['recurring_config'] = null;
+        }
+
+        // Create the campaign first to get an ID
+        $campaign = Campaign::create($data);
+        
+        // Calculate total recipients using the model's method
+        $data['total_recipients'] = $campaign->getRecipientsQuery()->count();
+        
+        // Update the campaign with the recipient count
+        $campaign->update(['total_recipients' => $data['total_recipients']]);
+
+        // Handle different send types
+        if ($campaign->isRecurring()) {
+            // For recurring campaigns, dispatch the job to process the first send
+            ProcessRecurringCampaigns::dispatch($campaign);
+            
+            // Log the recurring campaign creation
+            \Log::info("Recurring campaign #{$campaign->id} created. First send will be processed soon.");
+            
+            return redirect()->route('newsletter.campaigns.show', $campaign)
+                           ->with('success', 'Recurring campaign created successfully. First send is scheduled.');
+                            
+        } elseif ($campaign->send_type === 'scheduled') {
+            // For scheduled campaigns, create the scheduled sends
+            $this->scheduleCampaignSends($campaign, $campaign->scheduled_at);
+            
+            return redirect()->route('newsletter.campaigns.show', $campaign)
+                           ->with('success', 'Campaign scheduled successfully.');
+                           
+        } elseif ($campaign->send_type === 'immediate') {
+            // Do not auto-send on creation. Keep as draft; user will send from the campaign page.
+            return redirect()->route('newsletter.campaigns.show', $campaign)
+                           ->with('success', 'Campaign created as draft. You can send it when ready.');
+        }
+        
+        // Default redirect (shouldn't normally reach here)
+        return redirect()->route('newsletter.campaigns.show', $campaign)
+                       ->with('success', 'Campaign created successfully.');
     }
 
+    /**
+     * Schedule a campaign to be sent at a specific time.
+     *
+     * @param  \App\Models\Newsletter\Campaign  $campaign
+     * @param  \Carbon\Carbon  $scheduledAt
+     * @return void
+     */
+    protected function scheduleCampaignSends(Campaign $campaign, $scheduledAt)
+    {
+        $subscribers = $campaign->getRecipientsQuery()->get();
+        
+        foreach ($subscribers as $subscriber) {
+            $campaign->scheduledSends()->create([
+                'subscriber_id' => $subscriber->id,
+                'scheduled_at' => $scheduledAt,
+                'status' => \App\Models\Newsletter\ScheduledSend::STATUS_PENDING,
+            ]);
+        }
+        
+        // Update the campaign status to scheduled if it's not already
+        if ($campaign->status !== 'scheduled') {
+            $campaign->update(['status' => 'scheduled']);
+        }
+    }
+    
     public function show(Campaign $campaign)
     {
         $campaign->load(['creator', 'template', 'analyticsEvents']);
@@ -117,6 +218,7 @@ class CampaignController extends Controller
         return Inertia::render('Newsletter/Campaigns/Show', [
             'campaign' => $campaign,
             'analytics' => $analytics,
+            'recentEvents' => $analytics['recent_events'],
         ]);
     }
 
@@ -142,6 +244,10 @@ class CampaignController extends Controller
             return back()->with('error', 'Cannot update a campaign that has been sent.');
         }
 
+        // Ensure these are defined before any later use
+        $wasScheduled = ($campaign->send_type === 'scheduled');
+        $oldScheduledAt = $campaign->scheduled_at ? $campaign->scheduled_at->toDateTimeString() : null;
+
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'subject' => ['required', 'string', 'max:255'],
@@ -150,31 +256,112 @@ class CampaignController extends Controller
             'html_content' => ['required', 'string'],
             'template_id' => ['nullable', 'exists:newsletter_templates,id'],
             'send_type' => ['required', Rule::in(['immediate', 'scheduled', 'recurring'])],
-            'scheduled_at' => ['required_if:send_type,scheduled,recurring', 'nullable', 'date', 'after:now'],
+            // Add a small buffer to tolerate client/server clock skew
+            'scheduled_at' => ['required_if:send_type,scheduled,recurring', 'nullable', 'date', 'after:' . now()->addMinutes(2)],
             'recurring_config' => ['required_if:send_type,recurring', 'nullable', 'array'],
-            'target_groups' => ['nullable', 'array'],
+            'recurring_config.frequency' => ['required_if:send_type,recurring', 'string', 'in:daily,weekly,monthly,quarterly'],
+            'recurring_config.days_of_week' => ['required_if:recurring_config.frequency,weekly', 'array', 'min:1'],
+            'recurring_config.days_of_week.*' => ['string', 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday'],
+            'recurring_config.day_of_month' => ['required_if:recurring_config.frequency,monthly', 'integer', 'min:1', 'max:31'],
+            'recurring_config.has_end_date' => ['sometimes', 'boolean'],
+            'recurring_config.end_date' => ['required_if:recurring_config.has_end_date,true', 'date', 'after:scheduled_at'],
+            'recurring_config.occurrences' => ['nullable', 'integer', 'min:1'],
+            // Require target_groups unless sending to all
+            'target_groups' => ['required_without:send_to_all', 'array'],
             'target_groups.*' => ['exists:newsletter_groups,id'],
             'send_to_all' => ['boolean'],
         ]);
 
         if ($validator->fails()) {
-            return back()->withErrors($validator)->withInput();
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $data = $validator->validated();
+        try {
+            $data = $validator->validated();
 
-        // Recalculate total recipients
-        $recipientQuery = Subscriber::active();
-        if (!$data['send_to_all'] && !empty($data['target_groups'])) {
-            $recipientQuery->whereHas('groups', function ($q) use ($data) {
-                $q->whereIn('newsletter_groups.id', $data['target_groups']);
-            });
+            // Ensure defaults
+            $data['send_to_all'] = (bool)($data['send_to_all'] ?? false);
+            $data['target_groups'] = $data['send_to_all'] ? [] : ($data['target_groups'] ?? []);
+
+            // Format recurring config
+            if ($data['send_type'] === 'recurring') {
+                $data['recurring_config'] = [
+                    'frequency' => $data['recurring_config']['frequency'],
+                    'days_of_week' => $data['recurring_config']['days_of_week'] ?? [],
+                    'day_of_month' => $data['recurring_config']['day_of_month'] ?? null,
+                    'has_end_date' => $data['recurring_config']['has_end_date'] ?? false,
+                    'end_date' => ($data['recurring_config']['has_end_date'] ?? false) ? $data['recurring_config']['end_date'] : null,
+                    'occurrences' => $data['recurring_config']['occurrences'] ?? null,
+                ];
+
+                if ($campaign->send_type !== 'recurring' || $campaign->recurring_config !== $data['recurring_config']) {
+                    $campaign->scheduledSends()->delete();
+                    ProcessRecurringCampaigns::dispatch($campaign);
+                }
+            } else {
+                $data['recurring_config'] = null;
+                if ($campaign->send_type === 'recurring') {
+                    $campaign->scheduledSends()->delete();
+                }
+            }
+
+            // Recalculate total recipients
+            $recipientQuery = Subscriber::active();
+            if (!$data['send_to_all'] && !empty($data['target_groups'])) {
+                $recipientQuery->whereHas('groups', function ($q) use ($data) {
+                    $q->whereIn('newsletter_groups.id', $data['target_groups']);
+                });
+            }
+            $data['total_recipients'] = $recipientQuery->count();
+
+            // Persist campaign
+            $campaign->update($data);
+
+            // Handle scheduled sends based on changes
+            if ($data['send_type'] === 'scheduled') {
+                $newScheduledAt = $data['scheduled_at'] ?? null;
+                $scheduleChanged = $oldScheduledAt !== $newScheduledAt;
+                if (!$wasScheduled || $scheduleChanged) {
+                    $campaign->scheduledSends()->delete();
+                    $this->scheduleCampaignSends($campaign, $newScheduledAt);
+                }
+            } else {
+                if ($wasScheduled) {
+                    $campaign->scheduledSends()->delete();
+                }
+            }
+
+            $message = 'Campaign updated successfully.';
+            if ($data['send_type'] === 'recurring') {
+                $message = 'Recurring campaign updated successfully. The schedule has been updated.';
+            } elseif ($data['send_type'] === 'scheduled') {
+                $message = 'Scheduled campaign updated successfully.';
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                    'redirect' => route('newsletter.campaigns.show', $campaign),
+                ], 200);
+            }
+
+            return redirect()
+                ->route('newsletter.campaigns.show', $campaign)
+                ->with('success', $message)
+                ->setStatusCode(303);
+        } catch (\Throwable $e) {
+            \Log::error('Campaign update failed', [
+                'campaign_id' => $campaign->id,
+                'error' => $e->getMessage(),
+            ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Update failed',
+                    'error' => $e->getMessage(),
+                ], 500);
+            }
+            return back()->with('error', 'Campaign update failed: ' . $e->getMessage());
         }
-        $data['total_recipients'] = $recipientQuery->count();
-
-        $campaign->update($data);
-
-        return back()->with('success', 'Campaign updated successfully.');
     }
 
     public function destroy(Campaign $campaign)

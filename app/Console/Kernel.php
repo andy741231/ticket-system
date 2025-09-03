@@ -14,6 +14,8 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\AssignAdminRole::class,
+        \App\Console\Commands\ProcessScheduledSends::class,
+        \App\Console\Commands\ProcessRecurringCampaigns::class,
     ];
 
     /**
@@ -23,6 +25,18 @@ class Kernel extends ConsoleKernel
     {
         // Prune expired user permission overrides hourly
         $schedule->command('rbac:prune-overrides')->hourly();
+        
+        // Process scheduled sends every minute
+        $schedule->command('campaigns:process-scheduled-sends --limit=100')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->runInBackground();
+            
+        // Process recurring campaigns every 15 minutes
+        $schedule->command('campaigns:process-recurring')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

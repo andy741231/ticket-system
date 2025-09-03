@@ -4,7 +4,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 
 const passwordInput = ref(null);
 const currentPasswordInput = ref(null);
@@ -18,15 +18,20 @@ const form = useForm({
 const updatePassword = () => {
     form.put(route('password.update'), {
         preserveScroll: true,
-        onSuccess: () => form.reset(),
-        onError: () => {
+        preserveState: true,
+        onSuccess: () => {
+            form.reset();
+            // Success is handled by the recentlySuccessful state
+        },
+        onError: (errors) => {
+            console.error('Password update error:', errors);
             if (form.errors.password) {
                 form.reset('password', 'password_confirmation');
-                passwordInput.value.focus();
+                nextTick(() => passwordInput.value?.focus());
             }
             if (form.errors.current_password) {
                 form.reset('current_password');
-                currentPasswordInput.value.focus();
+                nextTick(() => currentPasswordInput.value?.focus());
             }
         },
     });
@@ -101,7 +106,10 @@ const updatePassword = () => {
             </div>
 
             <div class="flex items-center gap-4">
-                <PrimaryButton :disabled="form.processing">Save</PrimaryButton>
+                <PrimaryButton type="submit" :disabled="form.processing">
+                    <span v-if="form.processing">Updating...</span>
+                    <span v-else>Update Password</span>
+                </PrimaryButton>
 
                 <Transition
                     enter-active-class="transition ease-in-out"

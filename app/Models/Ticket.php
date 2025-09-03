@@ -103,6 +103,10 @@ class Ticket extends Model
      */
     public function comments(): HasMany
     {
-        return $this->hasMany(TicketComment::class);
+        return $this->hasMany(TicketComment::class)
+            ->whereNull('parent_id')
+            ->with(['user', 'reactions', 'attachments', 'replies'])
+            ->orderByDesc('pinned')
+            ->orderBy('created_at', 'asc');
     }
 }

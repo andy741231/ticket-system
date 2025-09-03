@@ -40,9 +40,13 @@ class UserController extends Controller
         $this->authorize('create', User::class);
 
         // Show only team-scoped roles (exclude global/null team) for assignment
+        // Include app slug/name for grouping/sorting in the UI
         $roles = Role::query()
-            ->whereNotNull('team_id')
-            ->orderBy('name')
+            ->leftJoin('apps as a', 'roles.team_id', '=', 'a.id')
+            ->whereNotNull('roles.team_id')
+            ->orderBy('a.slug')
+            ->orderBy('roles.name')
+            ->select(['roles.id','roles.name','roles.slug','roles.team_id','a.slug as app_slug','a.name as app_name'])
             ->get();
         
         return Inertia::render('Admin/Users/Create', [
@@ -134,9 +138,13 @@ class UserController extends Controller
         $this->authorize('update', $user);
 
         // Show only team-scoped roles (exclude global/null team) for assignment
+        // Include app slug/name for grouping/sorting in the UI
         $roles = Role::query()
-            ->whereNotNull('team_id')
-            ->orderBy('name')
+            ->leftJoin('apps as a', 'roles.team_id', '=', 'a.id')
+            ->whereNotNull('roles.team_id')
+            ->orderBy('a.slug')
+            ->orderBy('roles.name')
+            ->select(['roles.id','roles.name','roles.slug','roles.team_id','a.slug as app_slug','a.name as app_name'])
             ->get();
 
         // Preselect all assigned role IDs across all teams (ignore registrar team context)
@@ -150,6 +158,7 @@ class UserController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'email' => $user->email,
                 'roles' => $assignedRoleIds,
                 'created_at' => $user->created_at,

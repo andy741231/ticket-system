@@ -39,11 +39,27 @@ import {
     faArrowsAltV,
     faArrowUp,
     faThumbsUp,
-    faThumbsDown
+    faThumbsDown,
+    faCopy,
+    faCheck,
+    faEdit,
+    faComments,
+    faPaperclip,
+    faFile,
+    faThumbtack,
+    faTrash,
+    faFaceSmile,
+    faReply
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
-library.add(faBars, faXmark, faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faChevronLeft, faPlus, faSearch, faThLarge, faFilter, faUserTag, faTimes, faTicketAlt, faSortUp, faSortDown, faInbox, faSync, faPause, faCheckCircle, faTimesCircle, faLock, faArrowDown, faArrowsAltV, faArrowUp, faThumbsUp, faThumbsDown);
+library.add(
+    faBars, faXmark, faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket,
+    faChevronLeft, faPlus, faSearch, faThLarge, faFilter, faUserTag, faTimes, faTicketAlt,
+    faSortUp, faSortDown, faInbox, faSync, faPause, faCheckCircle, faTimesCircle, faLock,
+    faArrowDown, faArrowsAltV, faArrowUp, faThumbsUp, faThumbsDown, faCopy, faCheck, faEdit,
+    faComments, faPaperclip, faFile, faThumbtack, faTrash, faFaceSmile, faReply
+);
 
 // Initialize dark mode from localStorage or system preference
 const initializeDarkMode = () => {

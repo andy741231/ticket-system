@@ -45,6 +45,42 @@ class Subscriber extends Model
         });
     }
 
+    /**
+     * Check if the subscriber is active.
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+    
+    /**
+     * Check if the subscriber is pending confirmation.
+     */
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+    
+    /**
+     * Check if the subscriber has unsubscribed.
+     */
+    public function hasUnsubscribed(): bool
+    {
+        return $this->status === 'unsubscribed' || $this->unsubscribed_at !== null;
+    }
+    
+    /**
+     * Mark the subscriber as active.
+     */
+    public function markAsActive(): bool
+    {
+        return $this->update([
+            'status' => 'active',
+            'subscribed_at' => $this->subscribed_at ?? now(),
+            'unsubscribed_at' => null,
+        ]);
+    }
+    
     public function groups(): BelongsToMany
     {
         return $this->belongsToMany(Group::class, 'newsletter_subscriber_groups', 'subscriber_id', 'group_id')
@@ -64,6 +100,11 @@ class Subscriber extends Model
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
     }
 
     public function scopeUnsubscribed($query)
@@ -100,5 +141,21 @@ class Subscriber extends Model
         }
         
         return $this->name ?: $this->email;
+    }
+
+    public function getOrganizationAttribute(): ?string
+    {
+        return $this->metadata['organization'] ?? null;
+    }
+
+    public function setOrganizationAttribute(?string $value): void
+    {
+        $metadata = $this->metadata ?? [];
+        if ($value) {
+            $metadata['organization'] = $value;
+        } else {
+            unset($metadata['organization']);
+        }
+        $this->metadata = $metadata;
     }
 }

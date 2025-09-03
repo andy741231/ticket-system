@@ -27,7 +27,10 @@ const form = useForm({
     email: props.user.email,
     password: '',
     password_confirmation: '',
-    roles: props.user.roles || [],
+    // Normalize to array of role IDs (supports array of IDs or array of objects)
+    roles: Array.isArray(props.user.roles)
+        ? props.user.roles.map((r) => typeof r === 'object' && r !== null ? Number(r.id) : Number(r)).filter((v) => !Number.isNaN(v))
+        : [],
 });
 
 const page = usePage();
@@ -40,6 +43,19 @@ const selectedRoles = computed(() => {
 });
 
 const canManageRbacRoles = useHasAny(['admin.rbac.roles.manage']);
+
+// Group roles by application for clearer UI
+const groupedRoles = computed(() => {
+    const groups = new Map();
+    (props.roles || []).forEach((r) => {
+        const key = r.app_slug || 'other';
+        if (!groups.has(key)) {
+            groups.set(key, { app_slug: key, app_name: r.app_name || 'Other', roles: [] });
+        }
+        groups.get(key).roles.push(r);
+    });
+    return Array.from(groups.values()).sort((a, b) => (a.app_name || '').localeCompare(b.app_name || ''));
+});
 
 const submit = () => {
     form.put(route('admin.users.update', props.user.id), {
@@ -74,6 +90,21 @@ const submit = () => {
                                     autocomplete="name"
                                 />
                                 <InputError class="mt-2" :message="form.errors.name" />
+                            </div>
+
+                            <!-- Username (read-only) -->
+                            <div>
+                                <InputLabel for="username" value="Username" />
+                                <input
+                                    id="username"
+                                    type="text"
+                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    :value="user.username"
+                                    readonly
+                                    disabled
+                                    autocomplete="username"
+                                />
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Username is managed by administrators and cannot be changed here.</p>
                             </div>
 
                             <!-- Email -->
@@ -121,21 +152,28 @@ const submit = () => {
                             <div v-if="!isCurrentUser">
                                 <InputLabel value="Roles" />
                                 <ReadOnlyBanner v-if="!canManageRbacRoles" title="Read-only" message="You do not have permission to manage roles." />
-                                <div class="mt-2 space-y-2">
-                                    <div v-for="role in roles" :key="role.id" class="flex items-center">
-                                        <Checkbox 
-                                            :id="`role_${role.id}`" 
-                                            :value="role.id" 
-                                            v-model:checked="form.roles"
-                                            :disabled="!canManageRbacRoles"
-                                            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                                        />
-                                        <label 
-                                            :for="`role_${role.id}`" 
-                                            class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
-                                        >
-                                            {{ role.name }}
-                                        </label>
+                                <div class="mt-3 space-y-4">
+                                    <div v-for="group in groupedRoles" :key="group.app_slug" class="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                                        <div class="px-3 py-2 border-b border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                            {{ group.app_name }}
+                                        </div>
+                                        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            <div v-for="role in group.roles" :key="role.id" class="flex items-center">
+                                                <Checkbox 
+                                                    :id="`role_${role.id}`" 
+                                                    :value="role.id" 
+                                                    v-model:checked="form.roles"
+                                                    :disabled="!canManageRbacRoles"
+                                                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded dark:bg-gray-700"
+                                                />
+                                                <label 
+                                                    :for="`role_${role.id}`" 
+                                                    class="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+                                                >
+                                                    {{ role.name }}
+                                                </label>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <!-- Selected roles preview -->

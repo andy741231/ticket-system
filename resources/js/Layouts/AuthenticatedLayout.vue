@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import Avatar from '@/Components/Avatar.vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
@@ -20,14 +21,15 @@ import {
     faXmark,
     faAddressBook,
     faChevronDown,
-    faNewspaper
+    faNewspaper,
+    faChartBar
 } from '@fortawesome/free-solid-svg-icons';
 
 // RBAC composable
 import { useHasAny } from '@/Extensions/useAuthz';
 
 // Add icons to the library
-library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper);
+library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper, faChartBar);
 
 // Permission helpers (team-aware)
 const isSuperAdmin = computed(() => usePage().props.auth?.user?.isSuperAdmin === true);
@@ -119,6 +121,8 @@ const isMobile = ref(false);
 const userMenuOpen = ref(false);
 // Collapsible state for User Management submenu
 const userMgmtOpen = ref(route().current('admin.*'));
+// Collapsible state for Newsletter submenu (open when on any authenticated newsletter route)
+const newsletterOpen = ref(route().current('newsletter.*'));
 
 // Media query references for cleanup
 let darkModeMediaQuery = null;
@@ -318,7 +322,7 @@ const navigate = (url) => {
                                 :class="[
                                     route().current('dashboard')
                                         ? 'text-white'
-                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
                                 ]"
                             />
                             <span class="ml-3 font-medium">Dashboard</span>
@@ -342,7 +346,7 @@ const navigate = (url) => {
                                 :class="[
                                     route().current('tickets.*')
                                         ? 'text-white'
-                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
                                 ]"
                             />
                             <span class="ml-3 font-medium">Tickets</span>
@@ -366,23 +370,26 @@ const navigate = (url) => {
                                 :class="[
                                     route().current('directory.*')
                                         ? 'text-white'
-                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
                                 ]"
                             />
                             <span class="ml-3 font-medium">Directory</span>
                         </NavLink>
 
-                        <NavLink 
+                        <!-- Newsletter: Top-level toggle-only (no direct navigation) -->
+                        <button
                             v-if="isSuperAdmin || hasAny(['newsletter.app.access'])"
-                            :href="route('newsletter.index')" 
-                            :active="route().current('newsletter.*')"
-                            class="group flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
+                            type="button"
+                            class="group flex w-full items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
                             :class="[
-                                route().current('newsletter.*')
-                                    ? 'bg-uh-red text-white shadow-md'
+                                (newsletterOpen || route().current('newsletter.*'))
+                                    ? 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
                                     : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
                             ]"
-                            @click="navigate(route('newsletter.index'))"
+                            @click="newsletterOpen = !newsletterOpen"
+                            :aria-expanded="newsletterOpen"
+                            :aria-controls="'newsletter-submenu'"
+                            title="Toggle newsletter menu"
                         >
                             <font-awesome-icon 
                                 :icon="['fas', 'newspaper']" 
@@ -393,8 +400,164 @@ const navigate = (url) => {
                                         : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
                                 ]"
                             />
-                            <span class="ml-3 font-medium">Newsletter</span>
-                        </NavLink>
+                            <span class="ml-3 font-medium flex-1 text-left">Newsletter</span>
+                            <font-awesome-icon 
+                                :icon="['fas','chevron-down']" 
+                                class="h-4 w-4 transition-transform duration-200 ml-auto"
+                                :class="{ 'rotate-180': newsletterOpen }"
+                            />
+                        </button>
+
+                        <!-- Newsletter Submenu -->
+                        <div
+                            v-if="isSuperAdmin || hasAny(['newsletter.app.access'])"
+                            v-show="newsletterOpen"
+                            id="newsletter-submenu"
+                            class="pl-5 space-y-1 mt-2"
+                        >
+                            <NavLink 
+                                :href="route('newsletter.index')" 
+                                :active="route().current('newsletter.index')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('newsletter.index')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('newsletter.index'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'newspaper']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('newsletter.index')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Latest News</span>
+                            </NavLink>
+
+                            <NavLink 
+                                v-if="isSuperAdmin || hasAny(['newsletter.manage'])"
+                                :href="route('newsletter.dashboard')" 
+                                :active="route().current('newsletter.dashboard')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('newsletter.dashboard')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('newsletter.dashboard'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'house']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('newsletter.dashboard')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Dashboard</span>
+                            </NavLink>
+
+                            <NavLink 
+                                v-if="isSuperAdmin || hasAny(['newsletter.manage'])"
+                                :href="route('newsletter.campaigns.index')" 
+                                :active="route().current('newsletter.campaigns.*')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('newsletter.campaigns.*')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('newsletter.campaigns.index'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'newspaper']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('newsletter.campaigns.*')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Campaigns</span>
+                            </NavLink>
+
+                            <NavLink 
+                                v-if="isSuperAdmin || hasAny(['newsletter.manage'])"
+                                :href="route('newsletter.templates.index')" 
+                                :active="route().current('newsletter.templates.*')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('newsletter.templates.*')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('newsletter.templates.index'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'gear']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('newsletter.templates.*')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Templates</span>
+                            </NavLink>
+
+                            <NavLink 
+                                v-if="isSuperAdmin || hasAny(['newsletter.manage'])"
+                                :href="route('newsletter.subscribers.index')" 
+                                :active="route().current('newsletter.subscribers.*')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('newsletter.subscribers.*')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('newsletter.subscribers.index'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'users']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('newsletter.subscribers.*')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Subscribers</span>
+                            </NavLink>
+
+                            <NavLink 
+                                v-if="isSuperAdmin || hasAny(['newsletter.manage'])"
+                                :href="route('newsletter.analytics')" 
+                                :active="route().current('newsletter.analytics')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('newsletter.analytics')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('newsletter.analytics'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'chart-bar']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('newsletter.analytics')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Analytics</span>
+                            </NavLink>
+                        </div>
 
                         <!-- User Management Section -->
                         <div v-if="
@@ -452,10 +615,34 @@ const navigate = (url) => {
                                         :class="[
                                             route().current('admin.users.*')
                                                 ? 'text-white'
-                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
                                         ]"
                                     />
                                     <span class="ml-3 font-medium">All Users</span>
+                                </NavLink>
+
+                                <NavLink 
+                                    v-if="isSuperAdmin || hasAny(['hub.app.access'])"
+                                    :href="route('admin.invites.index')" 
+                                    :active="route().current('admin.invites.*')"
+                                    class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                    :class="[
+                                        route().current('admin.invites.*')
+                                            ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                    ]"
+                                    @click="navigate(route('admin.invites.index'))"
+                                >
+                                    <font-awesome-icon 
+                                        :icon="['fas', 'users']" 
+                                        class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                        :class="[
+                                            route().current('admin.invites.*')
+                                                ? 'text-white'
+                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                        ]"
+                                    />
+                                    <span class="ml-3 font-medium">Invites</span>
                                 </NavLink>
 
                                 <NavLink 
@@ -476,7 +663,7 @@ const navigate = (url) => {
                                         :class="[
                                             route().current('admin.rbac.*')
                                                 ? 'text-white'
-                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
                                         ]"
                                     />
                                     <span class="ml-3 font-medium">RBAC Admin</span>
@@ -500,7 +687,7 @@ const navigate = (url) => {
                                         :class="[
                                             route().current('admin.superadmin.*')
                                                 ? 'text-white'
-                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                                : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
                                         ]"
                                     />
                                     <span class="ml-3 font-medium">Super Admin</span>
@@ -572,11 +759,9 @@ const navigate = (url) => {
                                         <span class="sr-only">Open user menu</span>
                                         <div class="flex items-center">
                                             <span class="mr-3 px-2 py-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                {{ $page.props.auth.user.name }}
+                                                {{ $page.props.auth?.user?.name || 'Account' }}
                                             </span>
-                                            <div class="h-9 w-9 rounded-full bg-uh-red flex items-center justify-center text-white font-semibold text-sm">
-                                                {{ $page.props.auth.user.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) }}
-                                            </div>
+                                            <Avatar v-if="$page.props.auth?.user" :user="$page.props.auth.user" size="sm" :show-link="false" />
                                         </div>
                                     </button>
 
@@ -639,7 +824,9 @@ const navigate = (url) => {
             <!-- Main content area -->
             <main class="flex-1 overflow-y-auto bg-transparent p-4 md:p-6">
                 <!-- Global Flash Message -->
-                <div v-if="showFlash" class="mb-4 rounded-md border p-3"
+                
+                <div v-if="showFlash" class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <div class="mb-4 rounded-md border p-3"
                      :class="[
                         flashStyle === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
                         flashStyle === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
@@ -651,8 +838,9 @@ const navigate = (url) => {
                 >
                     <div class="flex items-start justify-between gap-4">
                         <div class="text-sm font-medium">{{ flashMessage }}</div>
-                        <button @click="closeFlash" class="text-xs text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">Dismiss</button>
+                        <button @click="closeFlash" class="text-xs text-gray-600 hover:text-gray-800 dark:text-gray-900 dark:hover:text-white">Dismiss</button>
                     </div>
+                </div>
                 </div>
                 <!-- Page Heading -->
                 <header class="mb-6" v-if="$slots.header">

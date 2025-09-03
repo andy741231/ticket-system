@@ -38,6 +38,8 @@ class User extends Authenticatable
         'email',
         'password',
         'description',
+        'invited_by_user_id',
+        'invited_at',
     ];
 
     /**
@@ -58,6 +60,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'invited_at' => 'datetime',
     ];
 
     /**
@@ -104,6 +107,30 @@ class User extends Authenticatable
             $columns['model_morph_key'] ?? 'model_id',
             $columns['permission_pivot_key'] ?? 'permission_id'
         )->withPivot($teamKey);
+    }
+
+    /**
+     * The user who invited this user.
+     */
+    public function invitedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'invited_by_user_id');
+    }
+
+    /**
+     * Users invited by this user.
+     */
+    public function invitedUsers(): HasMany
+    {
+        return $this->hasMany(User::class, 'invited_by_user_id');
+    }
+
+    /**
+     * Invites sent by this user.
+     */
+    public function sentInvites(): HasMany
+    {
+        return $this->hasMany(Invite::class, 'invited_by_user_id');
     }
 
     /**

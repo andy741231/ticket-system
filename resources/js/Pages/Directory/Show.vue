@@ -1,15 +1,23 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { useHasAny } from '@/Extensions/useAuthz';
+import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
   team: Object,
 });
 
-// Permission: only directory managers can see Edit
+const page = usePage();
+
+// Permission: directory managers OR users viewing their own profile can edit
 const canManageDirectory = useHasAny(['directory.profile.manage']);
+const isOwnProfile = computed(() => {
+  const user = page.props.auth?.user;
+  return user && user.email === props.team?.email;
+});
+const canEditProfile = computed(() => canManageDirectory.value || isOwnProfile.value);
 </script>
 
 <template>
@@ -24,7 +32,7 @@ const canManageDirectory = useHasAny(['directory.profile.manage']);
         <div class="flex justify-between items-center mb-4">
           <div>
           </div>
-          <Link v-if="canManageDirectory" :href="route('directory.edit', team.id)" as="button">
+          <Link v-if="canEditProfile" :href="route('directory.edit', team.id)" as="button">
               <PrimaryButton>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1">
                                                         <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>

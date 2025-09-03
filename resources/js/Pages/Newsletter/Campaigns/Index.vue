@@ -95,27 +95,21 @@ function getProgressPercentage(campaign) {
   <Head title="Newsletter Campaigns" />
   <AuthenticatedLayout>
     <template #header>
-      <div class="flex justify-between items-center">
-        <div>
-          <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Newsletter Campaigns
-          </h2>
-          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Create, manage, and track your email campaigns
-          </p>
-        </div>
+      
+    </template>
+
+    <div class="">
+      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center">
+        <div> </div>
         <Link
           :href="route('newsletter.campaigns.create')"
-          class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150"
+          class="inline-flex items-center px-4 py-2 mb-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150"
         >
           <PlusIcon class="w-4 h-4 mr-2" />
           New Campaign
         </Link>
       </div>
-    </template>
-
-    <div class="py-12">
-      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
           
           <!-- Filters and Search -->

@@ -17,7 +17,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableRow } from '@tiptap/extension-table-row';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
-import { onBeforeUnmount } from 'vue';
+import { onBeforeUnmount, computed } from 'vue';
 import { useHasAny } from '@/Extensions/useAuthz';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
@@ -93,6 +93,20 @@ const addImage = () => {
 };
 
 const canManageRbacRoles = useHasAny(['admin.rbac.roles.manage']);
+
+// Group roles by application for clearer UI
+const groupedRoles = computed(() => {
+    const groups = new Map();
+    (props.roles || []).forEach((r) => {
+        const key = r.app_slug || 'other';
+        if (!groups.has(key)) {
+            groups.set(key, { app_slug: key, app_name: r.app_name || 'Other', roles: [] });
+        }
+        groups.get(key).roles.push(r);
+    });
+    // Maintain backend sort, but ensure group ordering by app_name as fallback
+    return Array.from(groups.values()).sort((a, b) => (a.app_name || '').localeCompare(b.app_name || ''));
+});
 </script>
 
 <template>
@@ -143,10 +157,17 @@ const canManageRbacRoles = useHasAny(['admin.rbac.roles.manage']);
                                 <div v-if="!canManageRbacRoles" class="mt-2 rounded-md border border-yellow-300 bg-yellow-50 p-2 text-xs text-yellow-900">
                                     Read-only: you do not have permission to manage roles.
                                 </div>
-                                <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div v-for="role in roles" :key="role.id" class="flex items-center">
-                                        <Checkbox :id="`role_${role.id}`" :value="role.id" v-model:checked="form.roles" :disabled="!canManageRbacRoles" class="dark:bg-gray-700"/>
-                                        <label :for="`role_${role.id}`" class="ml-2 ">{{ role.name }}</label>
+                                <div class="mt-3 space-y-4">
+                                    <div v-for="group in groupedRoles" :key="group.app_slug" class="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                                        <div class="px-3 py-2 border-b border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                            {{ group.app_name }}
+                                        </div>
+                                        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            <div v-for="role in group.roles" :key="role.id" class="flex items-center">
+                                                <Checkbox :id="`role_${role.id}`" :value="role.id" v-model:checked="form.roles" :disabled="!canManageRbacRoles" class="dark:bg-gray-700" />
+                                                <label :for="`role_${role.id}`" class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ role.name }}</label>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <InputError class="mt-2" :message="form.errors.roles" />

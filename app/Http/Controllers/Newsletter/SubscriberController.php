@@ -12,22 +12,43 @@ use Inertia\Inertia;
 
 class SubscriberController extends Controller
 {
+    public function __construct()
+    {
+        $this->authorizeResource(Subscriber::class, 'subscriber', [
+            'except' => ['getActiveCount']
+        ]);
+    }
+    
+    /**
+     * Get total count of active subscribers
+     */
+    public function getActiveCount()
+    {
+        $count = Subscriber::where('status', 'active')->count();
+        
+        return response()->json([
+            'total_active_subscribers' => $count
+        ]);
+    }
+
+    public function testCount()
+    {
+        return response()->json(['count' => 123]);
+    }
+
     public function index(Request $request)
     {
+        $request->validate([
+            'status' => 'sometimes|string|in:active,inactive,unsubscribed',
+            'search' => 'nullable|string|max:255',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+            'page' => 'sometimes|integer|min:1',
+            'group_id' => 'sometimes|exists:newsletter_groups,id'
+        ]);
+
         $query = Subscriber::with('groups');
 
-        // Search functionality
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('email', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
-                  ->orWhere('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%");
-            });
-        }
-
-        // Status filter
+        // Filter by status if provided
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -39,13 +60,33 @@ class SubscriberController extends Controller
             });
         }
 
-        $subscribers = $query->orderBy('created_at', 'desc')->paginate(25);
+        // Search functionality
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('email', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%")
+                  ->orWhere('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.organization')) LIKE ?", ["%{$search}%"]);
+            });
+        }
+
+        // Order and paginate
+        $perPage = $request->input('per_page', 15);
+        $subscribers = $query->orderBy('created_at', 'desc')->paginate($perPage);
         $groups = Group::active()->get();
 
+        // Return JSON response for API requests
+        if ($request->wantsJson()) {
+            return response()->json($subscribers);
+        }
+
+        // Return Inertia response for web requests
         return Inertia::render('Newsletter/Subscribers/Index', [
             'subscribers' => $subscribers,
             'groups' => $groups,
-            'filters' => $request->only(['search', 'status', 'group_id']),
+            'filters' => $request->only(['search', 'status', 'group_id'])
         ]);
     }
 
@@ -56,6 +97,7 @@ class SubscriberController extends Controller
             'name' => ['nullable', 'string', 'max:255'],
             'first_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['nullable', 'string', 'max:255'],
+            'organization' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['active', 'unsubscribed', 'bounced', 'pending'])],
             'groups' => ['nullable', 'array'],
             'groups.*' => ['exists:newsletter_groups,id'],
@@ -66,6 +108,12 @@ class SubscriberController extends Controller
         }
 
         $subscriber = Subscriber::create($validator->validated());
+
+        // Handle organization in metadata
+        if ($request->filled('organization')) {
+            $subscriber->organization = $request->organization;
+            $subscriber->save();
+        }
 
         if ($request->filled('groups')) {
             $subscriber->groups()->sync($request->groups);
@@ -80,6 +128,7 @@ class SubscriberController extends Controller
         
         return Inertia::render('Newsletter/Subscribers/Show', [
             'subscriber' => $subscriber,
+            'groups' => Group::active()->get(),
             'analytics' => [
                 'total_campaigns' => $subscriber->analyticsEvents()->distinct('campaign_id')->count(),
                 'total_opens' => $subscriber->analyticsEvents()->where('event_type', 'opened')->count(),
@@ -100,6 +149,7 @@ class SubscriberController extends Controller
             'name' => ['nullable', 'string', 'max:255'],
             'first_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['nullable', 'string', 'max:255'],
+            'organization' => ['nullable', 'string', 'max:255'],
             'status' => ['required', Rule::in(['active', 'unsubscribed', 'bounced', 'pending'])],
             'groups' => ['nullable', 'array'],
             'groups.*' => ['exists:newsletter_groups,id'],
@@ -110,6 +160,10 @@ class SubscriberController extends Controller
         }
 
         $subscriber->update($validator->validated());
+
+        // Handle organization in metadata
+        $subscriber->organization = $request->organization;
+        $subscriber->save();
 
         if ($request->has('groups')) {
             $subscriber->groups()->sync($request->groups ?? []);
@@ -150,6 +204,7 @@ class SubscriberController extends Controller
             $name = isset($data[1]) ? trim($data[1]) : null;
             $firstName = isset($data[2]) ? trim($data[2]) : null;
             $lastName = isset($data[3]) ? trim($data[3]) : null;
+            $organization = isset($data[4]) ? trim($data[4]) : null;
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = "Row {$row}: Invalid email format";
@@ -169,6 +224,12 @@ class SubscriberController extends Controller
                 'status' => 'active',
             ]);
 
+            // Handle organization in metadata
+            if ($organization) {
+                $subscriber->organization = $organization;
+                $subscriber->save();
+            }
+
             if ($request->filled('group_id')) {
                 $subscriber->groups()->attach($request->group_id);
             }
@@ -179,7 +240,7 @@ class SubscriberController extends Controller
         fclose($handle);
 
         return back()->with('success', "Imported {$imported} subscribers successfully.")
-                    ->with('errors', $errors);
+                    ->with('import_errors', $errors);
     }
 
     public function bulkExport(Request $request)
@@ -206,7 +267,7 @@ class SubscriberController extends Controller
 
         $callback = function () use ($subscribers) {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['Email', 'Name', 'First Name', 'Last Name', 'Status', 'Groups', 'Subscribed At']);
+            fputcsv($file, ['Email', 'Name', 'First Name', 'Last Name', 'Organization', 'Status', 'Groups', 'Subscribed At']);
 
             foreach ($subscribers as $subscriber) {
                 fputcsv($file, [
@@ -214,6 +275,7 @@ class SubscriberController extends Controller
                     $subscriber->name,
                     $subscriber->first_name,
                     $subscriber->last_name,
+                    $subscriber->organization, // This will use the accessor
                     $subscriber->status,
                     $subscriber->groups->pluck('name')->join(', '),
                     $subscriber->subscribed_at?->format('Y-m-d H:i:s'),

@@ -39,3 +39,26 @@ trigger: manual
 - **Prototyping**: Create interactive prototypes that demonstrate complex interactions
 - **Asset Export**: Provide optimized assets in appropriate formats (SVG for icons, optimized images)
 - **Version Control**: Maintain design versioning and changelog documentation
+
+### Primary Colors
+                'uh-red': 'rgb(200, 16, 46)',
+                'uh-white': 'rgb(255, 255, 255)',
+                
+### Secondary Colors
+                'uh-black': 'rgb(0, 0, 0)',
+                'uh-slate': 'rgb(84, 88, 90)',
+                
+### Accent Colors
+                'uh-brick': 'rgb(150, 12, 34)',
+                'uh-chocolate': 'rgb(100, 8, 23)',
+                'uh-cream': 'rgb(255, 249, 217)',
+                'uh-gray': 'rgb(136, 139, 141)',
+                'uh-gold': 'rgb(246, 190, 0)',
+                'uh-mustard': 'rgb(216, 155, 0)',
+                'uh-ocher': 'rgb(185, 120, 0)',
+                'uh-teal': 'rgb(0, 179, 136)',
+                'uh-green': 'rgb(0, 134, 108)',
+                'uh-forest': 'rgb(0, 89, 80)'
+
+### Dark theme
+-** make sure dark theme and light theme colors are implemented.

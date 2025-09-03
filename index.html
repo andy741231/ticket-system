@@ -1,0 +1,2315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Build a Full-Stack Ticket Management System | Laravel 12 + Vue 3 + RBAC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem 0;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .hero {
+            text-align: center;
+            color: #333;
+            margin-bottom: 3rem;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.8;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat {
+            background: white;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat strong {
+            font-size: 2rem;
+            color: #667eea;
+        }
+
+        nav {
+            background: white;
+            border-radius: 15px;
+            padding: 1rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .nav-tab {
+            padding: 0.75rem 1.5rem;
+            background: #f8f9fa;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .nav-tab:hover, .nav-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .module {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .module.active {
+            display: block;
+        }
+
+        .module h2 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+
+        .module h3 {
+            color: #333;
+            margin: 2rem 0 1rem 0;
+            font-size: 1.5rem;
+        }
+
+        .learning-objectives {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #f8f8f2;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .exercise {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .exercise h4 {
+            color: #856404;
+            margin-bottom: 0.5rem;
+        }
+
+        .quiz {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .quiz h4 {
+            color: #155724;
+            margin-bottom: 0.5rem;
+        }
+
+        .quiz .question {
+            margin: 1rem 0;
+        }
+
+        .quiz input[type="radio"] {
+            margin-right: 0.5rem;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+        }
+
+        .btn.secondary {
+            background: #6c757d;
+        }
+
+        .btn.secondary:hover {
+            background: #5a6268;
+        }
+
+        .resources {
+            background: #e9ecef;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .resources h4 {
+            color: #495057;
+            margin-bottom: 1rem;
+        }
+
+        .resource-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .resource-list li {
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 4px;
+        }
+
+        .resource-list a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .resource-list a:hover {
+            text-decoration: underline;
+        }
+
+        .terminal {
+            background: #1e1e1e;
+            color: #f8f8f2;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        footer {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem 0;
+            text-align: center;
+            margin-top: 3rem;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .nav-tabs {
+                flex-direction: column;
+            }
+
+            .module {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="hero">
+                <h1>🎯 Build a Full-Stack Ticket Management System</h1>
+                <p>Laravel 12 + Vue 3 + RBAC • Complete Course with 12 Modules</p>
+                <div class="stats">
+                    <div class="stat">
+                        <div>12</div>
+                        <div>Modules</div>
+                    </div>
+                    <div class="stat">
+                        <div>30+</div>
+                        <div>Hours</div>
+                    </div>
+                    <div class="stat">
+                        <div>15+</div>
+                        <div>Projects</div>
+                    </div>
+                    <div class="stat">
+                        <div>100%</div>
+                        <div>Practical</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="container">
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showModule('intro')">Course Intro</button>
+            <button class="nav-tab" onclick="showModule('module1')">Module 1: Setup</button>
+            <button class="nav-tab" onclick="showModule('module2')">Module 2: Auth</button>
+            <button class="nav-tab" onclick="showModule('module3')">Module 3: RBAC</button>
+            <button class="nav-tab" onclick="showModule('module4')">Module 4: Tickets</button>
+            <button class="nav-tab" onclick="showModule('module5')">Module 5: Advanced</button>
+            <button class="nav-tab" onclick="showModule('module6')">Module 6: Newsletter</button>
+            <button class="nav-tab" onclick="showModule('module7')">Module 7: Frontend</button>
+            <button class="nav-tab" onclick="showModule('module8')">Module 8: UI/UX</button>
+            <button class="nav-tab" onclick="showModule('module9')">Module 9: Jobs</button>
+            <button class="nav-tab" onclick="showModule('module10')">Module 10: Testing</button>
+            <button class="nav-tab" onclick="showModule('module11')">Module 11: Security</button>
+            <button class="nav-tab" onclick="showModule('module12')">Module 12: Deploy</button>
+            <button class="nav-tab" onclick="showModule('resources')">Resources</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Course Introduction -->
+        <div id="intro" class="module active">
+            <h2>🚀 Course Introduction</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 What You'll Learn</h3>
+                <ul>
+                    <li>Build a production-ready ticket management system</li>
+                    <li>Implement role-based access control (RBAC)</li>
+                    <li>Create newsletter campaigns with rich text editing</li>
+                    <li>Master Laravel 12 and Vue 3 best practices</li>
+                    <li>Deploy to production with proper configuration</li>
+                </ul>
+            </div>
+
+            <h3>📚 Prerequisites</h3>
+            <ul>
+                <li>Basic PHP knowledge (variables, functions, OOP)</li>
+                <li>Familiarity with Laravel basics (routing, controllers, models)</li>
+                <li>Basic JavaScript and Vue.js fundamentals</li>
+                <li>Understanding of HTML/CSS</li>
+                <li>MySQL database concepts</li>
+            </ul>
+
+            <h3>🛠 Technology Stack</h3>
+            <div class="info">
+                <strong>Backend:</strong> Laravel 12, PHP 8.2+, MySQL<br>
+                <strong>Frontend:</strong> Vue 3, Inertia.js, Tailwind CSS<br>
+                <strong>Security:</strong> Spatie Laravel Permission, Laravel Sanctum<br>
+                <strong>Tools:</strong> Vite, Composer, NPM, PHPUnit<br>
+                <strong>Features:</strong> File uploads, queues, rich text editing, analytics
+            </div>
+
+            <h3>📋 Course Structure</h3>
+            <ol>
+                <li><strong>Foundation:</strong> Project setup and architecture</li>
+                <li><strong>Core Features:</strong> Authentication, RBAC, tickets</li>
+                <li><strong>Advanced Features:</strong> Comments, files, newsletter</li>
+                <li><strong>Frontend:</strong> Vue components, UI/UX, responsive design</li>
+                <li><strong>Backend:</strong> Jobs, queues, email, testing</li>
+                <li><strong>Production:</strong> Security, performance, deployment</li>
+            </ol>
+
+            <div class="exercise">
+                <h4>💡 Getting Started Exercise</h4>
+                <p>Before we begin, let's make sure your development environment is ready:</p>
+                <ol>
+                    <li>Install PHP 8.2+ and Composer</li>
+                    <li>Install Node.js 16+ and NPM</li>
+                    <li>Install MySQL or another database</li>
+                    <li>Set up a code editor (VS Code recommended)</li>
+                    <li>Create a new Laravel project</li>
+                </ol>
+                <div class="terminal">
+$ composer create-project laravel/laravel ticket-system<br>
+$ cd ticket-system<br>
+$ php artisan --version<br>
+$ npm --version
+                </div>
+            </div>
+        </div>
+
+        <!-- Module 1 -->
+        <div id="module1" class="module">
+            <h2>🏗️ Module 1: Project Setup & Architecture</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Install Laravel 12 with Inertia.js and Vue 3</li>
+                    <li>Design database schema for tickets and RBAC</li>
+                    <li>Set up project structure and dependencies</li>
+                    <li>Configure development environment</li>
+                </ul>
+            </div>
+
+            <h3>📦 Installation & Setup</h3>
+            <p>Let's start by creating a new Laravel project with the required dependencies:</p>
+
+            <div class="code-block">
+// Create new Laravel project
+composer create-project laravel/laravel ticket-system
+cd ticket-system
+
+// Install required packages
+composer require inertiajs/inertia-laravel spatie/laravel-permission
+composer require laravel/sanctum laravel/tinker
+composer require tightenco/ziggy
+
+// Install frontend dependencies
+npm install @inertiajs/vue3 vue @vitejs/plugin-vue
+npm install @tailwindcss/forms autoprefixer postcss tailwindcss
+npm install axios lodash vue-i18n
+
+// Install development dependencies
+composer require --dev laravel/breeze fakerphp/faker
+composer require --dev nunomaduro/collision laravel/pail
+npm install --save-dev @vue/server-renderer
+            </div>
+
+            <h3>🗄️ Database Design</h3>
+            <p>Our application requires several key entities:</p>
+
+            <div class="code-block">
+-- Core Tables
+users (id, name, email, password, email_verified_at, created_at, updated_at)
+apps (id, name, slug, created_at, updated_at) -- Multi-tenant support
+roles (id, name, guard_name, created_at, updated_at)
+permissions (id, name, guard_name, created_at, updated_at)
+model_has_permissions (permission_id, model_type, model_id)
+model_has_roles (role_id, model_type, model_id)
+role_has_permissions (permission_id, role_id)
+
+-- Ticket System
+tickets (id, title, description, status, priority, created_by, assigned_to, due_date, created_at, updated_at)
+ticket_comments (id, ticket_id, user_id, content, parent_id, pinned, created_at, updated_at)
+ticket_files (id, ticket_id, user_id, filename, path, size, mime_type, created_at, updated_at)
+ticket_user (ticket_id, user_id) -- Many-to-many relationship
+
+-- Newsletter System
+newsletter_subscribers (id, email, first_name, last_name, organization, status, created_at, updated_at)
+newsletter_groups (id, name, description, created_at, updated_at)
+newsletter_subscriber_groups (subscriber_id, group_id)
+newsletter_templates (id, name, subject, content, created_at, updated_at)
+newsletter_campaigns (id, name, subject, content, status, scheduled_at, sent_at, created_at, updated_at)
+newsletter_analytics_events (id, campaign_id, subscriber_id, event_type, created_at)
+            </div>
+
+            <h3>⚙️ Environment Configuration</h3>
+            <p>Configure your environment variables:</p>
+
+            <div class="code-block">
+# .env
+APP_NAME="Ticket Management System"
+APP_ENV=local
+APP_KEY=base64:your_app_key_here
+APP_DEBUG=true
+APP_URL=http://localhost:8000
+
+# Database
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=ticket_system
+DB_USERNAME=root
+DB_PASSWORD=
+
+# Queue
+QUEUE_CONNECTION=database
+
+# Mail
+MAIL_MAILER=smtp
+MAIL_HOST=mailhog
+MAIL_PORT=1025
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_ENCRYPTION=null
+MAIL_FROM_ADDRESS="noreply@example.com"
+MAIL_FROM_NAME="${APP_NAME}"
+
+# Inertia.js
+VITE_APP_NAME="${APP_NAME}"
+            </div>
+
+            <div class="exercise">
+                <h4>💡 Module 1 Exercise</h4>
+                <p>Create a new Laravel project and set up the basic structure:</p>
+                <ol>
+                    <li>Install Laravel 12 with all required dependencies</li>
+                    <li>Configure your database connection</li>
+                    <li>Run the initial migrations</li>
+                    <li>Start the development server</li>
+                </ol>
+                <div class="terminal">
+$ composer create-project laravel/laravel ticket-system<br>
+$ cd ticket-system<br>
+$ cp .env.example .env<br>
+$ php artisan key:generate<br>
+$ php artisan migrate<br>
+$ php artisan serve
+                </div>
+            </div>
+
+            <div class="quiz">
+                <h4>🧠 Module 1 Quiz</h4>
+                <div class="question">
+                    <p>1. Which package provides role-based access control in Laravel?</p>
+                    <label><input type="radio" name="q1" value="a"> A) laravel/sanctum</label><br>
+                    <label><input type="radio" name="q1" value="b"> B) spatie/laravel-permission</label><br>
+                    <label><input type="radio" name="q1" value="c"> C) inertiajs/inertia-laravel</label><br>
+                    <label><input type="radio" name="q1" value="d"> D) tightenco/ziggy</label><br>
+                </div>
+                <button class="btn" onclick="checkQuiz('q1', 'b')">Check Answer</button>
+            </div>
+        </div>
+
+        <!-- Module 2 -->
+        <div id="module2" class="module">
+            <h2>🔐 Module 2: Authentication & User Management</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Set up Laravel Breeze for authentication</li>
+                    <li>Create user registration and login</li>
+                    <li>Implement user profiles with image uploads</li>
+                    <li>Create admin user seeding</li>
+                </ul>
+            </div>
+
+            <h3>🎨 Install Laravel Breeze</h3>
+            <div class="code-block">
+// Install Breeze
+composer require laravel/breeze --dev
+
+// Install Breeze scaffolding
+php artisan breeze:install blade
+
+// Install and build assets
+npm install && npm run build
+
+// Run migrations
+php artisan migrate
+            </div>
+
+            <h3>👤 User Model Enhancement</h3>
+            <p>Let's enhance the User model with profile features:</p>
+
+            <div class="code-block">
+&lt;?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
+use Spatie\Permission\Traits\HasPermissions;
+
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, HasPermissions;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'username',
+        'avatar',
+        'phone',
+        'department',
+        'description',
+        'is_active',
+        'email_verified_at',
+        'invited_by',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'is_active' => 'boolean',
+    ];
+
+    // Relationships
+    public function invitedBy()
+    {
+        return $this->belongsTo(User::class, 'invited_by');
+    }
+
+    public function tickets()
+    {
+        return $this->belongsToMany(Ticket::class);
+    }
+
+    public function assignedTickets()
+    {
+        return $this->hasMany(Ticket::class, 'assigned_to');
+    }
+
+    public function createdTickets()
+    {
+        return $this->hasMany(Ticket::class, 'created_by');
+    }
+
+    // Accessors
+    public function getAvatarUrlAttribute()
+    {
+        return $this->avatar
+            ? asset('storage/avatars/' . $this->avatar)
+            : asset('images/default-avatar.png');
+    }
+}
+            </div>
+
+            <h3>📸 File Upload Configuration</h3>
+            <div class="code-block">
+// config/filesystems.php
+'disks' => [
+    'avatars' => [
+        'driver' => 'local',
+        'root' => storage_path('app/public/avatars'),
+        'url' => env('APP_URL').'/storage/avatars',
+        'visibility' => 'public',
+    ],
+    'ticket_files' => [
+        'driver' => 'local',
+        'root' => storage_path('app/private/ticket-files'),
+        'url' => env('APP_URL').'/storage/ticket-files',
+        'visibility' => 'private',
+    ],
+],
+
+// Create symbolic link
+php artisan storage:link
+            </div>
+
+            <div class="exercise">
+                <h4>💡 Authentication Setup Exercise</h4>
+                <p>Complete the authentication system:</p>
+                <ol>
+                    <li>Install and configure Laravel Breeze</li>
+                    <li>Enhance the User model with profile fields</li>
+                    <li>Create file upload configuration</li>
+                    <li>Test user registration and login</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Module 3 -->
+        <div id="module3" class="module">
+            <h2>🛡️ Module 3: RBAC System Implementation</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Install and configure Spatie Laravel Permission</li>
+                    <li>Create roles and permissions</li>
+                    <li>Implement permission inheritance</li>
+                    <li>Set up frontend authorization</li>
+                </ul>
+            </div>
+
+            <h3>🔧 Package Installation</h3>
+            <div class="code-block">
+// Install Spatie Permission
+composer require spatie/laravel-permission
+
+// Publish and run migrations
+php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"
+php artisan migrate
+
+// Clear cache
+php artisan config:clear
+php artisan cache:clear
+            </div>
+
+            <h3>📋 Permission Structure</h3>
+            <p>Our permission system follows this hierarchy:</p>
+
+            <div class="code-block">
+// User Management Permissions
+'users.user.view'     // View users
+'users.user.create'   // Create users
+'users.user.update'   // Update users
+'users.user.delete'   // Delete users
+'users.user.manage'   // Full user management
+
+// Ticket Permissions
+'tickets.ticket.view'     // View tickets
+'tickets.ticket.create'   // Create tickets
+'tickets.ticket.update'   // Update tickets
+'tickets.ticket.delete'   // Delete tickets
+'tickets.ticket.manage'   // Full ticket management
+'tickets.file.upload'     // Upload files
+
+// Newsletter Permissions
+'newsletter.subscriber.view'
+'newsletter.subscriber.create'
+'newsletter.subscriber.manage'
+'newsletter.group.view'
+'newsletter.group.manage'
+'newsletter.campaign.view'
+'newsletter.campaign.create'
+'newsletter.campaign.send'
+
+// RBAC Admin Permissions
+'admin.rbac.roles.manage'
+'admin.rbac.permissions.manage'
+'admin.rbac.overrides.manage'
+            </div>
+
+            <h3>🎭 Role Creation</h3>
+            <div class="code-block">
+// database/seeders/RbacSeeder.php
+&lt;?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
+
+class RbacSeeder extends Seeder
+{
+    public function run()
+    {
+        // Create permissions
+        $permissions = [
+            // User permissions
+            'users.user.view', 'users.user.create', 'users.user.update',
+            'users.user.delete', 'users.user.manage',
+
+            // Ticket permissions
+            'tickets.ticket.view', 'tickets.ticket.create', 'tickets.ticket.update',
+            'tickets.ticket.delete', 'tickets.ticket.manage', 'tickets.file.upload',
+
+            // Newsletter permissions
+            'newsletter.subscriber.view', 'newsletter.subscriber.create',
+            'newsletter.subscriber.manage', 'newsletter.group.view',
+            'newsletter.group.manage', 'newsletter.campaign.view',
+            'newsletter.campaign.create', 'newsletter.campaign.send',
+
+            // RBAC permissions
+            'admin.rbac.roles.manage', 'admin.rbac.permissions.manage',
+            'admin.rbac.overrides.manage',
+        ];
+
+        foreach ($permissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission]);
+        }
+
+        // Create roles for Users app
+        $adminRole = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $userRole = Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);
+
+        // Assign permissions to admin role
+        $adminRole->givePermissionTo([
+            'users.user.view', 'users.user.create', 'users.user.update',
+            'users.user.delete', 'users.user.manage',
+            'tickets.ticket.view', 'tickets.ticket.create', 'tickets.ticket.update',
+            'tickets.ticket.delete', 'tickets.ticket.manage', 'tickets.file.upload',
+            'newsletter.subscriber.view', 'newsletter.subscriber.create',
+            'newsletter.subscriber.manage', 'newsletter.group.view',
+            'newsletter.group.manage', 'newsletter.campaign.view',
+            'newsletter.campaign.create', 'newsletter.campaign.send',
+            'admin.rbac.roles.manage', 'admin.rbac.permissions.manage',
+            'admin.rbac.overrides.manage',
+        ]);
+
+        // Assign basic permissions to user role
+        $userRole->givePermissionTo([
+            'tickets.ticket.view', 'tickets.ticket.create',
+            'newsletter.subscriber.view',
+        ]);
+    }
+}
+            </div>
+
+            <div class="exercise">
+                <h4>💡 RBAC Setup Exercise</h4>
+                <p>Implement the complete RBAC system:</p>
+                <ol>
+                    <li>Install Spatie Laravel Permission package</li>
+                    <li>Create permissions seeder</li>
+                    <li>Set up roles and assign permissions</li>
+                    <li>Test role-based access control</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Module 4 -->
+        <div id="module4" class="module">
+            <h2>🎫 Module 4: Ticket System Core</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Create ticket CRUD operations</li>
+                    <li>Implement Eloquent relationships</li>
+                    <li>Add validation and authorization</li>
+                    <li>Set up ticket status workflow</li>
+                </ul>
+            </div>
+
+            <h3>🎫 Ticket Model</h3>
+            <div class="code-block">
+&lt;?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Ticket extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'title',
+        'description',
+        'status',
+        'priority',
+        'created_by',
+        'assigned_to',
+        'due_date',
+        'description_text', // Plain text version for searching
+    ];
+
+    protected $casts = [
+        'due_date' => 'datetime',
+    ];
+
+    const STATUSES = [
+        'open' => 'Open',
+        'in_progress' => 'In Progress',
+        'waiting_for_response' => 'Waiting for Response',
+        'resolved' => 'Resolved',
+        'closed' => 'Closed',
+    ];
+
+    const PRIORITIES = [
+        'low' => 'Low',
+        'medium' => 'Medium',
+        'high' => 'High',
+        'urgent' => 'Urgent',
+    ];
+
+    // Relationships
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function comments(): HasMany
+    {
+        return $this->hasMany(TicketComment::class);
+    }
+
+    public function files(): HasMany
+    {
+        return $this->hasMany(TicketFile::class);
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class);
+    }
+
+    // Accessors
+    public function getStatusColorAttribute()
+    {
+        return match($this->status) {
+            'open' => 'blue',
+            'in_progress' => 'yellow',
+            'waiting_for_response' => 'orange',
+            'resolved' => 'green',
+            'closed' => 'gray',
+            default => 'gray',
+        };
+    }
+
+    public function getPriorityColorAttribute()
+    {
+        return match($this->priority) {
+            'low' => 'green',
+            'medium' => 'yellow',
+            'high' => 'orange',
+            'urgent' => 'red',
+            default => 'gray',
+        };
+    }
+}
+            </div>
+
+            <h3>🎮 Ticket Controller</h3>
+            <div class="code-block">
+&lt;?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Ticket;
+use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
+use Inertia\Inertia;
+
+class TicketController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = Ticket::with(['creator', 'assignee']);
+
+        // Apply filters
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        if ($request->filled('assigned_to')) {
+            $query->where('assigned_to', $request->assigned_to);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('description_text', 'like', "%{$search}%");
+            });
+        }
+
+        $tickets = $query->latest()->paginate(20);
+
+        return Inertia::render('Tickets/Index', [
+            'tickets' => $tickets,
+            'filters' => $request->only(['status', 'priority', 'assigned_to', 'search']),
+        ]);
+    }
+
+    public function create(): View
+    {
+        $users = User::select('id', 'name')->get();
+
+        return Inertia::render('Tickets/Create', [
+            'users' => $users,
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'priority' => 'required|in:low,medium,high,urgent',
+            'assigned_to' => 'nullable|exists:users,id',
+            'due_date' => 'nullable|date|after:today',
+        ]);
+
+        $validated['created_by'] = auth()->id();
+        $validated['status'] = 'open';
+        $validated['description_text'] = strip_tags($validated['description']);
+
+        $ticket = Ticket::create($validated);
+
+        return redirect()->route('tickets.show', $ticket)
+                        ->with('success', 'Ticket created successfully.');
+    }
+
+    public function show(Ticket $ticket)
+    {
+        $ticket->load(['creator', 'assignee', 'comments.user', 'files']);
+
+        return Inertia::render('Tickets/Show', [
+            'ticket' => $ticket,
+        ]);
+    }
+
+    public function edit(Ticket $ticket)
+    {
+        $this->authorize('update', $ticket);
+
+        $users = User::select('id', 'name')->get();
+
+        return Inertia::render('Tickets/Edit', [
+            'ticket' => $ticket,
+            'users' => $users,
+        ]);
+    }
+
+    public function update(Request $request, Ticket $ticket): RedirectResponse
+    {
+        $this->authorize('update', $ticket);
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'status' => 'required|in:open,in_progress,waiting_for_response,resolved,closed',
+            'priority' => 'required|in:low,medium,high,urgent',
+            'assigned_to' => 'nullable|exists:users,id',
+            'due_date' => 'nullable|date',
+        ]);
+
+        $validated['description_text'] = strip_tags($validated['description']);
+
+        $ticket->update($validated);
+
+        return redirect()->route('tickets.show', $ticket)
+                        ->with('success', 'Ticket updated successfully.');
+    }
+
+    public function destroy(Ticket $ticket): RedirectResponse
+    {
+        $this->authorize('delete', $ticket);
+
+        $ticket->delete();
+
+        return redirect()->route('tickets.index')
+                        ->with('success', 'Ticket deleted successfully.');
+    }
+}
+            </div>
+
+            <div class="exercise">
+                <h4>💡 Ticket CRUD Exercise</h4>
+                <p>Implement the complete ticket management system:</p>
+                <ol>
+                    <li>Create Ticket model with relationships</li>
+                    <li>Build TicketController with CRUD operations</li>
+                    <li>Add validation and authorization</li>
+                    <li>Create Vue components for ticket management</li>
+                    <li>Test the complete workflow</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Module 5 -->
+        <div id="module5" class="module">
+            <h2>💬 Module 5: Advanced Ticket Features</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Implement threaded comments system</li>
+                    <li>Add file upload functionality</li>
+                    <li>Create ticket assignment workflow</li>
+                    <li>Add due date management</li>
+                </ul>
+            </div>
+
+            <h3>💬 Comment System</h3>
+            <div class="code-block">
+&lt;?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class TicketComment extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'ticket_id',
+        'user_id',
+        'content',
+        'parent_id',
+        'pinned',
+    ];
+
+    protected $casts = [
+        'pinned' => 'boolean',
+    ];
+
+    // Relationships
+    public function ticket(): BelongsTo
+    {
+        return $this->belongsTo(Ticket::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(TicketComment::class, 'parent_id');
+    }
+
+    public function replies(): HasMany
+    {
+        return $this->hasMany(TicketComment::class, 'parent_id');
+    }
+
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(TicketCommentReaction::class);
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TicketCommentAttachment::class);
+    }
+
+    // Accessors
+    public function getIsReplyAttribute(): bool
+    {
+        return !is_null($this->parent_id);
+    }
+
+    public function getReplyCountAttribute(): int
+    {
+        return $this->replies()->count();
+    }
+}
+            </div>
+
+            <h3>📎 File Upload System</h3>
+            <div class="code-block">
+// TicketFile Model
+&lt;?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class TicketFile extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'ticket_id',
+        'user_id',
+        'filename',
+        'path',
+        'size',
+        'mime_type',
+    ];
+
+    // Relationships
+    public function ticket(): BelongsTo
+    {
+        return $this->belongsTo(Ticket::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    // Accessors
+    public function getFileUrlAttribute(): string
+    {
+        return asset('storage/ticket-files/' . $this->path);
+    }
+
+    public function getFileSizeFormattedAttribute(): string
+    {
+        $bytes = $this->size;
+        $units = ['B', 'KB', 'MB', 'GB'];
+
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+
+        return round($bytes, 2) . ' ' . $units[$i];
+    }
+
+    public function getFileIconAttribute(): string
+    {
+        $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
+
+        return match($extension) {
+            'pdf' => '📄',
+            'doc', 'docx' => '📝',
+            'xls', 'xlsx' => '📊',
+            'jpg', 'jpeg', 'png', 'gif' => '🖼️',
+            'zip', 'rar' => '📦',
+            default => '📄',
+        };
+    }
+}
+
+// File Upload Controller
+&lt;?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Ticket;
+use App\Models\TicketFile;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+class TicketFileController extends Controller
+{
+    public function store(Request $request, Ticket $ticket): JsonResponse
+    {
+        $this->authorize('update', $ticket);
+
+        $request->validate([
+            'file' => 'required|file|max:10240', // 10MB max
+        ]);
+
+        $file = $request->file('file');
+        $filename = $file->getClientOriginalName();
+        $path = $file->store('ticket-files', 'public');
+
+        $ticketFile = TicketFile::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => auth()->id(),
+            'filename' => $filename,
+            'path' => $path,
+            'size' => $file->getSize(),
+            'mime_type' => $file->getMimeType(),
+        ]);
+
+        return response()->json([
+            'file' => $ticketFile,
+            'url' => $ticketFile->file_url,
+        ]);
+    }
+
+    public function destroy(Ticket $ticket, TicketFile $file): JsonResponse
+    {
+        $this->authorize('update', $ticket);
+
+        if ($file->user_id !== auth()->id()) {
+            abort(403, 'You can only delete your own files.');
+        }
+
+        Storage::disk('public')->delete($file->path);
+        $file->delete();
+
+        return response()->json(['success' => true]);
+    }
+}
+            </div>
+
+            <div class="exercise">
+                <h4>💡 Advanced Features Exercise</h4>
+                <p>Implement advanced ticket features:</p>
+                <ol>
+                    <li>Create threaded comment system with replies</li>
+                    <li>Add file upload with validation and storage</li>
+                    <li>Implement ticket assignment workflow</li>
+                    <li>Add due date notifications and tracking</li>
+                    <li>Create comment reactions and pinning</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Module 6 -->
+        <div id="module6" class="module">
+            <h2>📧 Module 6: Newsletter Management</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Build subscriber management system</li>
+                    <li>Create newsletter groups and segmentation</li>
+                    <li>Implement campaign creation and scheduling</li>
+                    <li>Integrate TiPTap rich text editor</li>
+                </ul>
+            </div>
+
+            <h3>👥 Subscriber Management</h3>
+            <div class="code-block">
+&lt;?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+class NewsletterSubscriber extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'email',
+        'first_name',
+        'last_name',
+        'organization',
+        'status',
+        'subscribed_at',
+        'unsubscribed_at',
+    ];
+
+    protected $casts = [
+        'subscribed_at' => 'datetime',
+        'unsubscribed_at' => 'datetime',
+    ];
+
+    const STATUSES = [
+        'active' => 'Active',
+        'inactive' => 'Inactive',
+        'unsubscribed' => 'Unsubscribed',
+        'bounced' => 'Bounced',
+    ];
+
+    // Relationships
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(NewsletterGroup::class, 'newsletter_subscriber_groups');
+    }
+
+    public function campaigns()
+    {
+        return $this->belongsToMany(NewsletterCampaign::class, 'newsletter_campaign_sends')
+                    ->withPivot('sent_at', 'opened_at', 'clicked_at')
+                    ->withTimestamps();
+    }
+
+    // Accessors
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    public function getStatusColorAttribute(): string
+    {
+        return match($this->status) {
+            'active' => 'green',
+            'inactive' => 'yellow',
+            'unsubscribed' => 'red',
+            'bounced' => 'gray',
+            default => 'gray',
+        };
+    }
+}
+            </div>
+
+            <h3>📬 Campaign System</h3>
+            <div class="code-block">
+&lt;?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class NewsletterCampaign extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'subject',
+        'content',
+        'status',
+        'scheduled_at',
+        'sent_at',
+        'created_by',
+    ];
+
+    protected $casts = [
+        'scheduled_at' => 'datetime',
+        'sent_at' => 'datetime',
+    ];
+
+    const STATUSES = [
+        'draft' => 'Draft',
+        'scheduled' => 'Scheduled',
+        'sending' => 'Sending',
+        'sent' => 'Sent',
+        'cancelled' => 'Cancelled',
+    ];
+
+    // Relationships
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function subscribers(): BelongsToMany
+    {
+        return $this->belongsToMany(NewsletterSubscriber::class, 'newsletter_campaign_sends')
+                    ->withPivot('sent_at', 'opened_at', 'clicked_at')
+                    ->withTimestamps();
+    }
+
+    public function analytics(): HasMany
+    {
+        return $this->hasMany(NewsletterAnalyticsEvent::class);
+    }
+
+    // Accessors
+    public function getSentCountAttribute(): int
+    {
+        return $this->subscribers()->whereNotNull('sent_at')->count();
+    }
+
+    public function getOpenCountAttribute(): int
+    {
+        return $this->subscribers()->whereNotNull('opened_at')->count();
+    }
+
+    public function getClickCountAttribute(): int
+    {
+        return $this->subscribers()->whereNotNull('clicked_at')->count();
+    }
+
+    public function getOpenRateAttribute(): float
+    {
+        $sent = $this->sent_count;
+        return $sent > 0 ? round(($this->open_count / $sent) * 100, 2) : 0;
+    }
+
+    public function getClickRateAttribute(): float
+    {
+        $sent = $this->sent_count;
+        return $sent > 0 ? round(($this->click_count / $sent) * 100, 2) : 0;
+    }
+}
+            </div>
+
+            <h3>✏️ TiPTap Integration</h3>
+            <div class="code-block">
+// Install TiPTap
+npm install @tiptap/vue-3 @tiptap/pm @tiptap/starter-kit @tiptap/extension-image @tiptap/extension-link @tiptap/extension-table @tiptap/extension-color @tiptap/extension-highlight
+
+// Vue Component
+&lt;template&gt;
+  &lt;div class="newsletter-editor"&gt;
+    &lt;EditorMenuBar :editor="editor" v-if="editor" /&gt;
+    &lt;EditorContent :editor="editor" class="editor-content" /&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
+import StarterKit from '@tiptap/starter-kit'
+import Image from '@tiptap/extension-image'
+import Link from '@tiptap/extension-link'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableHeader from '@tiptap/extension-table-header'
+import TableCell from '@tiptap/extension-table-cell'
+
+const props = defineProps({
+  modelValue: String,
+  placeholder: {
+    type: String,
+    default: 'Start writing your newsletter...'
+  }
+})
+
+const emit = defineEmits(['update:modelValue'])
+
+const editor = useEditor({
+  content: props.modelValue,
+  extensions: [
+    StarterKit,
+    Image,
+    Link.configure({
+      openOnClick: false,
+    }),
+    Table.configure({
+      resizable: true,
+    }),
+    TableRow,
+    TableHeader,
+    TableCell,
+  ],
+  onUpdate: ({ editor }) => {
+    emit('update:modelValue', editor.getHTML())
+  },
+})
+
+onBeforeUnmount(() => {
+  editor.value?.destroy()
+})
+&lt;/script&gt;
+            </div>
+
+            <div class="exercise">
+                <h4>💡 Newsletter System Exercise</h4>
+                <p>Build the complete newsletter management system:</p>
+                <ol>
+                    <li>Create subscriber models and relationships</li>
+                    <li>Implement group-based segmentation</li>
+                    <li>Build campaign creation with scheduling</li>
+                    <li>Integrate TiPTap rich text editor</li>
+                    <li>Add analytics tracking and reporting</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Module 7 -->
+        <div id="module7" class="module">
+            <h2>🎨 Module 7: Frontend Architecture</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Master Vue 3 Composition API patterns</li>
+                    <li>Implement Inertia.js for SPA experience</li>
+                    <li>Create reusable components</li>
+                    <li>Set up state management best practices</li>
+                </ul>
+            </div>
+
+            <h3>⚡ Vue 3 Composition API</h3>
+            <div class="code-block">
+// resources/js/Components/TicketCard.vue
+&lt;template&gt;
+  &lt;div class="ticket-card" :class="priorityClass"&gt;
+    &lt;div class="ticket-header"&gt;
+      &lt;h3 class="ticket-title"&gt;{{ ticket.title }}&lt;/h3&gt;
+      &lt;span class="ticket-status" :class="statusClass"&gt;
+        {{ ticket.status }}
+      &lt;/span&gt;
+    &lt;/div&gt;
+
+    &lt;div class="ticket-meta"&gt;
+      &lt;div class="meta-item"&gt;
+        &lt;UserIcon class="icon" /&gt;
+        {{ ticket.creator.name }}
+      &lt;/div&gt;
+      &lt;div class="meta-item" v-if="ticket.assignee"&gt;
+        &lt;UserGroupIcon class="icon" /&gt;
+        {{ ticket.assignee.name }}
+      &lt;/div&gt;
+      &lt;div class="meta-item" v-if="ticket.due_date"&gt;
+        &lt;ClockIcon class="icon" /&gt;
+        {{ formatDate(ticket.due_date) }}
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class="ticket-description"&gt;
+      {{ truncateText(ticket.description_text, 100) }}
+    &lt;/div&gt;
+
+    &lt;div class="ticket-actions"&gt;
+      &lt;Link :href="route('tickets.show', ticket.id)" class="btn btn-primary"&gt;
+        View Details
+      &lt;/Link&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { computed } from 'vue'
+import { Link } from '@inertiajs/vue3'
+import { UserIcon, UserGroupIcon, ClockIcon } from '@heroicons/vue/24/outline'
+
+const props = defineProps({
+  ticket: {
+    type: Object,
+    required: true
+  }
+})
+
+// Computed properties
+const priorityClass = computed(() => {
+  return `priority-${props.ticket.priority}`
+})
+
+const statusClass = computed(() => {
+  return `status-${props.ticket.status}`
+})
+
+// Methods
+const formatDate = (date) => {
+  return new Date(date).toLocaleDateString()
+}
+
+const truncateText = (text, length) => {
+  if (text.length <= length) return text
+  return text.substring(0, length) + '...'
+}
+&lt;/script&gt;
+
+&lt;style scoped&gt;
+.ticket-card {
+  @apply bg-white rounded-lg shadow-md p-6 border-l-4 transition-all duration-200 hover:shadow-lg;
+}
+
+.priority-low { @apply border-green-500; }
+.priority-medium { @apply border-yellow-500; }
+.priority-high { @apply border-orange-500; }
+.priority-urgent { @apply border-red-500; }
+
+.ticket-header {
+  @apply flex justify-between items-start mb-4;
+}
+
+.ticket-title {
+  @apply text-lg font-semibold text-gray-900 flex-1 mr-4;
+}
+
+.ticket-status {
+  @apply px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.status-open { @apply bg-blue-100 text-blue-800; }
+.status-in_progress { @apply bg-yellow-100 text-yellow-800; }
+.status-resolved { @apply bg-green-100 text-green-800; }
+.status-closed { @apply bg-gray-100 text-gray-800; }
+
+.ticket-meta {
+  @apply flex flex-wrap gap-4 mb-4 text-sm text-gray-600;
+}
+
+.meta-item {
+  @apply flex items-center gap-1;
+}
+
+.icon {
+  @apply w-4 h-4;
+}
+
+.ticket-description {
+  @apply text-gray-700 mb-4;
+}
+
+.ticket-actions {
+  @apply flex justify-end;
+}
+
+.btn {
+  @apply px-4 py-2 rounded-md font-medium transition-colors duration-200;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+&lt;/style&gt;
+            </div>
+
+            <h3>🔄 Inertia.js Integration</h3>
+            <div class="code-block">
+// resources/js/Pages/Tickets/Index.vue
+&lt;template&gt;
+  &lt;AuthenticatedLayout&gt;
+    &lt;Head title="Tickets" /&gt;
+
+    &lt;div class="tickets-page"&gt;
+      &lt;div class="page-header"&gt;
+        &lt;h1 class="page-title"&gt;Tickets&lt;/h1&gt;
+        &lt;Link :href="route('tickets.create')" class="btn btn-primary"&gt;
+          &lt;PlusIcon class="icon" /&gt;
+          New Ticket
+        &lt;/Link&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Filters --&gt;
+      &lt;TicketFilters
+        :filters="filters"
+        :statuses="ticketStatuses"
+        :priorities="ticketPriorities"
+        :users="users"
+        @update:filters="updateFilters"
+      /&gt;
+
+      &lt;!-- Tickets Grid --&gt;
+      &lt;div class="tickets-grid"&gt;
+        &lt;TicketCard
+          v-for="ticket in tickets.data"
+          :key="ticket.id"
+          :ticket="ticket"
+        /&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Pagination --&gt;
+      &lt;Pagination :links="tickets.links" /&gt;
+    &lt;/div&gt;
+  &lt;/AuthenticatedLayout&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { ref, watch } from 'vue'
+import { Head, Link, router } from '@inertiajs/vue3'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
+import TicketCard from '@/Components/TicketCard.vue'
+import TicketFilters from '@/Components/TicketFilters.vue'
+import Pagination from '@/Components/Pagination.vue'
+import { PlusIcon } from '@heroicons/vue/24/outline'
+
+// Props
+const props = defineProps({
+  tickets: Object,
+  filters: Object,
+  users: Array,
+})
+
+// Reactive data
+const ticketStatuses = [
+  { value: '', label: 'All Statuses' },
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'closed', label: 'Closed' },
+]
+
+const ticketPriorities = [
+  { value: '', label: 'All Priorities' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'urgent', label: 'Urgent' },
+]
+
+// Methods
+const updateFilters = (newFilters) => {
+  router.get(route('tickets.index'), newFilters, {
+    preserveState: true,
+    replace: true,
+  })
+}
+&lt;/script&gt;
+            </div>
+
+            <div class="exercise">
+                <h4>💡 Frontend Architecture Exercise</h4>
+                <p>Build a modern Vue.js frontend:</p>
+                <ol>
+                    <li>Create reusable Vue components with Composition API</li>
+                    <li>Implement Inertia.js for seamless navigation</li>
+                    <li>Set up proper component communication</li>
+                    <li>Add loading states and error handling</li>
+                    <li>Implement responsive design patterns</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Module 8 -->
+        <div id="module8" class="module">
+            <h2>🎨 Module 8: UI/UX Implementation</h2>
+
+            <div class="learning-objectives">
+                <h3>🎯 Learning Objectives</h3>
+                <ul>
+                    <li>Master Tailwind CSS for responsive design</li>
+                    <li>Create data tables with sorting and pagination</li>
+                    <li>Build forms with validation and feedback</li>
+                    <li>Implement loading states and error handling</li>
+                </ul>
+            </div>
+
+            <h3>📊 Data Tables</h3>
+            <div class="code-block">
+// resources/js/Components/DataTable.vue
+&lt;template&gt;
+  &lt;div class="data-table-container"&gt;
+    &lt;!-- Table Controls --&gt;
+    &lt;div class="table-controls"&gt;
+      &lt;div class="search-box"&gt;
+        &lt;MagnifyingGlassIcon class="search-icon" /&gt;
+        &lt;input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search..."
+          class="search-input"
+          @input="debouncedSearch"
+        /&gt;
+      &lt;/div&gt;
+
+      &lt;div class="table-actions"&gt;
+        &lt;select v-model="perPage" class="per-page-select" @change="updatePerPage"&gt;
+          &lt;option value="10"&gt;10 per page&lt;/option&gt;
+          &lt;option value="25"&gt;25 per page&lt;/option&gt;
+          &lt;option value="50"&gt;50 per page&lt;/option&gt;
+          &lt;option value="100"&gt;100 per page&lt;/option&gt;
+        &lt;/select&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Table --&gt;
+    &lt;div class="table-wrapper"&gt;
+      &lt;table class="data-table"&gt;
+        &lt;thead&gt;
+          &lt;tr&gt;
+            &lt;th
+              v-for="column in columns"
+              :key="column.key"
+              :class="{ sortable: column.sortable }"
+              @click="column.sortable && sortBy(column.key)"
+            &gt;
+              {{ column.label }}
+              &lt;ChevronUpDownIcon
+                v-if="column.sortable"
+                class="sort-icon"
+                :class="{ 'sort-active': sortKey === column.key }"
+              /&gt;
+            &lt;/th&gt;
+          &lt;/tr&gt;
+        &lt;/thead&gt;
+        &lt;tbody&gt;
+          &lt;tr v-for="item in paginatedData" :key="item.id" class="table-row"&gt;
+            &lt;td v-for="column in columns" :key="column.key"&gt;
+              &lt;slot
+                :name="`column-${column.key}`"
+                :item="item"
+                :value="getNestedValue(item, column.key)"
+              &gt;
+                {{ getNestedValue(item, column.key) }}
+              &lt;/slot&gt;
+            &lt;/td&gt;
+          &lt;/tr&gt;
+        &lt;/tbody&gt;
+      &lt;/table&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Pagination --&gt;
+    &lt;Pagination
+      :current-page="currentPage"
+      :total-pages="totalPages"
+      :total-items="filteredData.length"
+      @page-changed="goToPage"
+    /&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { ref, computed, watch } from 'vue'
+import { MagnifyingGlassIcon, ChevronUpDownIcon } from '@heroicons/vue/24/outline'
+import Pagination from './Pagination.vue'
+
+// Props
+const props = defineProps({
+  data: {
+    type: Array,
+    default: () => []
+  },
+  columns: {
+    type: Array,
+    required: true
+  },
+  searchable: {
+    type: Boolean,
+    default: true
+  },
+  sortable: {
+    type: Boolean,
+    default: true
+  },
+  itemsPerPage: {
+    type: Number,
+    default: 10
+  }
+})
+
+// Emits
+const emit = defineEmits(['search', 'sort', 'page-changed'])
+
+// Reactive data
+const searchQuery = ref('')
+const sortKey = ref('')
+const sortDirection = ref('asc')
+const currentPage = ref(1)
+const perPage = ref(props.itemsPerPage)
+
+// Computed
+const filteredData = computed(() => {
+  if (!props.searchable || !searchQuery.value) {
+    return props.data
+  }
+
+  return props.data.filter(item => {
+    return props.columns.some(column => {
+      const value = getNestedValue(item, column.key)
+      return String(value).toLowerCase().includes(searchQuery.value.toLowerCase())
+    })
+  })
+})
+
+const sortedData = computed(() => {
+  if (!sortKey.value) return filteredData.value
+
+  return [...filteredData.value].sort((a, b) => {
+    const aValue = getNestedValue(a, sortKey.value)
+    const bValue = getNestedValue(b, sortKey.value)
+
+    if (sortDirection.value === 'asc') {
+      return aValue > bValue ? 1 : -1
+    } else {
+      return aValue < bValue ? 1 : -1
+    }
+  })
+})
+
+const totalPages = computed(() => {
+  return Math.ceil(sortedData.value.length / perPage.value)
+})
+
+const paginatedData = computed(() => {
+  const start = (currentPage.value - 1) * perPage.value
+  const end = start + perPage.value
+  return sortedData.value.slice(start, end)
+})
+
+// Methods
+const getNestedValue = (obj, path) => {
+  return path.split('.').reduce((current, key) => current?.[key], obj)
+}
+
+const sortBy = (key) => {
+  if (sortKey.value === key) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDirection.value = 'asc'
+  }
+
+  emit('sort', { key: sortKey.value, direction: sortDirection.value })
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  emit('page-changed', page)
+}
+
+const updatePerPage = () => {
+  currentPage.value = 1
+  emit('page-changed', 1)
+}
+
+// Debounced search
+let searchTimeout
+const debouncedSearch = () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1
+    emit('search', searchQuery.value)
+  }, 300)
+}
+
+// Watchers
+watch(() => props.data, () => {
+  currentPage.value = 1
+})
+&lt;/script&gt;
+            </div>
+
+            <h3>📝 Form Components</h3>
+            <div class="code-block">
+// resources/js/Components/Form/Input.vue
+&lt;template&gt;
+  &lt;div class="form-group"&gt;
+    &lt;label v-if="label" :for="inputId" class="form-label"&gt;
+      {{ label }}
+      &lt;span v-if="required" class="required-mark"&gt;*&lt;/span&gt;
+    &lt;/label&gt;
+
+    &lt;div class="input-wrapper" :class="{ 'has-error': hasError, 'has-icon': icon }"&gt;
+      &lt;component
+        :is="icon"
+        v-if="icon"
+        class="input-icon"
+      /&gt;
+
+      &lt;input
+        :id="inputId"
+        :type="type"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :disabled="disabled"
+        :readonly="readonly"
+        :class="inputClasses"
+        @input="$emit('update:modelValue', $event.target.value)"
+        @blur="$emit('blur')"
+        @focus="$emit('focus')"
+      /&gt;
+    &lt;/div&gt;
+
+    &lt;div v-if="hasError" class="error-message"&gt;
+      &lt;ExclamationCircleIcon class="error-icon" /&gt;
+      {{ errorMessage }}
+    &lt;/div&gt;
+
+    &lt;div v-if="hint && !hasError" class="hint-message"&gt;
+      {{ hint }}
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;script setup&gt;
+import { computed } from 'vue'
+import { ExclamationCircleIcon } from '@heroicons/vue/24/outline'
+
+// Props
+const props = defineProps({
+  modelValue: [String, Number],
+  label: String,
+  type: {
+    type: String,
+    default: 'text'
+  },
+  placeholder: String,
+  required: Boolean,
+  disabled: Boolean,
+  readonly: Boolean,
+  error: String,
+  hint: String,
+  icon: Object,
+  size: {
+    type: String,
+    default: 'md',
+    validator: (value) => ['sm', 'md', 'lg'].includes(value)
+  }
+})
+
+// Emits
+defineEmits(['update:modelValue', 'blur', 'focus'])
+
+// Computed
+const inputId = computed(() => {
+  return `input-${Math.random().toString(36).substr(2, 9)}`
+})
+
+const hasError = computed(() => {
+  return Boolean(props.error)
+})
+
+const errorMessage = computed(() => {
+  return props.error || ''
+})
+
+const inputClasses = computed(() => {
+  return [
+    'form-input',
+    `form-input-${props.size}`,
+    {
+      'form-input-error': hasError.value,
+      'form-input-disabled': props.disabled,
+      'form-input-readonly': props.readonly,
+    }
+  ]
+})
+&lt;/script&gt;
+
+&lt;style scoped&gt;
+.form-group {
+  @apply mb-4;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+.required-mark {
+  @apply text-red-500 ml-1;
+}
+
+.input-wrapper {
+  @apply relative;
+}
+
+.input-wrapper.has-icon .form-input {
+  @apply pl-10;
+}
+
+.form-input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200;
+}
+
+.form-input-sm {
+  @apply text-sm py-1;
+}
+
+.form-input-lg {
+  @apply text-lg py-3;
+}
+
+.form-input-error {
+  @apply border-red-300 focus:ring-red-500 focus:border-red-500;
+}
+
+.form-input-disabled {
+  @apply bg-gray-100 cursor-not-allowed;
+}
+
+.form-input-readonly {
+  @apply bg-gray-50 cursor-default;
+}
+
+.input-icon {
+  @apply absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400;
+}
+
+.error-message {
+  @apply flex items-center mt-1 text-sm text-red-600;
+}
+
+.error-icon {
+  @apply w-4 h-4 mr-1;
+}
+
+.hint-message {
+  @apply mt-1 text-sm text-gray-500;
+}
+&lt;/style&gt;
+            </div>
+
+            <div class="exercise">
+                <h4>💡 UI/UX Implementation Exercise</h4>
+                <p>Create a polished user interface:</p>
+                <ol>
+                    <li>Build responsive data tables with sorting and pagination</li>
+                    <li>Create reusable form components with validation</li>
+                    <li>Implement loading states and error handling</li>
+                    <li>Add animations and micro-interactions</li>
+                    <li>Ensure accessibility compliance</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Resources Section -->
+        <div id="resources" class="module">
+            <h2>📚 Resources & Downloads</h2>
+
+            <div class="resources">
+                <h3>💻 Code Downloads</h3>
+                <div class="resource-list">
+                    <li>
+                        <strong>Complete Project Source Code</strong>
+                        <p>Full Laravel + Vue.js application with all features implemented</p>
+                        <a href="#" class="download-link">📥 Download ZIP</a>
+                    </li>
+                    <li>
+                        <strong>Module-by-Module Code</strong>
+                        <p>Individual code packages for each module</p>
+                        <a href="#" class="download-link">📥 Download All Modules</a>
+                    </li>
+                    <li>
+                        <strong>Database Schema & Migrations</strong>
+                        <p>Complete database structure and seeders</p>
+                        <a href="#" class="download-link">📥 Download Schema</a>
+                    </li>
+                </div>
+            </div>
+
+            <div class="resources">
+                <h3>📋 Cheat Sheets</h3>
+                <div class="resource-list">
+                    <li>
+                        <strong>Laravel 12 Commands</strong>
+                        <a href="#" class="download-link">📄 Download PDF</a>
+                    </li>
+                    <li>
+                        <strong>Vue 3 Composition API</strong>
+                        <a href="#" class="download-link">📄 Download PDF</a>
+                    </li>
+                    <li>
+                        <strong>Tailwind CSS Classes</strong>
+                        <a href="#" class="download-link">📄 Download PDF</a>
+                    </li>
+                    <li>
+                        <strong>RBAC Permission Matrix</strong>
+                        <a href="#" class="download-link">📄 Download PDF</a>
+                    </li>
+                </div>
+            </div>
+
+            <div class="resources">
+                <h3>🔗 Useful Links</h3>
+                <div class="resource-list">
+                    <li>
+                        <a href="https://laravel.com/docs/12.x" target="_blank">📚 Laravel 12 Documentation</a>
+                    </li>
+                    <li>
+                        <a href="https://vuejs.org/guide/introduction.html" target="_blank">📚 Vue 3 Documentation</a>
+                    </li>
+                    <li>
+                        <a href="https://inertiajs.com/" target="_blank">📚 Inertia.js Documentation</a>
+                    </li>
+                    <li>
+                        <a href="https://tailwindcss.com/docs" target="_blank">📚 Tailwind CSS Documentation</a>
+                    </li>
+                    <li>
+                        <a href="https://spatie.be/docs/laravel-permission" target="_blank">📚 Spatie Laravel Permission</a>
+                    </li>
+                    <li>
+                        <a href="https://tiptap.dev/" target="_blank">📚 TiPTap Documentation</a>
+                    </li>
+                </div>
+            </div>
+
+            <div class="resources">
+                <h3>🎯 Next Steps</h3>
+                <ul>
+                    <li><strong>Practice Projects:</strong> Build additional features like reporting dashboards, API endpoints, or mobile apps</li>
+                    <li><strong>Community:</strong> Join Laravel and Vue.js communities for support and networking</li>
+                    <li><strong>Advanced Topics:</strong> Learn about Laravel Octane, Vue 3 advanced patterns, or deployment strategies</li>
+                    <li><strong>Contributing:</strong> Consider contributing to open-source Laravel and Vue packages</li>
+                    <li><strong>Certification:</strong> Prepare for Laravel or Vue.js certifications</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 Build a Full-Stack Ticket Management System Course. Created with ❤️ for developers.</p>
+            <p>Empower your development skills with modern Laravel 12 and Vue 3!</p>
+        </div>
+    </footer>
+
+    <script>
+        // Navigation functionality
+        function showModule(moduleId) {
+            // Hide all modules
+            const modules = document.querySelectorAll('.module');
+            modules.forEach(module => module.classList.remove('active'));
+
+            // Remove active class from nav tabs
+            const navTabs = document.querySelectorAll('.nav-tab');
+            navTabs.forEach(tab => tab.classList.remove('active'));
+
+            // Show selected module
+            const selectedModule = document.getElementById(moduleId);
+            if (selectedModule) {
+                selectedModule.classList.add('active');
+            }
+
+            // Add active class to clicked nav tab
+            event.target.classList.add('active');
+        }
+
+        // Quiz functionality
+        function checkQuiz(quizId, correctAnswer) {
+            const selectedAnswer = document.querySelector(`input[name="${quizId}"]:checked`);
+            if (!selectedAnswer) {
+                alert('Please select an answer first!');
+                return;
+            }
+
+            const userAnswer = selectedAnswer.value;
+            if (userAnswer === correctAnswer) {
+                alert('🎉 Correct! Well done!');
+                selectedAnswer.parentElement.style.color = '#155724';
+            } else {
+                alert('❌ Not quite right. Try again!');
+                selectedAnswer.parentElement.style.color = '#721c24';
+            }
+        }
+
+        // Smooth scrolling for navigation
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Initialize first module as active
+        document.addEventListener('DOMContentLoaded', function() {
+            showModule('intro');
+        });
+    </script>
+</body>
+</html>

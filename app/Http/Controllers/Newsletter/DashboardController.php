@@ -9,9 +9,71 @@ use Inertia\Response;
 use App\Models\Newsletter\Campaign;
 use App\Models\Newsletter\AnalyticsEvent;
 use App\Models\Newsletter\Subscriber;
+use App\Models\Newsletter\Template;
 
 class DashboardController extends Controller
 {
+    /**
+     * Dashboard page props for Newsletter/Dashboard
+     */
+    public function index(Request $request): Response
+    {
+        // Delegate to the main dashboard method used by the Inertia view
+        return $this->dashboard($request);
+    }
+
+    public function dashboard(Request $request): Response
+    {
+        // Core counts
+        $totalSubscribers = Subscriber::count();
+        $templates = Template::select('id', 'name', 'updated_at')->latest('updated_at')->get();
+
+        // Campaigns list for recent section and active count on FE
+        $campaigns = Campaign::select('id', 'name', 'status', 'subject', 'sent_at', 'created_at')
+            ->latest('created_at')
+            ->take(10)
+            ->get();
+
+        // Overview metrics (reuse analytics-style averages across sent campaigns)
+        $period = 30;
+        $start = now()->subDays($period);
+        $prevStart = now()->subDays($period * 2);
+        $prevEnd = $start;
+
+        $events = AnalyticsEvent::where('created_at', '>=', $start);
+        $totalOpens = (clone $events)->opens()->count();
+
+        $prevEvents = AnalyticsEvent::whereBetween('created_at', [$prevStart, $prevEnd]);
+        $prevOpens = (clone $prevEvents)->opens()->count();
+
+        $percentChange = function (int $current, int $previous): int {
+            if ($previous === 0) {
+                return $current > 0 ? 100 : 0;
+            }
+            return (int) round((($current - $previous) / $previous) * 100);
+        };
+
+        $sentCampaigns = Campaign::whereNotNull('sent_at')
+            ->where('sent_at', '>=', $start)
+            ->get();
+
+        $avgOpen = $sentCampaigns->avg(fn ($c) => $c->open_rate) ?? 0;
+
+        $overview = [
+            'total_subscribers' => $totalSubscribers,
+            'avg_open_rate' => round($avgOpen, 2),
+            'opens_change' => $percentChange($totalOpens, $prevOpens),
+        ];
+
+        return Inertia::render('Newsletter/Dashboard', [
+            'overview' => $overview,
+            'campaigns' => $campaigns,
+            'subscribers' => [
+                'total' => $totalSubscribers,
+            ],
+            'templates' => $templates,
+        ]);
+    }
     public function analytics(Request $request): Response
     {
         $period = (int) $request->query('period', 30);

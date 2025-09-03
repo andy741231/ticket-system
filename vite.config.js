@@ -37,6 +37,18 @@ export default defineConfig(({ mode }) => ({
             }
         }
     },
+    server: {
+        host: 'localhost', // Avoid [::1] IPv6 host to prevent mixed-host CORS issues
+        port: 5173,
+        strictPort: true,
+        cors: true,
+        hmr: {
+            host: 'localhost',
+            protocol: 'ws',
+            port: 5173,
+        },
+        origin: 'http://localhost:5173',
+    },
     optimizeDeps: {
         include: [
             'vue',

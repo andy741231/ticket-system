@@ -14,14 +14,14 @@ class Team extends Model
      *
      * @var string|null
      */
-    protected $connection = 'mysql_directory';
+    protected $connection = 'directory';
 
     /**
      * The table associated with the model.
      *
      * @var string
      */
-    protected $table = 'uhph_team';
+    protected $table = 'directory_team';
 
     /**
      * Indicates if the model should be timestamped.

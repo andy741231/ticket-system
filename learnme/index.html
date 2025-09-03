@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Build a Full-Stack Ticket Management System | Laravel 12 + Vue 3 + RBAC</title>
+    <link rel="stylesheet" href="assets/css/main.css">
+    <link rel="stylesheet" href="assets/css/prism.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <div class="header-content">
+                    <div class="logo">
+                        <h1>🎓 Laravel Mastery</h1>
+                        <span>Build Production-Ready Apps</span>
+                    </div>
+                    <nav class="nav">
+                        <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+                        <div class="progress-indicator">
+                            <span id="progress-text">0% Complete</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                        </div>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <!-- Course Overview -->
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>Build a Full-Stack Ticket Management System</h1>
+                    <p class="hero-subtitle">Master Laravel 12, Vue 3, Inertia.js, and RBAC by building a real-world application</p>
+                    
+                    <div class="course-stats">
+                        <div class="stat">
+                            <span class="stat-number">12</span>
+                            <span class="stat-label">Modules</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number">50+</span>
+                            <span class="stat-label">Lessons</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number">20+</span>
+                            <span class="stat-label">Exercises</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number">15h</span>
+                            <span class="stat-label">Content</span>
+                        </div>
+                    </div>
+
+                    <button class="cta-button" onclick="startCourse()">Start Learning Now</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Course Modules -->
+        <section class="modules">
+            <div class="container">
+                <h2>Course Curriculum</h2>
+                <div class="modules-grid" id="modules-grid">
+                    <!-- Modules will be loaded here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Learning Content Area -->
+        <div class="learning-area" id="learning-area" style="display: none;">
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <button class="back-button" onclick="showOverview()">← Back to Overview</button>
+                </div>
+                <nav class="lesson-nav" id="lesson-nav">
+                    <!-- Lesson navigation will be loaded here -->
+                </nav>
+            </div>
+            
+            <main class="content">
+                <div class="lesson-content" id="lesson-content">
+                    <!-- Lesson content will be loaded here -->
+                </div>
+                
+                <div class="lesson-navigation">
+                    <button class="nav-button prev" id="prev-lesson" onclick="previousLesson()">← Previous</button>
+                    <button class="nav-button next" id="next-lesson" onclick="nextLesson()">Next →</button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="assets/js/prism.js"></script>
+    <script src="assets/js/course-data.js"></script>
+    <script src="assets/js/main.js"></script>
+</body>
+</html>

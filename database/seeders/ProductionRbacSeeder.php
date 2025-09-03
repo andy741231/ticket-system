@@ -60,6 +60,15 @@ class ProductionRbacSeeder extends Seeder
                     'directory.profile.view',
                 ],
             ],
+            'newsletter' => [
+                'permissions' => [
+                    'newsletter.app.access',
+                    'newsletter.manage',
+                ],
+                'user_role_perms' => [
+                    // no default perms for newsletter user role
+                ],
+            ],
         ];
 
         // Global RBAC admin permissions (not app-scoped)
@@ -96,11 +105,11 @@ class ProductionRbacSeeder extends Seeder
             // Create roles (immutable admin, mutable user) using unique key (team_id, slug)
             $adminRole = Role::firstOrCreate(
                 ['team_id' => $teamId, 'slug' => 'admin', 'guard_name' => 'web'],
-                ['name' => 'admin', 'is_mutable' => false, 'description' => 'Administrator']
+                ['name' => $slug . ' admin', 'is_mutable' => false, 'description' => 'Administrator']
             );
             $userRole = Role::firstOrCreate(
                 ['team_id' => $teamId, 'slug' => 'user', 'guard_name' => 'web'],
-                ['name' => 'user', 'is_mutable' => true, 'description' => 'Standard User']
+                ['name' => $slug . ' user', 'is_mutable' => true, 'description' => 'Standard User']
             );
 
             // Assign app permissions

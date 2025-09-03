@@ -14,7 +14,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Placeholder } from '@tiptap/extension-placeholder';
-import { ref, onBeforeUnmount, watch } from 'vue';
+import { ref, onBeforeUnmount, watch, nextTick } from 'vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -77,6 +77,9 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 
+// Toast notification state
+const showImagePasteToast = ref(false);
+
 // Reactive data for format dropdown
 const currentFormat = ref('paragraph');
 
@@ -117,7 +120,8 @@ const editor = useEditor({
         class: 'text-blue-600 hover:underline',
       },
     }),
-    Image,
+    // Remove Image extension to prevent image pasting
+    // Image,
     Table.configure({
       resizable: true,
       HTMLAttributes: {
@@ -146,6 +150,33 @@ const editor = useEditor({
   content: props.modelValue,
   onUpdate: ({ editor }) => {
     emit('update:modelValue', editor.getHTML());
+  },
+  editorProps: {
+    handlePaste: (view, event, slice) => {
+      // Check if the paste contains images
+      const hasImages = slice.content.descendants((node) => {
+        if (node.type.name === 'image') {
+          return false; // Stop traversal and indicate image found
+        }
+        return true; // Continue traversal
+      });
+      
+      // Check clipboard for image files
+      const clipboardData = event.clipboardData || event.originalEvent?.clipboardData;
+      if (clipboardData) {
+        const items = Array.from(clipboardData.items);
+        const hasImageFiles = items.some(item => item.type.startsWith('image/'));
+        
+        if (hasImageFiles) {
+          // Prevent the paste and show friendly message
+          showImagePasteMessage();
+          return true; // Prevent default paste behavior
+        }
+      }
+      
+      // If no images detected, allow normal paste
+      return false;
+    },
   },
 });
 
@@ -353,6 +384,20 @@ const handleOutdent = () => {
   } catch (error) {
     console.error('Error in handleOutdent:', error);
   }
+};
+
+// Show friendly message when user tries to paste images
+const showImagePasteMessage = () => {
+  showImagePasteToast.value = true;
+  // Auto-hide after 4 seconds
+  setTimeout(() => {
+    showImagePasteToast.value = false;
+  }, 4000);
+};
+
+// Hide toast manually
+const hideImagePasteToast = () => {
+  showImagePasteToast.value = false;
 };
 
 onBeforeUnmount(() => {
@@ -572,6 +617,39 @@ onBeforeUnmount(() => {
           >
             {{ isEditingLink ? 'Update' : 'Insert' }} Link
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Paste Prevention Toast -->
+    <div v-if="showImagePasteToast" class="fixed top-4 right-4 z-50 max-w-sm">
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-lg">
+        <div class="flex items-start">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3 flex-1">
+            <h3 class="text-sm font-medium text-blue-800">
+              Image Upload Required
+            </h3>
+            <div class="mt-1 text-sm text-blue-700">
+              <p>Please use the Image Upload button instead of pasting images directly. This helps keep your newsletter optimized!</p>
+            </div>
+          </div>
+          <div class="ml-4 flex-shrink-0">
+            <button
+              type="button"
+              @click="hideImagePasteToast"
+              class="inline-flex text-blue-400 hover:text-blue-600 focus:outline-none focus:text-blue-600"
+            >
+              <span class="sr-only">Close</span>
+              <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>

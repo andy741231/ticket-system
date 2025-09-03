@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\PermissionService;
 use App\Models\App as SubApp;
+use App\Models\Team;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,9 @@ class HandleInertiaRequests extends Middleware
         $ticketsTeamId = $ticketsApp?->id;
         $directoryApp = Schema::hasTable('apps') ? SubApp::query()->where('slug', 'directory')->first() : null;
         $directoryTeamId = $directoryApp?->id;
+        // Cross-app Newsletter access flag (independent of current app context)
+        $newsletterApp = Schema::hasTable('apps') ? SubApp::query()->where('slug', 'newsletter')->first() : null;
+        $newsletterTeamId = $newsletterApp?->id;
 
         // Fallback: if the Hub app team row is missing, allow access when the user
         // holds a role named "hub admin" or "hub user" in ANY team context.
@@ -67,6 +71,17 @@ class HandleInertiaRequests extends Middleware
             } catch (\Throwable $e) {
                 $hasUsersRoleByName = false;
             }
+        }
+
+        // Get teams data for avatar matching
+        $teams = [];
+        try {
+            if (Schema::connection('directory')->hasTable('directory_team')) {
+                $teams = Team::select(['id', 'name', 'email', 'img'])->get()->toArray();
+            }
+        } catch (\Throwable $e) {
+            // Silently handle if directory connection or table doesn't exist
+            $teams = [];
         }
 
         return [
@@ -113,6 +128,22 @@ class HandleInertiaRequests extends Middleware
                                 : false
                         )
                         : false,
+                    // Cross-app explicit: can the user access Newsletter area?
+                    'canAccessNewsletterApp' => $user
+                        ? (
+                            $newsletterTeamId
+                                ? $perm->can($user, 'newsletter.app.access', $newsletterTeamId)
+                                : false
+                        )
+                        : false,
+                    // Cross-app explicit: can the user manage Newsletter (internal tools)?
+                    'canManageNewsletterApp' => $user
+                        ? (
+                            $newsletterTeamId
+                                ? $perm->can($user, 'newsletter.manage', $newsletterTeamId)
+                                : false
+                        )
+                        : false,
                 ] : null,
             ],
             'appContext' => [
@@ -132,6 +163,9 @@ class HandleInertiaRequests extends Middleware
                 'warning' => fn () => $request->session()->get('warning'),
                 'info' => fn () => $request->session()->get('info'),
             ],
+            // Expose bulk import row-level errors separately from the validation error bag
+            'import_errors' => fn () => $request->session()->get('import_errors', []),
+            'teams' => $teams,
         ];
     }
 }

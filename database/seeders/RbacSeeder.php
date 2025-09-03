@@ -60,6 +60,7 @@ class RbacSeeder extends Seeder
             'newsletter' => [
                 'permissions' => [
                     'newsletter.app.access',
+                    'newsletter.manage',
                 ],
                 'user_role_perms' => [
                     // Optionally grant basic access to standard users later
@@ -98,14 +99,14 @@ class RbacSeeder extends Seeder
             $slug = $app->slug;
             $appId = $app->id;
 
-            // Create per-app roles (team_id = app id)
+            // Create per-app roles (team_id = app id) with app-prefixed names for clarity in UI
             $adminRole = Role::firstOrCreate(
                 ['slug' => 'admin', 'guard_name' => 'web', 'team_id' => $appId],
-                ['name' => 'admin', 'is_mutable' => false, 'description' => 'Administrator']
+                ['name' => $slug . ' admin', 'is_mutable' => false, 'description' => 'Administrator']
             );
             $userRole = Role::firstOrCreate(
                 ['slug' => 'user', 'guard_name' => 'web', 'team_id' => $appId],
-                ['name' => 'user', 'is_mutable' => true, 'description' => 'Standard User']
+                ['name' => $slug . ' user', 'is_mutable' => true, 'description' => 'Standard User']
             );
 
             // Assign permissions to roles
@@ -126,8 +127,11 @@ class RbacSeeder extends Seeder
         }
 
         // Optionally, ensure global roles exist and are immutable (backward compatibility)
-        $globalAdmin = Role::firstOrCreate(['slug' => 'admin', 'guard_name' => 'web', 'team_id' => null], ['name' => 'admin', 'is_mutable' => false, 'description' => 'Administrator (Global)']);
-        $globalUser = Role::firstOrCreate(['slug' => 'user', 'guard_name' => 'web', 'team_id' => null], ['name' => 'user', 'is_mutable' => true, 'description' => 'Standard User (Global)']);
+        // Controlled by env RBAC_CREATE_GLOBAL_ROLES (default false). Set to true only if you need legacy global roles.
+        if (filter_var(env('RBAC_CREATE_GLOBAL_ROLES', false), FILTER_VALIDATE_BOOL)) {
+            $globalAdmin = Role::firstOrCreate(['slug' => 'admin', 'guard_name' => 'web', 'team_id' => null], ['name' => 'admin', 'is_mutable' => false, 'description' => 'Administrator (Global)']);
+            $globalUser = Role::firstOrCreate(['slug' => 'user', 'guard_name' => 'web', 'team_id' => null], ['name' => 'user', 'is_mutable' => true, 'description' => 'Standard User (Global)']);
+        }
 
         // Ensure base permission names from legacy seeder exist (no-op if already present)
         foreach ([

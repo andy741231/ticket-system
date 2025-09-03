@@ -23,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role.redirect' => \App\Http\Middleware\RedirectBasedOnRole::class,
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'perm' => \App\Http\Middleware\RequirePermission::class,
+            'can.edit.directory' => \App\Http\Middleware\CanEditDirectoryProfile::class,
+            'can.edit.ticket' => \App\Http\Middleware\CanEditTicket::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

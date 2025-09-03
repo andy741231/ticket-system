@@ -1,5 +1,6 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import Avatar from '@/Components/Avatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { useHasAny } from '@/Extensions/useAuthz';
@@ -65,12 +66,12 @@ const formatDate = (dateString) => {
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    <tr v-if="users.data.length === 0">
+                                    <tr v-if="(users?.data?.length || 0) === 0">
                                         <td colspan="4" class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500 dark:text-gray-400">
                                             No users found.
                                         </td>
                                     </tr>
-                                     <tr v-for="user in users.data" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                     <tr v-for="user in (users?.data || [])" :key="user.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <Link 
                                                 :href="route('admin.users.show', user.id)" 
@@ -78,11 +79,7 @@ const formatDate = (dateString) => {
                                                 title="View"
                                             >
                                                 <div class="flex items-center">
-                                                    <div class="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                                                        <span class="text-indigo-600 dark:text-indigo-300 font-medium">
-                                                            {{ user.name.charAt(0) }}
-                                                        </span>
-                                                    </div>
+                                                    <Avatar :user="user" size="md" :show-link="false" />
                                                     <div class="ml-4">
                                                         <div class="text-sm font-medium text-gray-900 dark:text-white">
                                                             {{ user.name }}
@@ -132,13 +129,13 @@ const formatDate = (dateString) => {
                         </div>
                         
                         <!-- Pagination -->
-                        <div v-if="users.links.length > 3" class="mt-4 px-6 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                        <div v-if="(users?.links?.length || 0) > 3" class="mt-4 px-6 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                             <div class="flex items-center justify-between">
                                 <div class="text-sm text-gray-700 dark:text-gray-300">
-                                    Showing <span class="font-medium">{{ users.from }}</span> to <span class="font-medium">{{ users.to }}</span> of <span class="font-medium">{{ users.total }}</span> users
+                                    Showing <span class="font-medium">{{ users?.from ?? 0 }}</span> to <span class="font-medium">{{ users?.to ?? 0 }}</span> of <span class="font-medium">{{ users?.total ?? 0 }}</span> users
                                 </div>
                                 <div class="flex space-x-2">
-                                    <template v-for="(link, index) in users.links" :key="index">
+                                    <template v-for="(link, index) in (users?.links || [])" :key="index">
                                         <Link 
                                             v-if="link.url"
                                             :href="link.url"

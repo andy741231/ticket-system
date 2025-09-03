@@ -23,6 +23,9 @@ const props = defineProps({
 
 const selectedPeriod = ref(props.dateRange || '30');
 
+// Safe default to avoid accessing length of undefined
+const recentActivitySafe = computed(() => props.recentActivity ?? []);
+
 const overviewStats = computed(() => [
   {
     name: 'Total Campaigns',
@@ -88,14 +91,15 @@ function changePeriod(period) {
   <Head title="Newsletter Analytics" />
   <AuthenticatedLayout>
     <template #header>
-      <div class="flex justify-between items-center">
+      
+    </template>
+
+    <div class="">
+      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+
+        <div class="flex justify-between items-center">
         <div>
-          <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Newsletter Analytics
-          </h2>
-          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Track performance and engagement across all campaigns
-          </p>
+          
         </div>
         
         <div class="flex gap-2">
@@ -111,10 +115,6 @@ function changePeriod(period) {
           </select>
         </div>
       </div>
-    </template>
-
-    <div class="py-12">
-      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
         
         <!-- Overview Stats -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -363,10 +363,10 @@ function changePeriod(period) {
             </h3>
           </div>
           <div class="divide-y divide-gray-200 dark:divide-gray-700 max-h-96 overflow-y-auto">
-            <div v-if="recentActivity.length === 0" class="p-6 text-center text-gray-500 dark:text-gray-400">
+            <div v-if="recentActivitySafe.length === 0" class="p-6 text-center text-gray-500 dark:text-gray-400">
               No recent activity
             </div>
-            <div v-for="activity in recentActivity" :key="activity.id" class="p-4 flex items-center gap-4">
+            <div v-for="activity in recentActivitySafe" :key="activity.id" class="p-4 flex items-center gap-4">
               <div class="flex-shrink-0">
                 <div v-if="activity.event_type === 'open'" class="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
                   <EyeIcon class="w-4 h-4 text-green-600" />

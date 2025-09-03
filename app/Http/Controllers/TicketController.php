@@ -381,6 +381,7 @@ class TicketController extends Controller
             ],
             'isAssignee' => $ticket->assignees()->where('users.id', auth()->id())->exists(),
             'authUserId' => auth()->id(),
+            'authUser' => auth()->user()->only(['id', 'name', 'email']),
         ]);
     }
 
@@ -678,6 +679,30 @@ class TicketController extends Controller
     public function destroy(Ticket $ticket)
     {
         $this->authorize('delete', $ticket);
+
+        // Delete all ticket files from storage
+        foreach ($ticket->files as $file) {
+            Storage::disk('public')->delete($file->file_path);
+        }
+
+        // Delete all comment attachments from storage
+        foreach ($ticket->comments as $comment) {
+            foreach ($comment->attachments as $attachment) {
+                Storage::disk('public')->delete($attachment->file_path);
+            }
+        }
+
+        // Delete the entire ticket folder if it exists (includes both ticket files and comment attachments)
+        $ticketFolder = "tickets/{$ticket->id}";
+        if (Storage::disk('public')->exists($ticketFolder)) {
+            Storage::disk('public')->deleteDirectory($ticketFolder);
+        }
+
+        // Clean up old comment attachments folder structure (for backward compatibility)
+        $commentAttachmentsFolder = "comment-attachments/ticket-{$ticket->id}";
+        if (Storage::disk('public')->exists($commentAttachmentsFolder)) {
+            Storage::disk('public')->deleteDirectory($commentAttachmentsFolder);
+        }
 
         $ticket->delete();
 

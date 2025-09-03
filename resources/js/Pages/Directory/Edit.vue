@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -27,7 +27,9 @@ const form = useForm({
     description: props.team.description,
     message: props.team.message,
     bio: props.team.bio,
-    img: props.team.img,
+    img: props.team.img, // For preview
+    tmp_folder: null,
+    tmp_filename: null,
     group_1: props.team.group_1,
     program: props.team.program,
     team: props.team.team,
@@ -52,22 +54,33 @@ const triggerCropCurrent = () => {
   avatarUploader.value?.openCropperWithCurrent();
 };
 
-const triggerDeleteImage = async () => {
-  try {
-    const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
-    await axios.patch(
-      window.route('directory.updateImage', { team: props.team.id }),
-      { img: null },
-      { headers: { ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}), 'Accept': 'application/json' } }
-    );
-    form.img = null;
-  } catch (e) {
-    // Surface any error on the field
-    form.setError('img', e?.response?.data?.message || 'Failed to delete image.');
-  } finally {
-    showImageActions.value = false;
+const onImageUploaded = async ({ folder, filename, dataUrl }) => {
+  // If a temporary file was already uploaded, delete it before assigning the new one.
+  if (form.tmp_folder) {
+    await axios.delete('/api/tmp_delete', { data: { folder: form.tmp_folder } });
   }
+  form.img = dataUrl; // for preview
+  form.tmp_folder = folder;
+  form.tmp_filename = filename;
+  showImageActions.value = false;
 };
+
+const triggerDeleteImage = async () => {
+  if (form.tmp_folder) {
+    await axios.delete('/api/tmp_delete', { data: { folder: form.tmp_folder } });
+  }
+  form.img = null;
+  form.tmp_folder = null;
+  form.tmp_filename = null;
+  showImageActions.value = false;
+};
+
+// Cleanup temporary file on page exit
+onUnmounted(() => {
+  if (form.tmp_folder) {
+    axios.delete('/api/tmp_delete', { data: { folder: form.tmp_folder } });
+  }
+});
 
 // Collapsible editors
 const showBioEditor = ref(true);
@@ -95,13 +108,13 @@ const showMessageEditor = ref(false);
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                 </svg>
                                 <!-- Hover overlay -->
-                                <button type="button" @click.prevent="showImageActions = true" class="absolute inset-0 rounded-full flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button type="button" @click.prevent="showImageActions = true" class="absolute -inset-5 rounded-full flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <span class="text-white font-medium">Edit</span>
                                 </button>
                             </div>
                             <div class="mt-4 w-full flex flex-col items-center">
                                 <!-- Reuse uploader without its own button; control via ref -->
-                                <AvatarUploader ref="avatarUploader" v-model="form.img" :team-name="team.name" :team-id="team.id" :render-button="false" />
+                                <AvatarUploader ref="avatarUploader" v-model="form.img" :team-name="team.name" :team-id="team.id" @on-upload="onImageUploaded" :render-button="false" />
                                 <InputError class="mt-2" :message="form.errors.img" />
                             </div>
                         </div>
@@ -109,7 +122,7 @@ const showMessageEditor = ref(false);
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <InputLabel for="name" value="Name" />
-                                <TextInput id="name" type="text" class="dark:bg-gray-700 text-gray-100 mt-1 block w-full" v-model="form.name" autofocus />
+                                <TextInput id="name" type="text" class="dark:bg-gray-700d dark:text-gray-100 mt-1 block w-full" v-model="form.name" autofocus />
                                 <InputError class="mt-2" :message="form.errors.name" />
                             </div>
 

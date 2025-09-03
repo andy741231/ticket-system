@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { Editor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -8,6 +8,9 @@ import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import EmailEditor from '@/Components/WYSIWYG/EmailEditor.vue';
+import VueCropper from 'vue-cropperjs';
+import 'cropperjs/dist/cropper.css';
+import axios from 'axios';
 
 // FontAwesome icons
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -66,6 +69,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  campaignName: {
+    type: String,
+    default: '',
+  },
 });
 
 // Helpers to load initial modelValue (v-model) into builder
@@ -97,6 +104,8 @@ const emit = defineEmits(['update:modelValue', 'update:html-content', 'toggle-ht
 // UI State
 const editor = ref(null);
 const showPreview = ref(false);
+const showSourceEditor = ref(false);
+const sourceContent = ref('');
 const showTemplates = ref(false);
 const showColorPicker = ref(false);
 const selectedColor = ref('#000000');
@@ -110,11 +119,17 @@ const showButtonEditor = ref(false);
 const showColumnEditor = ref(false);
 const showTextEditor = ref(false);
 const textEditor = ref(null);
+// Image cropper state
+const imageCropSrc = ref(null);
+const imageCropper = ref(null);
+const imageMargin = ref('20px 0');
+const imagePadding = ref('0');
+const imageFullWidth = ref(false);
 // Temporary model for the heading editor modal
 const textModalContent = ref('');
 // Text block additional settings (background, padding)
 const textBackground = ref('transparent');
-const textPadding = ref('15px 0');
+const textPadding = ref('15px 50px');
 // Per-text-block TipTap editors
 const blockEditors = ref({});
 // Header/Footer editor state
@@ -123,6 +138,11 @@ const headerTitle = ref('');
 const headerSubtitle = ref('');
 const headerBackground = ref('');
 const headerTextColor = ref('');
+const headerLogo = ref('');
+const headerLogoAlignment = ref('center');
+const headerLogoSize = ref('150px');
+const headerLogoPadding = ref('10px');
+const headerLogoMargin = ref('0 0 20px 0');
 
 const showFooterEditor = ref(false);
 // Currently editing block (computed helper)
@@ -130,6 +150,7 @@ const currentEditingBlock = computed(() => emailBlocks.value.find(b => b.id === 
 const footerContent = ref('');
 const footerBackground = ref('');
 const footerCopyright = ref('');
+const showTokensDropdown = ref(null);
 
 // Columns editor state
 const columnCount = ref(2);
@@ -141,14 +162,14 @@ const emailBlocks = ref([
   {
     id: 'header',
     type: 'header',
-    content: '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0;"><h1 style="margin: 0; font-size: 28px; font-weight: 300;">Newsletter Title</h1><p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">Your weekly dose of updates</p></div>',
+    content: '<div style="background: #c8102e; color: #ffffff; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0;"><h1 style="margin: 0; font-size: 28px; font-weight: 300;">Newsletter Title</h1><p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">Your weekly dose of updates</p></div>',
     editable: true,
     locked: false,
   },
   {
     id: 'footer',
     type: 'footer',
-    content: '<div style="background-color: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;"><div>Thanks for reading! Forward this to someone who might find it useful.</div><p style="margin: 5px 0; color: #999; font-size: 14px;">Unsubscribe | Update preferences | View in browser</p><p style="margin: 5px 0; color: #999; font-size: 14px;">&copy; 2025 Your Company Name. All rights reserved.</p></div>',
+    content: '<div style="background-color: #c8102e; color: #ffffff; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;"><div>Thanks for reading! Forward this to someone who might find it useful.</div><p style="margin: 5px 0; color: #fff; font-size: 14px;">Unsubscribe | Update preferences | View in browser</p><p style="margin: 5px 0; color: #fff; font-size: 14px;">&copy; 2025 UH Population Health. All rights reserved.</p></div>',
     editable: true,
     locked: true,
   },
@@ -162,16 +183,15 @@ const jsonContent = computed(() => {
   return editor.value ? editor.value.getJSON() : null;
 });
 
-// Draggable Block Types with FontAwesome icons
+// Draggable Block Types with improved FontAwesome icons
 const blockTypes = [
-  { type: 'header', label: 'Header', icon: ['fas', 'heading'] },
+  { type: 'header', label: 'Header', icon: ['fas', 'inbox'] },
   { type: 'text', label: 'Text', icon: ['fas', 'align-left'] },
   { type: 'heading', label: 'Heading', icon: ['fas', 'heading'] },
   { type: 'image', label: 'Image', icon: ['fas', 'image'] },
   { type: 'button', label: 'Button', icon: ['fas', 'square'] },
   { type: 'columns', label: 'Columns', icon: ['fas', 'table-columns'] },
   { type: 'divider', label: 'Divider', icon: ['fas', 'minus'] },
-  { type: 'social', label: 'Social Links', icon: ['fas', 'link'] },
   { type: 'footer', label: 'Footer', icon: ['fas', 'flag'] },
   { type: 'spacer', label: 'Spacer', icon: ['fas', 'ruler-horizontal'] },
 ];
@@ -183,9 +203,16 @@ const emailStructure = computed(() => {
     settings: {
       backgroundColor: '#f4f4f4',
       contentWidth: '600px',
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      fontFamily: "'Source Sans 3', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     },
   };
+});
+
+// Derived max output width for images to match newsletter content area
+const imageMaxWidth = computed(() => {
+  const cw = emailStructure.value?.settings?.contentWidth || '600px';
+  const n = parseInt(String(cw).replace('px', ''), 10);
+  return Number.isFinite(n) && n > 0 ? n : 600;
 });
 
 const finalHtmlContent = computed(() => {
@@ -196,10 +223,13 @@ const finalHtmlContent = computed(() => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Newsletter</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
       <style>
         body {
           margin: 0;
-          padding: 20px;
+          padding: 0;
           font-family: ${emailStructure.value.settings.fontFamily};
           line-height: 1.6;
           background-color: ${emailStructure.value.settings.backgroundColor};
@@ -252,7 +282,8 @@ function addBlock(blockType, insertIndex = null) {
 
 function removeBlock(blockId) {
   const index = emailBlocks.value.findIndex(b => b.id === blockId);
-  if (index > -1 && !emailBlocks.value[index].locked) {
+  if (index > -1) {
+    // Allow deletion of footer blocks - remove the locked check
     emailBlocks.value.splice(index, 1);
     // Clean up any editor instance tied to this block
     if (blockEditors.value[blockId]) {
@@ -310,38 +341,266 @@ function onDrop(event, insertIndex) {
 
 // Template Functions
 function loadTemplate(template) {
+  console.log('Loading template:', template);
+  
   if (template.content) {
+    console.log('Template content type:', typeof template.content);
+    console.log('Template content:', template.content);
+    
     try {
-      const parsed = JSON.parse(template.content);
-      if (parsed.blocks) {
-        emailBlocks.value = parsed.blocks;
+      let parsed;
+      if (typeof template.content === 'string') {
+        parsed = JSON.parse(template.content);
       } else {
-        // Legacy format - convert HTML to blocks
-        emailBlocks.value = [
-          {
-            id: 'legacy-content',
-            type: 'text',
-            content: template.html_content || template.content,
-            editable: true,
-            locked: false,
-          },
-        ];
+        parsed = template.content;
+      }
+      
+      console.log('Parsed content:', parsed);
+      
+      if (parsed.blocks && Array.isArray(parsed.blocks)) {
+        console.log('Found blocks structure, loading', parsed.blocks.length, 'blocks');
+        // Ensure each block has proper structure and regenerate IDs
+        emailBlocks.value = parsed.blocks.map((block) => {
+          const newId = generateBlockId();
+          return {
+            id: newId,
+            type: block.type || 'text',
+            content: block.content || getBlockHtml(block.type || 'text', block.data || {}),
+            data: block.data || {},
+            editable: block.editable !== false,
+            locked: block.locked || false
+          };
+        });
+      } else {
+        console.log('No blocks structure found, parsing HTML content');
+        // Parse HTML content and try to split into meaningful blocks
+        const htmlContent = template.html_content || parsed || template.content;
+        console.log('HTML content to parse:', htmlContent);
+        emailBlocks.value = parseHtmlIntoBlocks(htmlContent);
       }
     } catch (e) {
-      // Fallback for HTML content
-      emailBlocks.value = [
-        {
-          id: 'html-content',
-          type: 'text',
-          content: template.html_content || template.content,
-          editable: true,
-          locked: false,
-        },
-      ];
+      console.log('JSON parse failed:', e);
+      // Parse HTML content and try to split into meaningful blocks
+      const htmlContent = template.html_content || template.content;
+      console.log('Fallback HTML content:', htmlContent);
+      emailBlocks.value = parseHtmlIntoBlocks(htmlContent);
     }
   }
+  
+  console.log('Final emailBlocks:', emailBlocks.value);
   showTemplates.value = false;
   updateContent();
+}
+
+// Helper function to parse HTML content into individual blocks
+function parseHtmlIntoBlocks(htmlContent) {
+  console.log('parseHtmlIntoBlocks called with:', htmlContent);
+  
+  if (!htmlContent) return [];
+  
+  const blocks = [];
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = htmlContent;
+
+  console.log('tempDiv innerHTML length:', tempDiv.innerHTML?.length || 0);
+
+  // Helper: safe style reads without throwing
+  const safeStyle = (el, prop, fallback) => {
+    try {
+      const s = (el && typeof getComputedStyle === 'function') ? getComputedStyle(el) : null;
+      return (s && s[prop]) ? s[prop] : (fallback ?? undefined);
+    } catch (e) {
+      return fallback;
+    }
+  };
+
+  // Unwrap common wrappers (html/body/single container/table wrappers)
+  let root = tempDiv;
+  // html -> body
+  if (root.children.length === 1 && root.children[0].tagName?.toLowerCase() === 'html') {
+    root = root.children[0];
+    const body = root.querySelector('body');
+    if (body) root = body;
+    console.log('Unwrapped to <body>');
+  }
+  // Iteratively unwrap single-child containers to reach meaningful children
+  let unwraps = 0;
+  while (unwraps < 5 && root.children && root.children.length === 1) {
+    const only = root.children[0];
+    const t = only.tagName?.toLowerCase();
+    // Known wrappers: div/section/main/table/tbody/tr/td
+    if (['div', 'section', 'main', 'table', 'tbody', 'tr', 'td'].includes(t)) {
+      root = only;
+      unwraps++;
+      console.log('Unwrapped wrapper level', unwraps, 'tag:', t);
+    } else {
+      break;
+    }
+  }
+
+  // Build candidate elements depending on wrapper type
+  let candidates = [];
+  const tag = root.tagName?.toLowerCase();
+  if (tag === 'table') {
+    // Prefer rows as units
+    candidates = Array.from(root.querySelectorAll(':scope > tbody > tr, :scope > tr'));
+  } else if (tag === 'tbody') {
+    candidates = Array.from(root.querySelectorAll(':scope > tr'));
+  } else if (tag === 'tr') {
+    candidates = Array.from(root.querySelectorAll(':scope > td'));
+  } else if (tag === 'td') {
+    candidates = Array.from(root.children);
+  } else {
+    candidates = Array.from(root.children);
+  }
+
+  console.log('Candidate elements count:', candidates.length, 'root tag:', tag);
+
+  if (candidates.length === 0) {
+    // As a fallback, treat full HTML as a single text block
+    return [{
+      id: generateBlockId(),
+      type: 'text',
+      content: htmlContent,
+      data: { content: htmlContent },
+      editable: true,
+      locked: false
+    }];
+  }
+
+  // If still a single giant wrapper, try one level deeper split by significant nodes (e.g., sections within a div)
+  if (candidates.length === 1) {
+    const deeper = candidates[0];
+    const deepTag = deeper.tagName?.toLowerCase();
+    let deepChildren = [];
+    if (deepTag === 'table') {
+      deepChildren = Array.from(deeper.querySelectorAll(':scope > tbody > tr, :scope > tr'));
+    } else if (deepTag === 'tbody') {
+      deepChildren = Array.from(deeper.querySelectorAll(':scope > tr'));
+    } else if (deepTag === 'tr') {
+      deepChildren = Array.from(deeper.querySelectorAll(':scope > td'));
+    } else {
+      deepChildren = Array.from(deeper.children);
+    }
+    if (deepChildren.length > 1) {
+      console.log('Performed secondary unwrap. New candidate count:', deepChildren.length);
+      candidates = deepChildren;
+    }
+  }
+
+  // Detection helpers
+  const isButtonLike = (el) => {
+    const link = el.querySelector('a');
+    if (!link) return false;
+    const cls = (link.getAttribute('class') || '').toLowerCase();
+    const style = (link.getAttribute('style') || '').toLowerCase();
+    const role = (link.getAttribute('role') || '').toLowerCase();
+    return (
+      role === 'button' ||
+      cls.includes('btn') || cls.includes('button') ||
+      style.includes('inline-block') || style.includes('padding') || style.includes('background')
+    );
+  };
+
+  candidates.forEach((element) => {
+    const tagName = element.tagName?.toLowerCase() || 'div';
+    const innerHTML = element.innerHTML || '';
+    const outerHTML = element.outerHTML || innerHTML || '';
+
+    if (element.querySelector('h1, h2, h3, h4, h5, h6')) {
+      // Header-like
+      const heading = element.querySelector('h1, h2, h3, h4, h5, h6');
+      const title = heading?.textContent?.trim() || '';
+      const subtitle = (element.textContent || '').replace(title, '').trim();
+      blocks.push({
+        id: generateBlockId(),
+        type: 'header',
+        content: outerHTML,
+        data: {
+          title,
+          subtitle,
+          background: safeStyle(element, 'backgroundColor', '#c8102e'),
+          textColor: safeStyle(element, 'color', '#ffffff')
+        },
+        editable: true,
+        locked: false
+      });
+    } else if (element.querySelector('img')) {
+      const img = element.querySelector('img');
+      blocks.push({
+        id: generateBlockId(),
+        type: 'image',
+        content: outerHTML,
+        data: {
+          src: img?.getAttribute('src') || '',
+          alt: img?.getAttribute('alt') || 'Image',
+          width: '100%',
+          height: 'auto'
+        },
+        editable: true,
+        locked: false
+      });
+    } else if (tagName === 'hr') {
+      blocks.push({
+        id: generateBlockId(),
+        type: 'divider',
+        content: outerHTML,
+        data: { style: 'solid', color: '#e5e7eb', margin: '20px 0' },
+        editable: true,
+        locked: false
+      });
+    } else if (isButtonLike(element)) {
+      const link = element.querySelector('a');
+      blocks.push({
+        id: generateBlockId(),
+        type: 'button',
+        content: outerHTML,
+        data: {
+          text: (link?.textContent || '').trim(),
+          url: link?.getAttribute('href') || '#',
+          background: safeStyle(link, 'backgroundColor', '#c8102e'),
+          color: safeStyle(link, 'color', '#ffffff')
+        },
+        editable: true,
+        locked: false
+      });
+    } else if (/(unsubscribe|copyright|©|all rights reserved)/i.test(innerHTML)) {
+      blocks.push({
+        id: generateBlockId(),
+        type: 'footer',
+        content: outerHTML,
+        data: {
+          content: innerHTML,
+          background: safeStyle(element, 'backgroundColor', '#c8102e'),
+          textColor: safeStyle(element, 'color', '#ffffff')
+        },
+        editable: true,
+        locked: false
+      });
+    } else {
+      blocks.push({
+        id: generateBlockId(),
+        type: 'text',
+        content: outerHTML,
+        data: {
+          content: innerHTML,
+          background: safeStyle(element, 'backgroundColor', 'transparent'),
+          padding: '15px 12px'
+        },
+        editable: true,
+        locked: false
+      });
+    }
+  });
+
+  return blocks.length > 0 ? blocks : [{
+    id: generateBlockId(),
+    type: 'text',
+    content: htmlContent,
+    data: { content: htmlContent },
+    editable: true,
+    locked: false
+  }];
 }
 
 function createBlock(type) {
@@ -351,8 +610,10 @@ function createBlock(type) {
     header: { 
       title: 'Newsletter Title', 
       subtitle: 'Your weekly dose of updates',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      textColor: '#ffffff'
+      background: '#c8102e',
+      textColor: '#ffffff',
+      padding: '30px 12px',
+      fullWidth: false
     },
     text: { 
       content: '<p>Click to edit this text...</p>',
@@ -360,26 +621,32 @@ function createBlock(type) {
       color: '#666666',
       lineHeight: '1.6',
       background: 'transparent',
-      padding: '15px 0'
+      padding: '15px 50px',
+      fullWidth: false
     },
     heading: { 
       content: 'Your Heading Here', 
       level: 2,
       fontSize: '22px',
       color: '#333333',
-      fontWeight: '600'
+      fontWeight: '600',
+      background: 'transparent',
+      padding: '15px 12px',
+      fullWidth: false
     },
     image: { 
       src: '', 
       alt: 'Image description', 
       width: '100%',
       height: '200px',
-      borderRadius: '8px'
+      borderRadius: '8px',
+      padding: '20px 12px',
+      fullWidth: false
     },
     button: { 
       text: 'Click Here', 
       url: '#', 
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#c8102e',
       color: '#ffffff',
       borderRadius: '25px',
       padding: '12px 25px'
@@ -387,30 +654,24 @@ function createBlock(type) {
     columns: {
       count: 2,
       gap: '20px',
+      padding: '20px 12px',
+      fullWidth: false,
       columns: [
         { content: '<p>Column 1 content</p>' },
         { content: '<p>Column 2 content</p>' }
       ]
     },
     divider: { style: 'solid', color: '#e5e7eb', margin: '20px 0' },
-    social: { 
-      links: [
-        { platform: 'email', url: '#', icon: '📧' },
-        { platform: 'twitter', url: '#', icon: '🐦' },
-        { platform: 'linkedin', url: '#', icon: '💼' },
-        { platform: 'facebook', url: '#', icon: '📘' }
-      ],
-      alignment: 'center'
-    },
     footer: {
       content: '<p>Thanks for reading! Forward this to someone who might find it useful.</p>',
       links: [
-        { text: 'Unsubscribe', url: '#' },
-        { text: 'Update preferences', url: '#' },
-        { text: 'View in browser', url: '#' }
+        { text: 'Unsubscribe', url: '{{unsubscribe_url}}' },
+        { text: 'Update preferences', url: '{{preferences_url}}' },
+        { text: 'View in browser', url: '{{browser_url}}' }
       ],
       copyright: '2025 Your Company Name. All rights reserved.',
-      background: '#f8f9fa'
+      background: '#c8102e',
+      textColor: '#ffffff'
     },
     spacer: { height: '20px' }
   };
@@ -424,21 +685,35 @@ function createBlock(type) {
 }
 
 function getBlockHtml(type, data) {
+  const getPadding = (blockData) => {
+    if (blockData.fullWidth) return '0';
+    return blockData.padding || '15px 12px';
+  };
+
   switch (type) {
     case 'header':
+      const logoHtml = data.logo ? `<img src="${data.logo}" alt="Logo" style="max-width: ${data.logoSize || '150px'}; height: auto; margin: ${data.logoMargin || '0 0 20px 0'}; padding: ${data.logoPadding || '10px'}; display: block; margin-left: ${data.logoAlignment === 'left' ? '0' : data.logoAlignment === 'right' ? 'auto' : 'auto'}; margin-right: ${data.logoAlignment === 'left' ? 'auto' : data.logoAlignment === 'right' ? '0' : 'auto'};" />` : '';
       return `
-        <div style="background: ${data.background}; color: ${data.textColor}; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+        <div style="background: ${data.background}; color: ${data.textColor}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0;">
+          ${logoHtml}
           <h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title}</h1>
           <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle}</p>
         </div>`;
     case 'text':
-      return `<div style="margin: 0; padding: ${data.padding || '15px 0'}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize}; line-height: ${data.lineHeight}; color: ${data.color};">${data.content}</div>`;
+      return `<div style="margin: 0; padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize}; line-height: ${data.lineHeight}; color: ${data.color};">${data.content}</div>`;
     case 'heading':
-      return `<h${data.level || 2} style="margin: 0 0 15px 0; font-size: ${data.fontSize}; font-weight: ${data.fontWeight}; color: ${data.color};">${data.content}</h${data.level || 2}>`;
+      return `<div style="padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'};"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize}; font-weight: ${data.fontWeight}; color: ${data.color};">${data.content}</h${data.level || 2}></div>`;
     case 'image':
-      return data.src ? 
-        `<img src="${data.src}" alt="${data.alt}" style="width: ${data.width}; height: ${data.height}; border-radius: ${data.borderRadius}; display: block; margin: 20px 0;" />` :
-        `<div style="width: 100%; height: ${data.height}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${data.borderRadius}; display: flex; align-items: center; justify-content: center; margin: 20px 0; color: #667eea; font-size: 14px; cursor: pointer;" onclick="document.getElementById('imageUpload-${data.id || 'temp'}').click()">Image Placeholder (Click to upload)</div>`;
+      const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
+      return data.src ?
+        `<div style="padding: ${getPadding(data)};">
+          <img src="${data.src}" alt="${data.alt}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" />
+        </div>` :
+        `<div style="padding: ${getPadding(data)};">
+          <div style="width: 100%; height: ${data.height}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">
+            Image Placeholder (Click to upload)
+          </div>
+        </div>`;
     case 'button':
       return `<div style="text-align: center; margin: 20px 0;"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${data.background}; color: ${data.color}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
     case 'columns':
@@ -448,23 +723,18 @@ function getBlockHtml(type, data) {
       const columnsHtml = (data.columns || []).map(col => 
         `<div style="width: ${widthCalc}; display: inline-block; vertical-align: top; margin: 0 calc(${gap} / 2);">${col.content}</div>`
       ).join('');
-      return `<div style="margin: 20px 0; text-align: left;">${columnsHtml}</div>`;
+      return `<div style="padding: ${getPadding(data)}; text-align: left;">${columnsHtml}</div>`;
     case 'divider':
       return `<hr style="border: none; border-top: 1px ${data.style} ${data.color}; margin: ${data.margin};" />`;
-    case 'social':
-      const socialLinks = (data.links || []).map(link => 
-        `<a href="${link.url}" style="display: inline-block; margin: 0 10px; padding: 8px; background-color: #667eea; color: white; border-radius: 50%; width: 16px; height: 16px; text-align: center; line-height: 16px; text-decoration: none; font-size: 12px;">${link.icon}</a>`
-      ).join('');
-      return `<div style="text-align: ${data.alignment}; margin: 15px 0;">${socialLinks}</div>`;
     case 'footer':
       const footerLinks = data.links.map(link => 
-        `<a href="${link.url}" style="color: #667eea; text-decoration: none;">${link.text}</a>`
+        `<a href="${link.url}" style="color: ${data.textColor || '#ffffff'}; text-decoration: none;">${link.text}</a>`
       ).join(' | ');
       return `
-        <div style="background-color: ${data.background}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;">
+        <div style="background-color: ${data.background}; color: ${data.textColor}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;">
           <div>${data.content}</div>
-          <p style="margin: 5px 0; color: #999; font-size: 14px;">${footerLinks}</p>
-          <p style="margin: 5px 0; color: #999; font-size: 14px;">${data.copyright}</p>
+          <p style="margin: 5px 0; color: ${data.textColor || '#ffffff'}; font-size: 14px;">${footerLinks}</p>
+          <p style="margin: 5px 0; color: ${data.textColor || '#ffffff'}; font-size: 14px;">&copy; ${data.copyright}</p>
         </div>`;
     case 'spacer':
       return `<div style="height: ${data.height};"></div>`;
@@ -479,6 +749,11 @@ function editBlock(blockId) {
   const block = emailBlocks.value.find(b => b.id === blockId);
   if (block) {
     if (block.type === 'image') {
+      // Preload current image and spacing settings
+      imageCropSrc.value = block.data?.src || null;
+      imageMargin.value = block.data?.margin || '20px 0';
+      imagePadding.value = block.data?.padding || '0';
+      imageFullWidth.value = block.data?.fullWidth || false;
       showImageUpload.value = true;
     } else if (block.type === 'button') {
       // Pre-populate button editor with current values
@@ -506,21 +781,27 @@ function editBlock(blockId) {
       // Use EmailEditor in a modal for text blocks, with background and padding settings
       textModalContent.value = block.data?.content || block.content || '';
       textBackground.value = block.data?.background || 'transparent';
-      textPadding.value = block.data?.padding || '15px 0';
+      // Remove textFullWidth since we're removing the option
       showTextEditor.value = true;
     } else if (block.type === 'heading') {
       // Use EmailEditor in a modal for heading blocks
       textModalContent.value = block.data?.content || block.content || '';
+      textBackground.value = block.data?.background || 'transparent';
       showTextEditor.value = true;
     } else if (block.type === 'header') {
       headerTitle.value = block.data?.title || 'Newsletter Title';
       headerSubtitle.value = block.data?.subtitle || 'Your weekly dose of updates';
-      headerBackground.value = block.data?.background || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      headerBackground.value = block.data?.background || '#c8102e';
       headerTextColor.value = block.data?.textColor || '#ffffff';
+      headerLogo.value = block.data?.logo || '';
+      headerLogoAlignment.value = block.data?.logoAlignment || 'center';
+      headerLogoSize.value = block.data?.logoSize || '150px';
+      headerLogoPadding.value = block.data?.logoPadding || '10px';
+      headerLogoMargin.value = block.data?.logoMargin || '0 0 20px 0';
       showHeaderEditor.value = true;
     } else if (block.type === 'footer') {
       footerContent.value = block.data?.content || 'Thanks for reading! Forward this to someone who might find it useful.';
-      footerBackground.value = block.data?.background || '#f8f9fa';
+      footerBackground.value = block.data?.background || '#c8102e';
       footerCopyright.value = block.data?.copyright || '2025 Your Company Name. All rights reserved.';
       showFooterEditor.value = true;
     }
@@ -536,15 +817,122 @@ function updateBlockData(blockId, newData) {
   }
 }
 
-function handleImageUpload(event, blockId) {
+function handleImageUpload(event) {
   const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      updateBlockData(blockId, { src: e.target.result });
+      imageCropSrc.value = e.target.result;
     };
     reader.readAsDataURL(file);
   }
+}
+
+async function cropAndSaveImage() {
+  try {
+    const canvas = imageCropper.value?.getCroppedCanvas({ width: imageMaxWidth.value });
+    if (!canvas) return;
+
+    const blob = await new Promise((resolve, reject) => {
+      try {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Failed to generate image blob.'))), 'image/jpeg', 0.92);
+      } catch (e) {
+        reject(e);
+      }
+    });
+
+    // Build folder: images/newsletters/YYYY-MM-DD-{slug(campaignName)}
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const slug = (props.campaignName || 'newsletter')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'newsletter';
+    const folder = `images/newsletters/${dateStr}-${slug}`;
+    const uniqueName = `${slug}-${Date.now()}`;
+
+    const formData = new FormData();
+    formData.append('image', blob, 'image.jpg');
+    formData.append('name', uniqueName);
+    formData.append('folder', folder);
+
+    const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
+    const uploadUrl = (typeof route === 'function')
+      ? route('image.upload')
+      : (typeof window !== 'undefined' && typeof window.route === 'function')
+        ? window.route('image.upload')
+        : '/upload-image';
+    const resp = await axios.post(uploadUrl, formData, {
+      headers: {
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+        Accept: 'application/json',
+      },
+    });
+
+    let url = resp.data.url;
+    if (typeof url === 'string' && url.startsWith('/')) {
+      // Fallback normalization to absolute URL
+      url = `${window.location.origin}${url}`;
+    }
+    updateBlockData(editingBlock.value, {
+      src: url,
+      // Keep image fluid inside the content container; spacing on wrapper
+      margin: imageMargin.value,
+      padding: imagePadding.value,
+      width: '100%',
+      height: 'auto',
+      fullWidth: imageFullWidth.value,
+    });
+
+    // Close modal
+    showImageUpload.value = false;
+    imageCropSrc.value = null;
+  } catch (e) {
+    // No-op; could add user feedback here
+  }
+}
+
+// Handle header logo upload
+async function handleHeaderLogoUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('name', `header-logo-${Date.now()}`);
+    formData.append('folder', 'images/newsletters/logos');
+
+    const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
+    const uploadUrl = (typeof route === 'function')
+      ? route('image.upload')
+      : (typeof window !== 'undefined' && typeof window.route === 'function')
+        ? window.route('image.upload')
+        : '/upload-image';
+    
+    const resp = await axios.post(uploadUrl, formData, {
+      headers: {
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+        Accept: 'application/json',
+      },
+    });
+
+    let url = resp.data.url;
+    if (typeof url === 'string' && url.startsWith('/')) {
+      url = `${window.location.origin}${url}`;
+    }
+    headerLogo.value = url;
+  } catch (e) {
+    console.error('Logo upload failed:', e);
+  }
+}
+
+function closeImageEditor() {
+  showImageUpload.value = false;
+  imageCropSrc.value = null;
 }
 
 // WYSIWYG Editor for text blocks
@@ -644,6 +1032,19 @@ function toggleHtmlView() {
   emit('toggle-html-view');
 }
 
+// Preview overlay controls
+function openPreview() {
+  showPreview.value = true;
+}
+function closePreview() {
+  showPreview.value = false;
+}
+function handlePreviewBackdropClick(event) {
+  if (event.target === event.currentTarget) {
+    closePreview();
+  }
+}
+
 // Button editor data
 const buttonText = ref('');
 const buttonUrl = ref('');
@@ -693,7 +1094,12 @@ function saveTextChanges() {
     updateBlockData(editingBlock.value, {
       content: textModalContent.value,
       background: textBackground.value,
-      padding: textPadding.value,
+      padding: '15px 50px',
+    });
+  } else if (blk && blk.type === 'heading') {
+    updateBlockData(editingBlock.value, {
+      content: textModalContent.value,
+      background: textBackground.value,
     });
   } else {
     updateBlockData(editingBlock.value, { content: textModalContent.value });
@@ -705,7 +1111,82 @@ function cancelTextEdit() {
   showTextEditor.value = false;
 }
 
-onUnmounted(() => {
+// Modal backdrop click handler
+function handleModalBackdropClick(event) {
+  if (event.target === event.currentTarget) {
+    cancelTextEdit();
+  }
+}
+
+// Add keyboard event listener for ESC key
+function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    if (showTextEditor.value) cancelTextEdit();
+    if (showPreview.value) closePreview();
+    if (showSourceEditor.value) cancelSourceEdit();
+  }
+}
+
+// Add event listeners when component mounts
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown);
+});
+
+// Remove event listeners when component unmounts
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeydown);
+});
+
+// Source editor overlay helpers
+function openSourceEditor() {
+  sourceContent.value = finalHtmlContent.value;
+  showSourceEditor.value = true;
+}
+
+function handleSourceBackdropClick(event) {
+  if (event.target === event.currentTarget) {
+    cancelSourceEdit();
+  }
+}
+
+// Source editor functions
+function toggleSourceEditor() {
+  if (showSourceEditor.value) {
+    showSourceEditor.value = false;
+  } else {
+    sourceContent.value = finalHtmlContent.value;
+    showSourceEditor.value = true;
+  }
+}
+
+function applySourceChanges() {
+  try {
+    const html = (sourceContent.value || '').trim();
+    if (!html) {
+      // No content provided; just close the editor without changes
+      showSourceEditor.value = false;
+      return;
+    }
+    const blocks = parseHtmlIntoBlocks(html);
+    if (Array.isArray(blocks) && blocks.length > 0) {
+      emailBlocks.value = blocks;
+      updateContent();
+    }
+  } catch (e) {
+    // Optionally, show a toast/error. For now, do nothing.
+  } finally {
+    showSourceEditor.value = false;
+  }
+}
+
+function cancelSourceEdit() {
+  showSourceEditor.value = false;
+}
+
+onBeforeUnmount(() => {
+  // Remove event listener
+  document.removeEventListener('keydown', handleKeydown);
+  
   if (textEditor.value) {
     textEditor.value.destroy();
     textEditor.value = null;
@@ -748,6 +1229,11 @@ function saveHeaderChanges() {
     subtitle: headerSubtitle.value,
     background: headerBackground.value,
     textColor: headerTextColor.value,
+    logo: headerLogo.value,
+    logoAlignment: headerLogoAlignment.value,
+    logoSize: headerLogoSize.value,
+    logoPadding: headerLogoPadding.value,
+    logoMargin: headerLogoMargin.value,
   });
   showHeaderEditor.value = false;
 }
@@ -815,7 +1301,8 @@ const personalizationTokens = [
 ];
 
 function insertPersonalizationToken(token) {
-  const block = emailBlocks.value.find(b => b.id === selectedBlockId.value);
+  const blockId = showTokensDropdown.value;
+  const block = emailBlocks.value.find(b => b.id === blockId);
   if (!block) return;
 
   const placeholder = `{{ ${token} }}`;
@@ -832,53 +1319,40 @@ function insertPersonalizationToken(token) {
     updateBlockContent(block.id, appended);
   }
 }
+
+// Insert token directly into the WYSIWYG editor
+function insertTokenIntoEditor(token) {
+  const placeholder = `{{ ${token} }}`;
+  textModalContent.value += placeholder;
+}
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-50">
+  <div class="flex h-screen bg-gray-50 dark:bg-gray-900 dark:text-gray-100">
     <!-- Left Sidebar - Blocks & Templates -->
-    <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
+    <div class="w-50 bg-white border-r border-gray-200 flex flex-col dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
       <!-- Sidebar Header -->
-      <div class="p-4 border-b border-gray-200">
+      <div class="p-4 border-b border-gray-200 dark:border-gray-600 ">
         <div class="flex items-center gap-2 mb-4">
           <button type="button"
             @click="activePanel = 'blocks'"
             :class="`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
               activePanel === 'blocks'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-100'
+                : 'text-gray-600 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-gray-900 dark:hover:text-gray-100'
             }`"
           >
-            <span class="inline-flex items-center gap-2">
-              <font-awesome-icon :icon="['fas','th-large']" class="w-4 h-4" />
-              <span>Blocks</span>
-            </span>
+            <span>Blocks</span>
           </button>
           <button type="button"
             @click="activePanel = 'templates'"
             :class="`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
               activePanel === 'templates'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-100'
+                : 'text-gray-600 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-gray-900 dark:hover:text-gray-100'
             }`"
           >
-            <span class="inline-flex items-center gap-2">
-              <font-awesome-icon :icon="['fas','file']" class="w-4 h-4" />
-              <span>Templates</span>
-            </span>
-          </button>
-          <button type="button"
-            @click="activePanel = 'settings'"
-            :class="`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-              activePanel === 'settings'
-                ? 'bg-blue-100 text-blue-700'
-                : 'text-gray-600 hover:text-gray-900'
-            }`"
-          >
-            <span class="inline-flex items-center gap-2">
-              <font-awesome-icon :icon="['fas','gear']" class="w-4 h-4" />
-              <span>Settings</span>
-            </span>
+            <span>Templates</span>
           </button>
         </div>
       </div>
@@ -887,24 +1361,21 @@ function insertPersonalizationToken(token) {
       <div class="flex-1 overflow-y-auto p-4">
         <!-- Blocks Panel -->
         <div v-if="activePanel === 'blocks'" class="space-y-2">
-          <h3 class="text-sm font-medium text-gray-900 mb-3">Drag blocks to add content</h3>
           <div
             v-for="blockType in blockTypes"
             :key="blockType.type"
             :draggable="true"
             @dragstart="onDragStart($event, blockType.type)"
             @click="addBlock(blockType.type)"
-            class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+            class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer  transition-colors dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-600"
           >
-            <font-awesome-icon :icon="blockType.icon" class="w-5 h-5 text-gray-700" />
-            <span class="text-sm font-medium text-gray-700">{{ blockType.label }}</span>
-            <span class="text-xs text-gray-500 ml-auto">Click or drag</span>
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ blockType.label }}</span>
           </div>
         </div>
 
         <!-- Templates Panel -->
         <div v-else-if="activePanel === 'templates'" class="space-y-3">
-          <h3 class="text-sm font-medium text-gray-900 mb-3">Load Template</h3>
+          <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Load Template</h3>
           <div
             v-for="template in templates"
             :key="template.id"
@@ -919,68 +1390,42 @@ function insertPersonalizationToken(token) {
           </div>
         </div>
 
-        <!-- Settings Panel -->
-        <div v-else-if="activePanel === 'settings'" class="space-y-4">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Email Settings</h3>
-          
-          <!-- Personalization Tokens -->
-          <div>
-            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Personalization</label>
-            <div class="flex flex-wrap gap-1">
-              <button type="button"
-                v-for="token in personalizationTokens"
-                :key="token"
-                @click="insertPersonalizationToken(token)"
-                class="px-2 py-1 text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded hover:bg-yellow-200 dark:hover:bg-yellow-800"
-              >
-                {{ token.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
-    <!-- Main Content Area -->
+    <!-- Main Editor Area -->
     <div class="flex-1 flex flex-col">
       <!-- Top Toolbar -->
-      <div class="bg-white border-b border-gray-200 p-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <h2 class="text-lg font-semibold text-gray-900">Email Builder</h2>
+      <div class="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+        <div class="px-6 py-3 flex items-center justify-between">
+          <div class="flex items-center gap-2 text-sm text-gray-600">
+            <span class="text-gray-900 dark:text-gray-100 font-semibold">Email Builder</span>
           </div>
-          
-          <div class="flex items-center gap-3">
-            <!-- Preview Mode Toggle -->
+          <div class="flex items-center gap-2">
             <button type="button"
-              @click="showPreview = !showPreview"
-              :class="`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                showPreview
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`"
-            >
-              <span class="inline-flex items-center gap-2">
-                <font-awesome-icon :icon="showPreview ? ['fas','pen'] : ['fas','eye']" class="w-4 h-4" />
-                <span>{{ showPreview ? 'Edit' : 'Preview' }}</span>
-              </span>
-            </button>
-            
-            <button type="button"
-              @click="toggleHtmlView"
-              class="px-4 py-2 text-sm font-medium rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-            >
+              @click="openSourceEditor"
+              class="px-3 py-1.5 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
               <span class="inline-flex items-center gap-2">
                 <font-awesome-icon :icon="['fas','code']" class="w-4 h-4" />
-                <span>View Source</span>
+                <span>Source</span>
+              </span>
+            </button>
+            <button type="button"
+              @click="openPreview"
+              class="px-3 py-1.5 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+              <span class="inline-flex items-center gap-2">
+                <font-awesome-icon :icon="['fas','eye']" class="w-4 h-4" />
+                <span>Preview</span>
               </span>
             </button>
           </div>
         </div>
       </div>
+      
+      
 
       <!-- Email Canvas -->
-      <div class="flex-1 overflow-auto p-6 bg-gray-50">
+      <div class="flex-1 overflow-auto p-6 bg-gray-50 dark:bg-gray-800">
         <div
           :class="`mx-auto transition-all duration-300 ${
             previewMode === 'mobile' ? 'max-w-sm' : 'max-w-2xl'
@@ -993,7 +1438,7 @@ function insertPersonalizationToken(token) {
             style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"
           >
             <!-- Email Content -->
-            <div v-if="!showPreview" class="min-h-96">
+            <div class="min-h-96">
               <div
                 v-for="(block, index) in emailBlocks"
                 :key="block.id"
@@ -1077,33 +1522,96 @@ function insertPersonalizationToken(token) {
                 </div>
               </div>
             </div>
-            
-            <!-- Preview Mode -->
-            <div v-else>
-              <div v-html="previewInnerHtml" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"></div>
-            </div>
           </div>
         </div>
       </div>
     </div>
-    
+
+    <!-- Preview Overlay -->
+    <div v-if="showPreview" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" @click="handlePreviewBackdropClick" @keydown.esc="closePreview">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-full overflow-auto" @click.stop>
+        <div class="flex items-center justify-between p-3 border-b">
+          <div class="text-sm font-medium">Preview</div>
+        </div>
+        <div class="p-4">
+          <div v-html="previewInnerHtml" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Source Editor Overlay -->
+    <div v-if="showSourceEditor" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" @click="handleSourceBackdropClick" @keydown.esc="cancelSourceEdit">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-full overflow-auto" @click.stop>
+        <div class="flex items-center justify-between p-3 border-b">
+          <div class="text-sm font-medium">HTML Source</div>
+        </div>
+        <div class="p-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2 dark:text-white">HTML Source Code</label>
+          <textarea
+            v-model="sourceContent"
+            class="w-full h-[60vh] font-mono text-sm border border-gray-300 dark:bg-gray-700 rounded p-4 resize-none"
+            placeholder="Edit the HTML source code directly..."
+          ></textarea>
+          <div class="mt-4 flex gap-2 justify-end">
+            <button type="button" @click="applySourceChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Apply Changes</button>
+            <button type="button" @click="cancelSourceEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Block Editors -->
-    <!-- Image Upload Modal -->
+    <!-- Image Upload / Crop Modal -->
     <div v-if="showImageUpload" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-96">
-        <h3 class="text-lg font-medium mb-4">Upload Image</h3>
-        <input
-          type="file"
-          accept="image/*"
-          @change="handleImageUpload($event, editingBlock)"
-          class="w-full p-2 border border-gray-300 rounded"
-        />
-        <div class="flex gap-2 mt-4">
+      <div class="bg-white rounded-lg p-6 w-[44rem] max-w-full">
+        <h3 class="text-lg font-medium mb-4">Upload & Crop Image</h3>
+        <div class="space-y-3">
+          <input
+            type="file"
+            accept="image/*"
+            @change="handleImageUpload"
+            class="w-full p-2 border border-gray-300 rounded"
+          />
+          <div v-if="imageCropSrc" class="border border-gray-200 rounded overflow-hidden">
+            <VueCropper
+              ref="imageCropper"
+              :src="imageCropSrc"
+              :view-mode="2"
+              :background="false"
+              :auto-crop-area="1"
+              style="max-height: 420px; width: 100%;"
+            />
+          </div>
+          <!-- Spacing settings -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm text-gray-700 mb-1">Margin (CSS)</label>
+              <input type="text" v-model="imageMargin" class="w-full p-2 border border-gray-300 rounded" placeholder="e.g. 20px 0" />
+            </div>
+            <div>
+              <label class="block text-sm text-gray-700 mb-1">Padding (CSS)</label>
+              <input type="text" v-model="imagePadding" class="w-full p-2 border border-gray-300 rounded" placeholder="e.g. 0 or 10px" />
+            </div>
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" v-model="imageFullWidth" class="mr-2" />
+              <span class="text-sm text-gray-700">Full width (no padding)</span>
+            </label>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4 justify-end">
           <button type="button"
-            @click="showImageUpload = false"
+            @click="closeImageEditor"
             class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
           >
             Cancel
+          </button>
+          <button type="button"
+            @click="cropAndSaveImage"
+            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Crop & Save
           </button>
         </div>
       </div>
@@ -1159,21 +1667,66 @@ function insertPersonalizationToken(token) {
     </div>
 
     <!-- Text/Heading Editor Modal -->
-    <div v-if="showTextEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-[32rem] max-w-full">
+    <div v-if="showTextEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="handleModalBackdropClick" @keydown.esc="cancelTextEdit">
+      <div class="bg-white rounded-lg p-6 w-[32rem] max-w-full max-h-full overflow-y-auto" @click.stop>
         <h3 class="text-lg font-medium mb-4">Edit Content</h3>
         <!-- Settings for Text block only -->
-        <div v-if="currentEditingBlock && currentEditingBlock.type === 'text'" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div v-if="currentEditingBlock && currentEditingBlock.type === 'text'" class="space-y-3 mb-3">
           <div>
-            <label class="block text-sm text-gray-600 mb-1">Background</label>
-            <input type="text" v-model="textBackground" class="w-full border rounded px-2 py-1" placeholder="#ffffff or transparent" />
+            <label class="block text-sm text-gray-600 mb-2">Background Color</label>
+            <div class="flex gap-3">
+              <div class="flex-shrink-0">
+                <input type="color" v-model="textBackground" class="w-12 h-10 border rounded cursor-pointer" title="Pick color" />
+              </div>
+              <div class="flex-1">
+                <input 
+                  type="text" 
+                  v-model="textBackground" 
+                  class="w-full border rounded px-3 py-2 font-mono text-sm" 
+                  placeholder="#ffffff or transparent"
+                  pattern="^(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|transparent|rgba?\(.+\)|hsla?\(.+\))$"
+                  title="Enter CSS color value"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label class="block text-sm text-gray-600 mb-1">Padding</label>
-            <input type="text" v-model="textPadding" class="w-full border rounded px-2 py-1" placeholder="e.g. 15px 0" />
+          <!-- Personalization Tokens -->
+          <div class="border-t pt-3">
+            <div class="text-sm font-medium text-gray-700 mb-2">Insert Personalization Tokens:</div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button"
+                v-for="token in personalizationTokens"
+                :key="token"
+                @click="insertTokenIntoEditor(token)"
+                class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors"
+              >
+                {{ token.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
+              </button>
+            </div>
           </div>
         </div>
-        <div class="border border-gray-300 rounded p-2 bg-white">
+        <!-- Settings for Heading block -->
+        <div v-if="currentEditingBlock && currentEditingBlock.type === 'heading'" class="space-y-3 mb-3">
+          <div>
+            <label class="block text-sm text-gray-600 mb-2">Background Color</label>
+            <div class="flex gap-3">
+              <div class="flex-shrink-0">
+                <input type="color" v-model="textBackground" class="w-12 h-10 border rounded cursor-pointer" title="Pick color" />
+              </div>
+              <div class="flex-1">
+                <input 
+                  type="text" 
+                  v-model="textBackground" 
+                  class="w-full border rounded px-3 py-2 font-mono text-sm" 
+                  placeholder="#ffffff or transparent"
+                  pattern="^(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|transparent|rgba?\(.+\)|hsla?\(.+\))$"
+                  title="Enter CSS color value"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="border border-gray-300 rounded p-2 bg-white min-h-[200px] max-h-[400px] overflow-y-auto">
           <EmailEditor v-model="textModalContent" label="" />
         </div>
         <div class="flex gap-2 mt-4 justify-end">
@@ -1224,9 +1777,48 @@ function insertPersonalizationToken(token) {
 
     <!-- Header Editor Modal -->
     <div v-if="showHeaderEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-[32rem] max-w-full">
+      <div class="bg-white rounded-lg p-6 w-[40rem] max-w-full">
         <h3 class="text-lg font-medium mb-4">Edit Header</h3>
         <div class="space-y-4">
+          <!-- Logo Upload Section -->
+          <div class="border-b pb-4">
+            <label class="block text-sm font-medium mb-2">Logo</label>
+            <div class="space-y-3">
+              <input
+                type="file"
+                accept="image/*"
+                @change="handleHeaderLogoUpload"
+                class="w-full p-2 border border-gray-300 rounded"
+              />
+              <div v-if="headerLogo" class="flex items-center gap-3">
+                <img :src="headerLogo" alt="Logo preview" class="w-16 h-16 object-contain border rounded" />
+                <button type="button" @click="headerLogo = ''" class="text-red-600 hover:text-red-800">Remove</button>
+              </div>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Alignment</label>
+                  <select v-model="headerLogoAlignment" class="w-full p-1 border border-gray-300 rounded text-sm">
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Size</label>
+                  <input v-model="headerLogoSize" type="text" class="w-full p-1 border border-gray-300 rounded text-sm" placeholder="150px" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Padding</label>
+                  <input v-model="headerLogoPadding" type="text" class="w-full p-1 border border-gray-300 rounded text-sm" placeholder="10px" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">Margin</label>
+                <input v-model="headerLogoMargin" type="text" class="w-full p-1 border border-gray-300 rounded text-sm" placeholder="0 0 20px 0" />
+              </div>
+            </div>
+          </div>
+          
           <div>
             <label class="block text-sm font-medium mb-1">Title</label>
             <input v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 rounded" />
@@ -1281,36 +1873,7 @@ function insertPersonalizationToken(token) {
     </div>
   </div>
 
-  <!-- Full-screen Preview Overlay -->
-  <div v-if="showPreview" class="fixed inset-0 bg-black bg-opacity-70 z-50">
-    <div class="absolute inset-0 overflow-auto">
-      <!-- Overlay Toolbar -->
-      <div class="sticky top-0 w-full flex items-center justify-between px-4 py-3 bg-black/30 backdrop-blur-sm">
-        <div class="flex items-center gap-2">
-          <button type="button"
-            :class="`px-3 py-1 text-xs rounded ${previewMode === 'desktop' ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-800'}`"
-            @click="previewMode = 'desktop'"
-          >Desktop</button>
-          <button type="button"
-            :class="`px-3 py-1 text-xs rounded ${previewMode === 'mobile' ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-800'}`"
-            @click="previewMode = 'mobile'"
-          >Mobile</button>
-        </div>
-        <div>
-          <button type="button" @click="showPreview = false" class="px-3 py-1 text-sm rounded bg-white text-gray-800 hover:bg-gray-100">Close Preview</button>
-        </div>
-      </div>
-
-      <!-- Centered Newsletter -->
-      <div class="p-6">
-        <div :class="previewMode === 'mobile' ? 'max-w-sm mx-auto' : 'max-w-2xl mx-auto'">
-          <div class="bg-white shadow-2xl rounded-lg overflow-hidden">
-            <div v-html="previewInnerHtml" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  
 
 </template>
 <style>

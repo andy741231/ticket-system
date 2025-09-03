@@ -26,8 +26,20 @@ class SendEmailToSubscriber implements ShouldQueue
     {
         $scheduledSend = $this->scheduledSend->fresh();
         
-        // Check if already sent or campaign is paused/cancelled
-        if ($scheduledSend->status !== 'pending') {
+        \Log::info('SendEmailToSubscriber job started', [
+            'scheduled_send_id' => $scheduledSend->id,
+            'current_status' => $scheduledSend->status,
+            'campaign_id' => $scheduledSend->campaign_id,
+            'subscriber_id' => $scheduledSend->subscriber_id
+        ]);
+        
+        // Check if already sent, processing, or campaign is paused/cancelled
+        if (!in_array($scheduledSend->status, ['pending', 'processing'])) {
+            \Log::warning('SendEmailToSubscriber job skipped - invalid status', [
+                'scheduled_send_id' => $scheduledSend->id,
+                'current_status' => $scheduledSend->status,
+                'allowed_statuses' => ['pending', 'processing']
+            ]);
             return;
         }
 
@@ -47,11 +59,31 @@ class SendEmailToSubscriber implements ShouldQueue
         }
 
         try {
-            // Send the email
-            Mail::to($subscriber->email)->send(new NewsletterMail($campaign, $subscriber));
-
-            // Mark as sent
-            $scheduledSend->markAsSent();
+            \Log::info('About to create NewsletterMail instance', [
+                'campaign_id' => $campaign->id,
+                'subscriber_id' => $subscriber->id
+            ]);
+            
+            $mail = new NewsletterMail($campaign, $subscriber);
+            
+            \Log::info('NewsletterMail created, about to send', [
+                'campaign_id' => $campaign->id,
+                'subscriber_id' => $subscriber->id
+            ]);
+            
+            Mail::mailer('campus_smtp')->to($subscriber->email)->send($mail);
+            
+            \Log::info('Email sent successfully', [
+                'campaign_id' => $campaign->id,
+                'subscriber_id' => $subscriber->id
+            ]);
+            
+            $result = $scheduledSend->markAsSent();
+            \Log::info('markAsSent called', [
+                'scheduled_send_id' => $scheduledSend->id,
+                'result' => $result ? 'success' : 'failed',
+                'updated_status' => $scheduledSend->fresh()->status
+            ]);
 
             // Record analytics event
             AnalyticsEvent::create([
@@ -81,7 +113,12 @@ class SendEmailToSubscriber implements ShouldQueue
                 'error' => $e->getMessage(),
             ]);
 
-            throw $e; // Re-throw to trigger retry mechanism
+            // Ensure campaign completion is evaluated even on failures
+            $this->checkCampaignCompletion($campaign);
+
+            // Do not rethrow; we've recorded failure and evaluated completion.
+            // Keeping this non-throw prevents duplicate counting and stuck 'sending' status
+            // if the last remaining sends are failures.
         }
     }
 
@@ -99,7 +136,34 @@ class SendEmailToSubscriber implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
-        $this->scheduledSend->markAsFailed($exception->getMessage());
-        $this->scheduledSend->campaign->increment('failed_count');
+        $scheduledSend = $this->scheduledSend->fresh();
+        $campaign = $scheduledSend->campaign;
+        
+        // Update the scheduled send
+        $scheduledSend->update([
+            'status' => 'failed',
+            'failed_at' => now(),
+            'error' => $exception->getMessage(),
+        ]);
+
+        // Record the error in the campaign
+        if (method_exists($campaign, 'recordError')) {
+            $campaign->recordError($exception);
+        } else {
+            // Fallback if recordError method doesn't exist
+            $campaign->increment('failed_count');
+            
+            // Store error in metadata if the column exists
+            if (\Schema::hasColumn($campaign->getTable(), 'metadata')) {
+                $metadata = $campaign->metadata ?? [];
+                $metadata['last_error'] = [
+                    'message' => $exception->getMessage(),
+                    'file' => $exception->getFile(),
+                    'line' => $exception->getLine(),
+                    'time' => now()->toDateTimeString(),
+                ];
+                $campaign->update(['metadata' => $metadata]);
+            }
+        }
     }
 }

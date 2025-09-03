@@ -52,25 +52,75 @@ class SendCampaign implements ShouldQueue
             ];
         }
 
-        // Bulk insert scheduled sends
-        ScheduledSend::insert($scheduledSends);
+        $createdCount = 0;
+        $batchSize = 100; // Process in batches to avoid memory issues with large recipient lists
+        
+        foreach (array_chunk($scheduledSends, $batchSize) as $batch) {
+            try {
+                // Use insertOrIgnore to skip duplicates
+                $result = \DB::table('newsletter_scheduled_sends')->insertOrIgnore($batch);
+                $createdCount += $result;
+            } catch (\Exception $e) {
+                \Log::error('Error creating scheduled sends batch', [
+                    'campaign_id' => $this->campaign->id,
+                    'error' => $e->getMessage(),
+                    'batch_size' => count($batch)
+                ]);
+                
+                // If we can't insert, try individual inserts to find the problematic record
+                foreach ($batch as $send) {
+                    try {
+                        \DB::table('newsletter_scheduled_sends')->insertOrIgnore($send);
+                        $createdCount++;
+                    } catch (\Exception $e) {
+                        \Log::error('Failed to create scheduled send', [
+                            'campaign_id' => $this->campaign->id,
+                            'subscriber_id' => $send['subscriber_id'] ?? null,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                }
+            }
+        }
+        
+        if ($createdCount === 0) {
+            // No sends were created, mark as failed
+            $this->campaign->update([
+                'status' => 'draft',
+                'total_recipients' => 0,
+                'last_error' => 'Failed to create any scheduled sends. Check logs for details.'
+            ]);
+            
+            \Log::error('Failed to create any scheduled sends for campaign', [
+                'campaign_id' => $this->campaign->id,
+                'send_to_all' => $this->campaign->send_to_all,
+                'target_groups' => $this->campaign->target_groups,
+                'scheduled_sends_count' => count($scheduledSends)
+            ]);
+            return;
+        }
+
+        \Log::info('Updated campaign with recipient count', [
+            'campaign_id' => $this->campaign->id,
+            'total_recipients' => $createdCount
+        ]);
 
         // Update campaign status and recipient count
         $this->campaign->update([
             'status' => 'sending',
-            'total_recipients' => count($scheduledSends),
+            'total_recipients' => $createdCount,
+            'last_error' => null
         ]);
 
-        // Dispatch individual email jobs with rate limiting
-        $scheduledSends = ScheduledSend::where('campaign_id', $this->campaign->id)
-            ->where('status', 'pending')
-            ->get();
+        // Dispatch the ProcessScheduledSends job to process the pending sends
+        ProcessScheduledSends::dispatch()
+            ->onQueue('default')
+            ->delay(now()->addSeconds(5)); // Small delay to ensure all scheduled sends are created
 
-        foreach ($scheduledSends as $index => $scheduledSend) {
-            // Dispatch with delay to respect rate limits (1 email per second)
-            SendEmailToSubscriber::dispatch($scheduledSend)
-                ->delay(now()->addSeconds($index));
-        }
+        \Log::info('Dispatched ProcessScheduledSends job', [
+            'campaign_id' => $this->campaign->id,
+            'scheduled_sends_count' => $createdCount
+        ]);
     }
 
     public function failed(\Throwable $exception): void

@@ -1,5 +1,6 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import Avatar from '@/Components/Avatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
@@ -8,6 +9,7 @@ import FileUploader from '@/Components/FileUploader.vue';
 import FileIcon from '@/Components/FileIcon.vue';
 import { ref, computed } from 'vue';
 import { useHasAny } from '@/Extensions/useAuthz';
+import CommentList from '@/Components/Comments/CommentList.vue';
 
 const props = defineProps({
     ticket: {
@@ -31,6 +33,10 @@ const props = defineProps({
         type: Number,
         default: null,
     },
+    authUser: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 const canManageTickets = useHasAny(['tickets.ticket.manage']);
@@ -44,6 +50,16 @@ const statusClasses = {
     'Approved': 'dark:text-uh-cream bg-uh-gold/20 text-uh-ocher',
     'Rejected': 'dark:text-uh-cream bg-uh-red/20 text-uh-brick',
     'Completed': 'dark:text-uh-cream bg-uh-green/20 text-uh-forest',
+};
+
+// Pin/Unpin comment
+const handlePinToggled = (comment) => {
+    router.post(route('tickets.comments.pin', { ticket: props.ticket.id, comment: comment.id }), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['ticket'] });
+        }
+    });
 };
 
 const priorityClasses = {
@@ -91,19 +107,21 @@ const confirmDelete = () => {
     router.delete(route('tickets.destroy', props.ticket.id));
 };
 
+// Modal state for status changes
+const showStatusModal = ref(false);
+const pendingStatus = ref('');
+
 const updateStatus = (status) => {
-    if (confirm(`Are you sure you want to ${status.toLowerCase()} this ticket?`)) {
-        router.put(route('tickets.status.update', { 
-            ticket: props.ticket.id,
-            status: status
-        }), {}, {
-            preserveScroll: true,
-            onSuccess: () => {
-                // Refresh the page to show updated status
-                router.reload({ only: ['ticket'] });
-            }
-        });
-    }
+    router.put(route('tickets.status.update', {
+        ticket: props.ticket.id,
+        status: status
+    }), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            // Refresh the page to show updated status
+            router.reload({ only: ['ticket'] });
+        }
+    });
 };
 
 const formatFileSize = (bytes) => {
@@ -188,49 +206,125 @@ const copyTicketUrl = async () => {
 const selectedStatus = ref('');
 const applyStatus = () => {
     if (selectedStatus.value) {
-        updateStatus(selectedStatus.value);
-        selectedStatus.value = '';
+        pendingStatus.value = selectedStatus.value;
+        showStatusModal.value = true;
     }
 };
 
-// Comments state and actions
-const newComment = ref('');
-const posting = ref(false);
+const cancelStatusChange = () => {
+    showStatusModal.value = false;
+};
 
-const submitComment = () => {
-    if (!newComment.value.trim() || posting.value) return;
-    posting.value = true;
-    router.post(route('tickets.comments.store', { ticket: props.ticket.id }), { body: newComment.value }, {
+const confirmStatusChange = () => {
+    if (pendingStatus.value) {
+        updateStatus(pendingStatus.value);
+        selectedStatus.value = '';
+        pendingStatus.value = '';
+    }
+    showStatusModal.value = false;
+};
+
+// Enhanced comment system
+const canDeleteAnyComment = useHasAny(['tickets.ticket.manage', 'tickets.ticket.delete']);
+
+// Comment handlers
+const handleCommentPosted = (data) => {
+    const formData = data.formData || new FormData();
+    if (!formData.has('body')) {
+        formData.append('body', data.body || '');
+    }
+    
+    router.post(route('tickets.comments.store', { ticket: props.ticket.id }), formData, {
         preserveScroll: true,
         onSuccess: () => {
-            newComment.value = '';
-            // Reload only ticket data to refresh comments
             router.reload({ only: ['ticket'] });
-        },
-        onFinish: () => { posting.value = false; }
+        }
     });
 };
 
-const canDeleteAnyComment = useHasAny(['tickets.ticket.manage', 'tickets.ticket.delete']);
-const canDeleteComment = (comment) => {
-    // Owner or users with manage/delete permission
-    return (comment.user_id === props.authUserId) || canDeleteAnyComment.value;
-};
-
-const deleting = ref(false);
-const deleteComment = (comment) => {
-    if (deleting.value) return;
-    if (!canDeleteComment(comment)) return;
-    if (!confirm('Delete this comment?')) return;
-    deleting.value = true;
+const handleCommentDeleted = (comment) => {
+    if (!confirm('Delete this comment? This action cannot be undone.')) return;
+    
     router.delete(route('tickets.comments.destroy', { ticket: props.ticket.id, comment: comment.id }), {
         preserveScroll: true,
         onSuccess: () => {
             router.reload({ only: ['ticket'] });
-        },
-        onFinish: () => { deleting.value = false; }
+        }
     });
 };
+
+const handleCommentEdited = (data) => {
+    router.put(route('tickets.comments.update', { ticket: props.ticket.id, comment: data.comment.id }), {
+        body: data.body
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['ticket'] });
+        }
+    });
+};
+
+const handleReactionToggled = (data) => {
+    // If user is switching reactions, remove the old one first
+    if (data.previousReaction && !data.isRemoving) {
+        router.post(route('tickets.comments.reactions', { ticket: props.ticket.id, comment: data.commentId }), {
+            reaction: data.previousReaction,
+            action: 'remove'
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                // After removing old reaction, add the new one
+                router.post(route('tickets.comments.reactions', { ticket: props.ticket.id, comment: data.commentId }), {
+                    reaction: data.reaction,
+                    action: 'add'
+                }, {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        router.reload({ only: ['ticket'] });
+                    }
+                });
+            }
+        });
+    } else {
+        // Normal add/remove behavior
+        const action = data.isRemoving ? 'remove' : 'add';
+        router.post(route('tickets.comments.reactions', { ticket: props.ticket.id, comment: data.commentId }), {
+            reaction: data.reaction,
+            action: action
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['ticket'] });
+            }
+        });
+    }
+};
+
+const handleReplyPosted = (data) => {
+    const formData = new FormData();
+    formData.append('body', data.body);
+    formData.append('parent_id', data.parentId);
+    
+    if (data.files && data.files.length > 0) {
+        data.files.forEach((file, index) => {
+            formData.append(`files[${index}]`, file);
+        });
+    }
+    
+    router.post(route('tickets.comments.store', { ticket: props.ticket.id }), formData, {
+        preserveScroll: true,
+        onSuccess: () => {
+            router.reload({ only: ['ticket'] });
+        }
+    });
+};
+
+// Current user data for comments
+const currentUser = computed(() => ({
+    id: props.authUserId,
+    name: props.authUser?.name || 'Current User',
+    email: props.authUser?.email || ''
+}));
 </script>
 
 <template>
@@ -306,16 +400,52 @@ const deleteComment = (comment) => {
                                                 title="Edit description"
                                             >
                                                 <div class="flex items-center gap-2 p-2 px-3 text-gray-100 dark:text-gray-100 rounded-md bg-gray-500 dark:bg-gray-600/60 backdrop-blur hover:bg-gray-600 dark:hover:bg-gray-600">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l9.06-9.06.92.92L5.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                                                    </svg>
+                                                    <font-awesome-icon icon="edit" class="w-5 h-5" />
                                                     <span>Edit</span>
                                                 </div>
                                             </Link>
+                                            <div
+                                                v-else-if="ticket.status !== 'Received' && authUserId && ticket.user && authUserId === ticket.user.id"
+                                                class="flex items-center gap-2 p-2 px-3 text-gray-700 dark:text-gray-200 rounded-md bg-gray-100 dark:bg-gray-600/40"
+                                            >
+                                                <font-awesome-icon icon="ban" class="w-5 h-5" />
+                                                <span>Ticket cannot be edited once status changed.</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-[500px] prose dark:prose-invert max-w-none break-words" v-html="ticket.description"></div>
                                 </div>
+                                <!-- Status Change Confirmation Modal -->
+                                <Modal :show="showStatusModal" @close="cancelStatusChange">
+                                    <div class="bg-uh-white dark:bg-gray-700 p-6">
+                                        <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+                                            Confirm Status Change
+                                        </h2>
+
+                                        <p class="mt-4 text-gray-600 dark:text-gray-200">
+                                            Are you sure you want to
+                                            <span class="font-semibold">{{ (statusOptions[pendingStatus] || pendingStatus).toLowerCase() }}</span>
+                                            this ticket?
+                                        </p>
+
+                                        <div class="mt-6 flex justify-end space-x-3">
+                                            <button
+                                                type="button"
+                                                @click="cancelStatusChange"
+                                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal transition ease-in-out duration-150"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                @click="confirmStatusChange"
+                                                class="px-4 py-2 text-sm font-medium text-white bg-uh-teal border border-transparent rounded-md shadow-sm hover:bg-uh-green focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal transition ease-in-out duration-150"
+                                            >
+                                                Confirm
+                                            </button>
+                                        </div>
+                                    </div>
+                                </Modal>
                                 
                                 <!-- Attachments Section -->
                                 <div v-if="ticket.files && ticket.files.length > 0" class="mt-8">
@@ -333,7 +463,7 @@ const deleteComment = (comment) => {
                                                         </template>
                                                     </span>
                                                     <div class="min-w-0">
-                                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" :title="file.original_name || file.file_path.split('/').pop()">
+                                                        <p class="text-sm font-medium text-gray-900  dark:text-gray-100 truncate" :title="file.original_name || file.file_path.split('/').pop()">
                                                             {{ file.original_name || file.file_path.split('/').pop() }}
                                                         </p>
                                                         <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -374,12 +504,8 @@ const deleteComment = (comment) => {
                                                     :aria-label="copied ? 'Copied' : 'Copy URL'"
                                                     :title="copied ? 'Copied!' : 'Copy URL'"
                                                 >
-                                                    <svg v-if="!copied" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                                        <path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-                                                    </svg>
-                                                    <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-uh-teal">
-                                                        <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/>
-                                                    </svg>
+                                                    <font-awesome-icon v-if="!copied" icon="copy" class="w-5 h-5" />
+                                                    <font-awesome-icon v-else icon="check" class="w-5 h-5 text-uh-teal" />
                                                 </button>
                                             </div>
                                         </div>
@@ -424,19 +550,10 @@ const deleteComment = (comment) => {
                                                 -->
                                         </div>
                                         <div class="ml-2 flex justify-start items-center">
-                                            <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                                <template v-if="ticket.user?.email">
-                                                    <Link v-if="ticket.user.is_team_member" :href="route('directory.show', ticket.user.team_id)" class="underline hover:text-blue-600 hover:underline">
-                                                        {{ ticket.user?.name || 'Unknown User' }}
-                                                    </Link>
-                                                    <a v-else :href="'mailto:' + ticket.user.email" class="underline hover:text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
-                                                        {{ ticket.user?.name || 'Unknown User' }}
-                                                    </a>
-                                                </template>
-                                                <template v-else>
-                                                    {{ ticket.user?.name || 'Unknown User' }}
-                                                </template>
-                                            </p>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/10 dark:bg-uh-teal/20 text-uh-slate dark:text-uh-cream">
+                                                <Avatar :user="ticket.user" size="xs" class="mr-2" />
+                                                {{ ticket.user?.name || 'Unknown User' }}
+                                            </span>
                                         </div>
                                         </div>
                                     </div>
@@ -456,16 +573,10 @@ const deleteComment = (comment) => {
                                         </div>
                                         <div v-if="ticket.updated_by_user" class="mt-2 flex justify-start items-center">
                                             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Last Modified By:</p>
-                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
-                                                <a
-                                                    class="underline hover:text-blue-600 hover:underline"
-                                                    :href="ticket.updated_by_user?.email ? ('mailto:' + ticket.updated_by_user.email) : '#'"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                >
-                                                    {{ ticket.updated_by_user?.name || 'Unknown User' }}
-                                                </a>
-                                            </p>
+                                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/10 dark:bg-uh-teal/20 text-uh-slate dark:text-uh-cream">
+                                                <Avatar :user="ticket.updated_by_user" size="xs" class="mr-2" />
+                                                {{ ticket.updated_by_user?.name || 'Unknown User' }}
+                                            </span>
                                         </div>
                                         <!-- ticket due date -->
                                         <div class="pl-2 flex mt-2 justify-start p-2items-center bg-uh-cream" v-if="ticket.due_date">
@@ -485,11 +596,7 @@ const deleteComment = (comment) => {
                                     <div class="flex items-center gap-1 flex-wrap">
                                         <template v-if="ticket.assignees && ticket.assignees.length">
                                             <span v-for="user in ticket.assignees" :key="user.id" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/10 dark:bg-uh-teal/20 text-uh-slate dark:text-uh-cream">
-                                                <!-- simple user icon -->
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 mr-1 text-uh-teal dark:text-uh-teal/80">
-                                                    <path d="M10 10a4 4 0 100-8 4 4 0 000 8z" />
-                                                    <path fill-rule="evenodd" d="M.458 16.042A9.956 9.956 0 0110 12c3.866 0 7.236 2.2 8.942 5.458A.75.75 0 0118.25 19H1.75a.75.75 0 01-1.292-.958z" clip-rule="evenodd" />
-                                                </svg>
+                                                <Avatar :user="user" size="xs" class="mr-2" />
                                                 {{ user.name }}
                                             </span>
                                         </template>
@@ -540,66 +647,22 @@ const deleteComment = (comment) => {
             </div>
         </div>
 
-        <!-- Comments Section -->
+        <!-- Enhanced Comments Section -->
         <div class="py-6">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Comments</h3>
-
-                        <!-- List -->
-                        <div v-if="ticket.comments && ticket.comments.length" class="space-y-4 mb-6">
-                            <div v-for="comment in ticket.comments" :key="comment.id" class="p-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
-                                <div class="flex items-start justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <div class="h-9 w-9 rounded-full bg-uh-teal/20 flex items-center justify-center text-uh-teal font-semibold">
-                                            {{ (comment.user?.name || 'U').charAt(0).toUpperCase() }}
-                                        </div>
-                                        <div>
-                                            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ comment.user?.name || 'Unknown User' }}</div>
-                                            <div class="text-xs text-gray-500 dark:text-gray-400">{{ new Date(comment.created_at).toLocaleString() }}</div>
-                                        </div>
-                                    </div>
-                                    <button
-                                        v-if="canDeleteComment(comment)"
-                                        @click="deleteComment(comment)"
-                                        class="text-sm text-uh-red hover:text-uh-brick"
-                                        :aria-label="`Delete comment by ${comment.user?.name || 'user'}`"
-                                    >
-                                        Delete
-                                    </button>
-                                </div>
-                                <div class="mt-3 text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap break-words">{{ comment.body }}</div>
-                            </div>
-                        </div>
-
-                        <!-- Empty state -->
-                        <div v-else class="text-gray-500 dark:text-gray-400 italic mb-6">No comments yet.</div>
-
-                        <!-- Create Form -->
-                        <div class="mt-4">
-                            <label for="new-comment" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Add a comment</label>
-                            <textarea
-                                id="new-comment"
-                                v-model="newComment"
-                                rows="3"
-                                class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-3 focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
-                                placeholder="Write your comment..."
-                                maxlength="5000"
-                            ></textarea>
-                            <div class="mt-3 flex justify-end">
-                                <button
-                                    type="button"
-                                    @click="submitComment"
-                                    :disabled="posting || !newComment.trim()"
-                                    class="inline-flex items-center px-4 py-2 bg-uh-teal border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-green focus:bg-uh-green active:bg-uh-forest disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-uh-teal focus:ring-offset-2 transition ease-in-out duration-150"
-                                >
-                                    {{ posting ? 'Posting...' : 'Post Comment' }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <CommentList
+                    :comments="ticket.comments || []"
+                    :current-user="currentUser"
+                    :ticket-id="ticket.id"
+                    :can-delete-any="canDeleteAnyComment"
+                    :can-pin-any="canManageTickets"
+                    @comment-posted="handleCommentPosted"
+                    @comment-deleted="handleCommentDeleted"
+                    @comment-edited="handleCommentEdited"
+                    @reaction-toggled="handleReactionToggled"
+                    @reply-posted="handleReplyPosted"
+                    @pin-toggled="handlePinToggled"
+                />
             </div>
         </div>
     </AuthenticatedLayout>

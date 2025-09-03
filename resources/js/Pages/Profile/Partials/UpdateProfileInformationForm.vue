@@ -19,7 +19,21 @@ const user = usePage().props.auth.user;
 const form = useForm({
     name: user.name,
     email: user.email,
+    // Email is not included in the form since it's not editable
 });
+
+const submit = () => {
+    form.patch(route('profile.update'), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            // Success is already handled by Inertia's form helper
+        },
+        onError: (errors) => {
+            console.error('Form submission error:', errors);
+        },
+    });
+};
 </script>
 
 <template>
@@ -35,7 +49,7 @@ const form = useForm({
         </header>
 
         <form
-            @submit.prevent="form.patch(route('profile.update'))"
+            @submit.prevent="submit"
             class="mt-6 space-y-6"
         >
             <div>
@@ -60,13 +74,15 @@ const form = useForm({
                 <TextInput
                     id="email"
                     type="email"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
-                    required
-                    autocomplete="username"
+                    class="mt-1 block w-full bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+                    :modelValue="user.email"
+                    readonly
+                    disabled
                 />
 
-                <InputError class="mt-2" :message="form.errors.email" />
+                <p class="mt-2 text-sm text-yellow-600 dark:text-yellow-400">
+                    Email change is not allowed. Please contact the administrator if you need to update your email.
+                </p>
             </div>
 
             <div v-if="mustVerifyEmail && user.email_verified_at === null">
@@ -91,7 +107,10 @@ const form = useForm({
             </div>
 
             <div class="flex items-center gap-4">
-                <PrimaryButton :disabled="form.processing">Save</PrimaryButton>
+                <PrimaryButton type="submit" :disabled="form.processing">
+                    <span v-if="form.processing">Saving...</span>
+                    <span v-else>Save</span>
+                </PrimaryButton>
 
                 <Transition
                     enter-active-class="transition ease-in-out"
