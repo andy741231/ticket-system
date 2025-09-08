@@ -62,7 +62,7 @@ class NewsletterMail extends Mailable
             'subscriber_name' => $fullName,
             'subscriber_first_name' => $firstName,
             'subscriber_last_name' => $lastName,
-            'unsubscribe_url' => route('newsletter.public.unsubscribe.get', $this->subscriber->unsubscribe_token),
+            'unsubscribe_url' => route('newsletter.public.unsubscribe', $this->subscriber->unsubscribe_token),
             'preferences_url' => route('newsletter.public.preferences', $this->subscriber->unsubscribe_token),
             'campaign_name' => $this->campaign->name,
             'view_in_browser_url' => route('newsletter.public.campaign.view', $this->campaign->id),
@@ -94,45 +94,54 @@ class NewsletterMail extends Mailable
         // Auto-replace common footer patterns with functional links
         $htmlContent = $this->autoReplaceFooterLinks($htmlContent, $tokenMap);
 
-        // Add tracking pixel for open tracking
-        $campaignId = (string)$this->campaign->id;
-        $subscriberId = (string)$this->subscriber->id;
-        $trackingPixel = '<img src="' . route('newsletter.public.track-open', [
-            'campaign' => $campaignId,
-            'subscriber' => $subscriberId,
-            'token' => hash('sha256', $campaignId . $subscriberId . config('app.key'))
-        ]) . '" width="1" height="1" style="display:none;" alt="" />';
+        // Determine tracking preference (default to enabled when null)
+        $trackingEnabled = $this->campaign->enable_tracking ?? true;
 
-        // Add tracking pixel before closing body tag (case-insensitive). If no </body>, append at end.
-        if (stripos($htmlContent, '</body>') !== false) {
-            $htmlContent = str_ireplace('</body>', $trackingPixel . '</body>', $htmlContent);
-        } else {
-            $htmlContent .= $trackingPixel;
+        if ($trackingEnabled) {
+            // Add tracking pixel for open tracking
+            $campaignId = (string)$this->campaign->id;
+            $subscriberId = (string)$this->subscriber->id;
+            $trackingPixel = '<img src="' . route('newsletter.public.track-open', [
+                'campaign' => $campaignId,
+                'subscriber' => $subscriberId,
+                'token' => hash('sha256', $campaignId . $subscriberId . config('app.key'))
+            ]) . '" width="1" height="1" style="display:none;" alt="" />';
+
+            // Add tracking pixel before closing body tag (case-insensitive). If no </body>, append at end.
+            if (stripos($htmlContent, '</body>') !== false) {
+                $htmlContent = str_ireplace('</body>', $trackingPixel . '</body>', $htmlContent);
+            } else {
+                $htmlContent .= $trackingPixel;
+            }
+
+            // Add click tracking to all links
+            $htmlContent = preg_replace_callback(
+                '/<a\s+([^>]*href=["\']([^"\']+)["\'][^>]*)>/i',
+                function ($matches) {
+                    $originalUrl = $matches[2];
+                    
+                    // Skip if already a tracking URL or unsubscribe link (avoid re-wrapping)
+                    if (
+                        str_contains($originalUrl, '/newsletter/track-click/') ||
+                        str_contains($originalUrl, '/newsletter/public/track-click/') ||
+                        str_contains($originalUrl, '/newsletter/unsubscribe/') ||
+                        str_contains($originalUrl, '/newsletter/public/unsubscribe/')
+                    ) {
+                        return $matches[0];
+                    }
+
+                    $trackingUrl = route('newsletter.public.track-click', [
+                        'campaign' => $this->campaign->id,
+                        'subscriber' => $this->subscriber->id,
+                        'url' => base64_encode($originalUrl),
+                        'token' => hash('sha256', $this->campaign->id . $this->subscriber->id . $originalUrl . config('app.key'))
+                    ]);
+
+                    return '<a ' . str_replace($originalUrl, $trackingUrl, $matches[1]) . '>';
+                },
+                $htmlContent
+            );
         }
-
-        // Add click tracking to all links
-        $htmlContent = preg_replace_callback(
-            '/<a\s+([^>]*href=["\']([^"\']+)["\'][^>]*)>/i',
-            function ($matches) {
-                $originalUrl = $matches[2];
-                
-                // Skip if already a tracking URL or unsubscribe link (avoid route() with missing params)
-                if (str_contains($originalUrl, '/newsletter/public/track-click/') ||
-                    str_contains($originalUrl, '/newsletter/public/unsubscribe/')) {
-                    return $matches[0];
-                }
-
-                $trackingUrl = route('newsletter.public.track-click', [
-                    'campaign' => $this->campaign->id,
-                    'subscriber' => $this->subscriber->id,
-                    'url' => base64_encode($originalUrl),
-                    'token' => hash('sha256', $this->campaign->id . $this->subscriber->id . $originalUrl . config('app.key'))
-                ]);
-
-                return '<a ' . str_replace($originalUrl, $trackingUrl, $matches[1]) . '>';
-            },
-            $htmlContent
-        );
 
 
         return $htmlContent;
@@ -140,19 +149,29 @@ class NewsletterMail extends Mailable
 
     private function autoReplaceFooterLinks(string $htmlContent, array $tokenMap): string
     {
+        // Ensure URLs are properly encoded
+        $unsubscribeUrl = htmlspecialchars($tokenMap['unsubscribe_url'], ENT_QUOTES, 'UTF-8');
+        $preferencesUrl = htmlspecialchars($tokenMap['preferences_url'], ENT_QUOTES, 'UTF-8');
+        $viewInBrowserUrl = htmlspecialchars($tokenMap['view_in_browser_url'], ENT_QUOTES, 'UTF-8');
+        
         // Pattern 1: "Unsubscribe | Update preferences | View in browser"
         $pattern1 = '/Unsubscribe\s*\|\s*Update preferences\s*\|\s*View in browser/i';
-        $replacement1 = '<a href="' . $tokenMap['unsubscribe_url'] . '" style="color: inherit; text-decoration: underline;">Unsubscribe</a> | ' .
-                       '<a href="' . $tokenMap['preferences_url'] . '" style="color: inherit; text-decoration: underline;">Update preferences</a> | ' .
-                       '<a href="' . $tokenMap['view_in_browser_url'] . '" style="color: inherit; text-decoration: underline;">View in browser</a>';
+        $replacement1 = '<a href="' . $unsubscribeUrl . '" style="color: #007bff; text-decoration: underline;">Unsubscribe</a> | ' .
+                       '<a href="' . $preferencesUrl . '" style="color: #007bff; text-decoration: underline;">Update preferences</a> | ' .
+                       '<a href="' . $viewInBrowserUrl . '" style="color: #007bff; text-decoration: underline;">View in browser</a>';
         
         $htmlContent = preg_replace($pattern1, $replacement1, $htmlContent);
 
+        // Pattern 1.5: Fix bracketed syntax like [URL]Unsubscribe to proper anchor
+        $htmlContent = preg_replace('/\[(https?:\/\/[^\]]+|\/[\w\-\/]+)\]\s*Unsubscribe/i', '<a href="' . $unsubscribeUrl . '" style="color: #007bff; text-decoration: underline;">Unsubscribe</a>', $htmlContent);
+        $htmlContent = preg_replace('/\[(https?:\/\/[^\]]+|\/[\w\-\/]+)\]\s*Update preferences/i', '<a href="' . $preferencesUrl . '" style="color: #007bff; text-decoration: underline;">Update preferences</a>', $htmlContent);
+        $htmlContent = preg_replace('/\[(https?:\/\/[^\]]+|\/[\w\-\/]+)\]\s*View in browser/i', '<a href="' . $viewInBrowserUrl . '" style="color: #007bff; text-decoration: underline;">View in browser</a>', $htmlContent);
+
         // Pattern 2: Individual text replacements
         $patterns = [
-            '/\bUnsubscribe\b(?![^<]*<\/a>)/i' => '<a href="' . $tokenMap['unsubscribe_url'] . '" style="color: inherit; text-decoration: underline;">Unsubscribe</a>',
-            '/\bUpdate preferences\b(?![^<]*<\/a>)/i' => '<a href="' . $tokenMap['preferences_url'] . '" style="color: inherit; text-decoration: underline;">Update preferences</a>',
-            '/\bView in browser\b(?![^<]*<\/a>)/i' => '<a href="' . $tokenMap['view_in_browser_url'] . '" style="color: inherit; text-decoration: underline;">View in browser</a>',
+            '/\bUnsubscribe\b(?![^<]*<\/a>)/i' => '<a href="' . $unsubscribeUrl . '" style="color: #007bff; text-decoration: underline;">Unsubscribe</a>',
+            '/\bUpdate preferences\b(?![^<]*<\/a>)/i' => '<a href="' . $preferencesUrl . '" style="color: #007bff; text-decoration: underline;">Update preferences</a>',
+            '/\bView in browser\b(?![^<]*<\/a>)/i' => '<a href="' . $viewInBrowserUrl . '" style="color: #007bff; text-decoration: underline;">View in browser</a>',
         ];
 
         foreach ($patterns as $pattern => $replacement) {
@@ -160,5 +179,51 @@ class NewsletterMail extends Mailable
         }
 
         return $htmlContent;
+    }
+
+    /**
+     * Remove newsletter click-tracking wrappers from links and restore original URLs.
+     */
+    private function stripTrackingLinks(string $html): string
+    {
+        return preg_replace_callback(
+            '/href=("|\')([^"\']+)(\1)/i',
+            function ($m) {
+                $quote = $m[1];
+                $url = $m[2] ?? '';
+                if ($url === '' || !preg_match('#/newsletter/(public/)?track-click/#i', $url)) {
+                    return $m[0];
+                }
+                // Try to parse and extract base64 segment: /track-click/{campaign}/{subscriber}/{base64}[/{token}]
+                try {
+                    $parsed = parse_url($url);
+                    $path = $parsed['path'] ?? '';
+                    $parts = array_values(array_filter(explode('/', $path)));
+                    $idx = null;
+                    foreach ($parts as $i => $p) {
+                        if (strtolower($p) === 'track-click') { $idx = $i; break; }
+                    }
+                    $b64 = ($idx !== null && isset($parts[$idx + 3])) ? $parts[$idx + 3] : null;
+                    if ($b64) {
+                        // URL decode then base64 decode
+                        $b64 = rawurldecode($b64);
+                        // Normalize potential URL-safe base64
+                        $b64 = strtr($b64, '-_', '+/');
+                        // Fix padding
+                        $pad = strlen($b64) % 4;
+                        if ($pad) { $b64 .= str_repeat('=', 4 - $pad); }
+                        $orig = base64_decode($b64, true);
+                        if ($orig && preg_match('#^https?://#i', $orig)) {
+                            return 'href=' . $quote . $orig . $quote;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // fall through
+                }
+                // Could not restore, make it inert
+                return 'href=' . $quote . '#' . $quote;
+            },
+            $html
+        );
     }
 }

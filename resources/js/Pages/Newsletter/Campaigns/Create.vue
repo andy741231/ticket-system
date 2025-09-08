@@ -1,6 +1,11 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import EmailBuilder from '@/Components/Newsletter/EmailBuilder.vue';
+import InputError from '@/Components/InputError.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
 import { Head, useForm, Link } from '@inertiajs/vue3';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
@@ -97,6 +102,8 @@ const form = useForm({
   recurring_config: null,
   target_groups: [],
   send_to_all: false,
+  // Tracking options
+  enable_tracking: true,
 });
 
 // Initialize recurring config only when needed
@@ -142,6 +149,13 @@ onMounted(() => {
       form.recurring_config = null;
     }
   });
+
+  // If tracking is toggled off, sanitize current html_content
+  watch(() => form.enable_tracking, (enabled) => {
+    if (!enabled && form.html_content) {
+      form.html_content = stripTrackingFromHtml(form.html_content);
+    }
+  });
 });
 
 const showHtmlView = ref(false);
@@ -151,6 +165,8 @@ const sendStatus = ref({ type: null, message: '' });
 const sendError = ref(null);
 const recipientCount = ref(0);
 const isLoadingRecipients = ref(false);
+const clientErrors = ref({});
+const isValidating = ref(false);
 
 // Get unique subscribers across all selected groups
 const getUniqueSubscribersCount = async (groupIds) => {
@@ -277,13 +293,17 @@ const updateRecipientCount = async () => {
 };
 
 // Watch for changes that should update the recipient count
-watch(
-  [() => form.send_to_all, () => form.target_groups, () => props.groups],
-  () => {
-    updateRecipientCount();
-  },
-  { immediate: true, deep: true }
-);
+watch([() => form.send_to_all, () => form.target_groups], updateRecipientCount, { deep: true });
+
+// Real-time validation watchers
+watch(() => form.name, () => validateField('name'));
+watch(() => form.subject, () => validateField('subject'));
+watch(() => form.from_email, () => validateField('from_email'));
+watch(() => form.reply_to, () => validateField('reply_to'));
+watch(() => form.scheduled_date, () => validateField('scheduled_date'));
+watch(() => form.scheduled_time, () => validateField('scheduled_time'));
+watch(() => form.target_groups, () => validateField('target_groups'), { deep: true });
+watch(() => form.send_to_all, () => validateField('target_groups'));
 
 function updateContent(content) {
   try {
@@ -310,7 +330,8 @@ function updateContent(content) {
 }
 
 function updateHtmlContent(html) {
-  form.html_content = html;
+  // If tracking is disabled, sanitize tracking URLs before saving
+  form.html_content = form.enable_tracking ? html : stripTrackingFromHtml(html);
 }
 
 function toggleHtmlView() {
@@ -322,224 +343,250 @@ function confirmSend() {
   submit();
 }
 
-async function submit() {
-  isSending.value = true;
-  sendStatus.value = { type: 'info', message: 'Preparing to send campaign...' };
-  sendError.value = null;
-  
-  // Format date for backend
-  const formatDate = (dateStr, timeStr) => {
-    if (!dateStr) return null;
-    
-    // Parse date and time in local timezone
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const [hours, minutes] = (timeStr || '12:00').split(':').map(Number);
-    
-    // Create date in local timezone
-    const d = new Date(year, month - 1, day, hours, minutes, 0, 0);
-    
-    // Get current time in local timezone
-    const now = new Date();
-    now.setSeconds(0);
-    now.setMilliseconds(0);
-    
-    console.log('Selected date:', dateStr);
-    console.log('Selected time:', timeStr);
-    console.log('Scheduled time (local):', d.toString());
-    console.log('Current time (local):', now.toString());
-    console.log('Time difference (minutes):', (d - now) / (1000 * 60));
-    
-    // Add 1 minute buffer
-    now.setMinutes(now.getMinutes() - 1);
-    
-    if (d <= now) {
-      console.error('Scheduled time is in the past');
-      throw new Error('Scheduled time must be at least 1 minute in the future');
-    }
-    
-    // Convert to ISO string for backend
-    return d.toISOString();
-  };
+// Helper: Strip newsletter tracking URLs from anchors and attempt to restore original URLs
+function stripTrackingFromHtml(html) {
+  if (!html) return html;
 
-  // Process content - ensure we have valid content
-  if (!form.content) {
-    throw new Error('Email content is required');
-  }
-
-  let content;
-  try {
-    content = typeof form.content === 'string' 
-      ? JSON.parse(form.content)
-      : form.content;
-    
-    if (!content || typeof content !== 'object' || !Array.isArray(content.blocks)) {
-      throw new Error('Invalid content format');
-    }
-  } catch (e) {
-    console.error('Error parsing content:', e);
-    throw new Error('Invalid email content format. Please check your content and try again.');
-  }
-
-  // Validate all required fields
-  if (!form.name) {
-    throw new Error('Campaign name is required');
-  }
-  
-  if (!form.subject) {
-    throw new Error('Email subject is required');
-  }
-  
-  if (!form.from_name || !form.from_email) {
-    throw new Error('From Name and From Email are required');
-  }
-  
-  // Validate reply_to email if provided
-  if (form.reply_to && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.reply_to)) {
-    throw new Error('Please enter a valid reply-to email address');
-  }
-
-  // Validate recipients selection when not sending to all
-  if (!form.send_to_all && (!Array.isArray(form.target_groups) || form.target_groups.length === 0)) {
-    throw new Error('Please select at least one recipient group or enable Send to all.');
-  }
-
-  // Handle scheduled date/time
-  let scheduledAt = null;
-  if (form.send_type === 'scheduled') {
-    if (!form.scheduled_date) {
-      throw new Error('Scheduled date is required');
-    }
-    scheduledAt = formatDate(form.scheduled_date, form.scheduled_time);
-  }
-
-  // Build JSON payload per backend validation rules (expects arrays/objects)
-  const payload = {
-    name: form.name,
-    subject: form.subject,
-    from_name: form.from_name,
-    from_email: form.from_email,
-    reply_to: form.reply_to || form.from_email,
-    content: content,
-    html_content: form.html_content || undefined,
-    template_id: form.template_id || undefined,
-    send_type: form.send_type,
-    send_to_all: !!form.send_to_all,
-    target_groups: form.send_to_all ? [] : (Array.isArray(form.target_groups) ? form.target_groups : []),
-    scheduled_at: scheduledAt || undefined,
-  };
-
-  if (form.send_type === 'recurring') {
-      if (!form.recurring_config || typeof form.recurring_config !== 'object') {
-        throw new Error('Recurring configuration is required');
-      }
-      payload.recurring_config = form.recurring_config;
-    }
-
-    // Submit the form
+  const decodeBase64Safe = (b64) => {
     try {
-      sendStatus.value = { type: 'info', message: 'Saving campaign...' };
-      
-      const response = await axios.post(route('newsletter.campaigns.store'), payload, {
-        headers: {
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-        }
-      });
-      
-      // If backend issues a redirect, axios follows it; use final URL if present
-      const redirectedUrl = response?.request?.responseURL;
-      if (redirectedUrl && redirectedUrl.includes('/newsletter/campaigns/')) {
-        window.location.href = redirectedUrl;
-        return;
-      }
-      // Fallback: if API returned a redirect field
-      if (response.data?.redirect) {
-        window.location.href = response.data.redirect;
-        return;
-      }
-      // Final fallback: go to campaigns index
-      window.location.href = route('newsletter.campaigns.index');
-    } catch (error) {
-      console.error('Error creating campaign:', error);
-      
-      if (error.response?.data?.errors) {
-        // Handle Laravel validation errors
-        const errors = error.response.data.errors;
-        const errorMessages = [];
-        
-        for (const messages of Object.values(errors)) {
-          errorMessages.push(...messages);
-        }
-        
-        sendError.value = errorMessages.join('\n');
-      } else {
-        sendError.value = error.message || 'An error occurred while creating the campaign. Please try again.';
-      }
-      
-      sendStatus.value = { 
-        type: 'error', 
-        message: 'Failed to create campaign' 
-      };
-    } finally {
-      isSending.value = false;
+      // Normalize URL-safe base64 and fix padding
+      let s = (b64 || '').replace(/-/g, '+').replace(/_/g, '/');
+      const pad = s.length % 4;
+      if (pad) s += '='.repeat(4 - pad);
+      return atob(s);
+    } catch (e) {
+      return null;
     }
+  };
+
+  return html.replace(/href=("|')(.*?)(\1)/gi, (match, quote, url) => {
+    if (!url) return match;
+    if (!/\/newsletter\/(public\/)?track-click\//i.test(url)) return match;
+
+    try {
+      const u = new URL(url, window.location.origin);
+      const parts = u.pathname.split('/').filter(Boolean);
+      const idx = parts.findIndex((p) => p.toLowerCase() === 'track-click');
+      // Expecting: .../track-click/{campaign}/{subscriber}/{base64}[/{token}]
+      const base64Part = (idx !== -1 && parts.length > idx + 3) ? parts[idx + 3] : null;
+      const original = base64Part ? decodeBase64Safe(base64Part) : null;
+      const href = original && /^https?:\/\//i.test(original) ? original : '#';
+      return `href=${quote}${href}${quote}`;
+    } catch (e) {
+      // If URL constructor fails (relative or malformed), fallback to removing tracking entirely
+      return `href=${quote}#${quote}`;
+    }
+  });
 }
 
-async function saveDraft() {
-  isSending.value = true;
-  sendStatus.value = { type: 'info', message: 'Saving draft...' };
+const validateField = (fieldName) => {
+  const errors = { ...clientErrors.value };
   
-  try {
-    // Process content for draft
-    let content = { blocks: [], settings: {} };
-    if (form.content) {
-      try {
-        const parsedContent = typeof form.content === 'string' 
-          ? safeParseJson(form.content) || {}
-          : form.content;
-        
-        content = {
-          blocks: Array.isArray(parsedContent.blocks) ? parsedContent.blocks : [],
-          settings: parsedContent.settings || {}
-        };
-      } catch (e) {
-        console.error('Error parsing content:', e);
+  switch (fieldName) {
+    case 'name':
+      if (!form.name?.trim()) {
+        errors.name = 'Campaign name is required';
+      } else if (form.name.length < 3) {
+        errors.name = 'Campaign name must be at least 3 characters';
+      } else {
+        delete errors.name;
       }
-    }
-    
-    // Prepare form data
-    form.content = content;
-    form.status = 'draft';
-    form.template_id = form.template_id || null;
-    form.target_groups = form.send_to_all ? [] : (Array.isArray(form.target_groups) ? form.target_groups : []);
-    
-    await form.post(route('newsletter.campaigns.store'), {
-      onSuccess: () => {
-        sendStatus.value = { 
-          type: 'success', 
-          message: 'Draft saved successfully!'
-        };
-      },
-      onError: (errors) => {
-        console.error('Error saving draft:', errors);
-        sendStatus.value = { 
-          type: 'error', 
-          message: Object.values(errors).join(' ')
-        };
-      },
-      onFinish: () => {
-        isSending.value = false;
+      break;
+      
+    case 'subject':
+      if (!form.subject?.trim()) {
+        errors.subject = 'Email subject is required';
+      } else if (form.subject.length < 5) {
+        errors.subject = 'Subject should be at least 5 characters for better engagement';
+      } else {
+        delete errors.subject;
       }
-    });
-  } catch (error) {
-    console.error('Error saving draft:', error);
-    sendStatus.value = { 
-      type: 'error', 
-      message: 'An unexpected error occurred while saving the draft.'
-    };
-    isSending.value = false;
+      break;
+      
+    case 'from_email':
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!form.from_email?.trim()) {
+        errors.from_email = 'From email is required';
+      } else if (!emailRegex.test(form.from_email)) {
+        errors.from_email = 'Please enter a valid email address';
+      } else {
+        delete errors.from_email;
+      }
+      break;
+      
+    case 'reply_to':
+      if (form.reply_to?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.reply_to)) {
+        errors.reply_to = 'Please enter a valid reply-to email address';
+      } else {
+        delete errors.reply_to;
+      }
+      break;
+      
+    case 'scheduled_date':
+      if (form.send_type === 'scheduled') {
+        if (!form.scheduled_date) {
+          errors.scheduled_date = 'Please select a date for your scheduled campaign';
+        } else {
+          const selectedDate = new Date(form.scheduled_date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (selectedDate < today) {
+            errors.scheduled_date = 'Scheduled date cannot be in the past';
+          } else {
+            delete errors.scheduled_date;
+          }
+        }
+      } else {
+        delete errors.scheduled_date;
+      }
+      break;
+      
+    case 'scheduled_time':
+      if (form.send_type === 'scheduled' && form.scheduled_date) {
+        if (!form.scheduled_time) {
+          errors.scheduled_time = 'Please select a time for your scheduled campaign';
+        } else {
+          const scheduledDateTime = new Date(`${form.scheduled_date}T${form.scheduled_time}`);
+          const now = new Date();
+          if (scheduledDateTime <= now) {
+            errors.scheduled_time = 'Scheduled time must be in the future';
+          } else {
+            delete errors.scheduled_time;
+          }
+        }
+      } else {
+        delete errors.scheduled_time;
+      }
+      break;
+      
+    case 'target_groups':
+      if (!form.send_to_all && (!form.target_groups || form.target_groups.length === 0)) {
+        errors.target_groups = 'Please select at least one group or enable "Send to all subscribers"';
+      } else {
+        delete errors.target_groups;
+      }
+      break;
   }
-}
+  
+  clientErrors.value = errors;
+};
+
+const validateAllFields = () => {
+  isValidating.value = true;
+  
+  ['name', 'subject', 'from_email', 'reply_to', 'scheduled_date', 'scheduled_time', 'target_groups'].forEach(field => {
+    validateField(field);
+  });
+  
+  // Validate content
+  const errors = { ...clientErrors.value };
+  if (!form.content || form.content === '{}' || form.content === '') {
+    errors.content = 'Please add some content to your email';
+  } else {
+    try {
+      const content = JSON.parse(form.content);
+      if (!content.blocks || content.blocks.length === 0) {
+        errors.content = 'Please add some content blocks to your email';
+      } else {
+        delete errors.content;
+      }
+    } catch (e) {
+      errors.content = 'Email content format is invalid';
+    }
+  }
+  
+  clientErrors.value = errors;
+  isValidating.value = false;
+  
+  return Object.keys(errors).length === 0;
+};
+
+const submit = (status = 'pending') => {
+  // Clear any existing form errors
+  form.clearErrors();
+  
+  // Validate all fields first
+  if (!validateAllFields()) {
+    // Scroll to first error
+    const firstErrorField = Object.keys(clientErrors.value)[0];
+    const errorElement = document.querySelector(`[name="${firstErrorField}"], #${firstErrorField}`);
+    if (errorElement) {
+      errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      errorElement.focus();
+    }
+    return;
+  }
+  
+  // Combine date and time for scheduled sends
+  if (form.send_type === 'scheduled' && form.scheduled_date && form.scheduled_time) {
+    const scheduledDateTime = new Date(`${form.scheduled_date}T${form.scheduled_time}`);
+    form.scheduled_at = scheduledDateTime.toISOString();
+  } else {
+    form.scheduled_at = null;
+  }
+
+  // Ensure html content respects tracking setting at submit time
+  if (!form.enable_tracking && form.html_content) {
+    form.html_content = stripTrackingFromHtml(form.html_content);
+  }
+
+  const payload = { ...form.data(), status };
+  // Ensure content is an object (backend expects array/object, not JSON string)
+  if (typeof payload.content === 'string') {
+    const parsed = safeParseJson(payload.content);
+    if (parsed) {
+      payload.content = parsed;
+    }
+  }
+  // Ensure recurring_config is an object when recurring
+  if (payload.send_type === 'recurring') {
+    if (!payload.recurring_config || typeof payload.recurring_config !== 'object') {
+      payload.recurring_config = {
+        frequency: 'weekly',
+        days_of_week: [],
+        day_of_month: 1,
+        has_end_date: false,
+        end_date: '',
+        occurrences: null,
+      };
+    }
+  }
+  // Only include recurring_config when send_type is recurring
+  if (payload.send_type !== 'recurring') {
+    delete payload.recurring_config;
+  }
+  // Only include scheduled_at when scheduled
+  if (payload.send_type !== 'scheduled') {
+    delete payload.scheduled_at;
+  }
+  
+  // Use transform to ensure JSON payload shape is sent
+  form.transform(() => payload).post(route('newsletter.campaigns.store'), {
+    onSuccess: () => {
+      // Clear client errors on success
+      clientErrors.value = {};
+    },
+    onError: (errors) => {
+      console.error('Error creating campaign:', errors);
+      // Scroll to first server error
+      setTimeout(() => {
+        const firstErrorField = Object.keys(errors)[0];
+        const errorElement = document.querySelector(`[name="${firstErrorField}"], #${firstErrorField}`);
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    },
+    onFinish: () => {
+      // reset transform for other requests
+      form.transform((data) => data);
+    }
+  });
+};
+
+const saveDraft = () => {
+  submit('draft');
+};
 
 function safeParseJson(str) {
   if (!str) return null;
@@ -561,370 +608,260 @@ function safeParseJson(str) {
       </h2>
     </template>
 
-    <div class="py-6">
+    <div class="py-12">
       <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-        <!-- Status Messages -->
-        <div v-if="sendStatus.message" 
-             class="mb-4 p-4 rounded-md"
-             :class="{
-               'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-100': sendStatus.type === 'info',
-               'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-100': sendStatus.type === 'success',
-               'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-100': sendStatus.type === 'error'
-             }">
-          <div class="flex items-center">
-            <CheckCircleIcon v-if="sendStatus.type === 'success'" class="h-5 w-5 mr-2" />
-            <ExclamationTriangleIcon v-else class="h-5 w-5 mr-2" />
-            <span>{{ sendStatus.message }}</span>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-          <div class="p-6 text-gray-900 dark:text-gray-100">
-            <!-- Campaign Form Content -->
-            <div class="mb-8">
-              
-
-              
-              
-              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 mt-8">
-                <UserGroupIcon class="w-5 h-5 inline-block mr-2" />
-                Recipients
-              </h3>
-              
-              <div class="space-y-4">
-                <div class="flex items-center">
-                  <input
-                    id="send-to-all"
-                    v-model="form.send_to_all"
-                    type="checkbox"
-                    class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        <form @submit.prevent="submit('pending')">
+          <!-- Campaign Details Section -->
+          <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg mb-6">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Campaign Details</h3>
+            </div>
+            <div class="p-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <InputLabel for="name" value="Campaign Name" />
+                  <TextInput 
+                    id="name" 
+                    v-model="form.name" 
+                    type="text" 
+                    name="name"
+                    class="mt-1 block w-full" 
+                    :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.name || clientErrors.name }"
+                    required 
+                    placeholder="Enter campaign name"
                   />
-                  <label for="send-to-all" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  <InputError class="mt-2" :message="form.errors.name || clientErrors.name" />
+                </div>
+                <div>
+                  <InputLabel for="subject" value="Email Subject" />
+                  <TextInput 
+                    id="subject" 
+                    v-model="form.subject" 
+                    type="text" 
+                    name="subject"
+                    class="mt-1 block w-full" 
+                    :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.subject || clientErrors.subject }"
+                    required 
+                    placeholder="Enter email subject"
+                  />
+                  <InputError class="mt-2" :message="form.errors.subject || clientErrors.subject" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Row -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Recipients Section -->
+            <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
+              <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
+                  <UserGroupIcon class="w-5 h-5 mr-2 text-uh-red" />
+                  Recipients
+                </h3>
+              </div>
+              <div class="p-6 space-y-4">
+                <div class="flex items-center">
+                  <input 
+                    id="send-to-all" 
+                    v-model="form.send_to_all" 
+                    type="checkbox" 
+                    class="h-4 w-4 rounded border-gray-300 text-uh-red focus:ring-uh-red focus:ring-offset-0" 
+                  />
+                  <label for="send-to-all" class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
                     Send to all active subscribers
                   </label>
                 </div>
                 
-                <div v-if="!form.send_to_all" class="mt-4">
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Groups
-                  </label>
-                  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <label
-                      v-for="group in groups"
-                      :key="group.id"
-                      class="flex items-center p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                <div v-if="!form.send_to_all">
+                  <InputLabel value="Select Groups" class="mb-3" />
+                  <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                    <label 
+                      v-for="group in groups" 
+                      :key="group.id" 
+                      class="flex items-center p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                     >
-                      <input
-                        v-model="form.target_groups"
-                        :value="group.id"
-                        type="checkbox"
-                        class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500"
+                      <input 
+                        v-model="form.target_groups" 
+                        :value="group.id" 
+                        type="checkbox" 
+                        class="rounded border-gray-300 text-uh-red shadow-sm focus:ring-uh-red focus:ring-offset-0" 
                       />
-                      <div class="ml-3">
-                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {{ group.name }}
-                        </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">
-                          {{ group.active_subscriber_count }} subscribers
-                        </div>
+                      <div class="ml-3 flex-1">
+                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ group.name }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ group.active_subscriber_count }} subscribers</div>
                       </div>
                     </label>
                   </div>
+                  <InputError class="mt-2" :message="form.errors.target_groups || clientErrors.target_groups" />
                 </div>
-                
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                  <div class="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    Campaign will be sent to: 
-                    <span v-if="isLoadingRecipients">Calculating...</span>
-                    <span v-else>{{ recipientCount.toLocaleString() }} (duplicates not included)</span>
+
+                <div class="bg-uh-cream dark:bg-uh-forest/20 border border-uh-gold/30 rounded-lg p-4">
+                  <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                      <UserGroupIcon class="h-5 w-5 text-uh-gold" />
+                    </div>
+                    <div class="ml-3">
+                      <p class="text-sm font-medium text-uh-chocolate dark:text-uh-cream">
+                        Estimated recipients: 
+                        <span v-if="isLoadingRecipients" class="animate-pulse">Calculating...</span>
+                        <span v-else class="font-bold">{{ recipientCount.toLocaleString() }}</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <!-- Send Options Section -->
-            <div class="mb-8">
-              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
-                <ClockIcon class="w-5 h-5 inline-block mr-2" />
-                Send Options
-              </h3>
-              
-              <div class="space-y-4">
-                <div class="space-y-2">
-                  <div class="flex items-center space-x-4">
-                    <label class="inline-flex items-center">
-                      <input
-                        v-model="form.send_type"
-                        type="radio"
-                        value="immediate"
-                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                      />
-                      <span class="ml-2 text-gray-700 dark:text-gray-300">Send immediately</span>
-                    </label>
-                    
-                    <label class="inline-flex items-center">
-                      <input
-                        v-model="form.send_type"
-                        type="radio"
-                        value="scheduled"
-                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                      />
-                      <span class="ml-2 text-gray-700 dark:text-gray-300">Schedule for later</span>
-                    </label>
-                    
-                    <label class="inline-flex items-center">
-                      <input
-                        v-model="form.send_type"
-                        type="radio"
-                        value="recurring"
-                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                      />
-                      <span class="ml-2 text-gray-700 dark:text-gray-300">Recurring</span>
-                    </label>
-                  </div>
-                  
-                  <!-- Scheduled Date Picker -->
-                  <div v-if="form.send_type === 'scheduled'" class="mt-4 space-y-4">
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Scheduled Date <span class="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        v-model="form.scheduled_date"
-                        :min="new Date().toISOString().split('T')[0]"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        required
-                      >
-                    </div>
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Scheduled Time <span class="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="time"
-                        v-model="form.scheduled_time"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        required
-                      >
-                    </div>
-                    <input
-                      v-model="form.scheduled_at"
-                      type="datetime-local"
-                      :min="new Date().toISOString().slice(0, 16)"
-                      class="mt-1 block w-64 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      :class="{ 'border-red-500': form.errors.scheduled_at }"
+            <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
+              <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
+                  <ClockIcon class="w-5 h-5 mr-2 text-uh-red" />
+                  Send Options
+                </h3>
+              </div>
+              <div class="p-6 space-y-6">
+                <div class="space-y-3">
+                  <label class="flex items-center p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
+                    <input 
+                      v-model="form.send_type" 
+                      type="radio" 
+                      value="immediate" 
+                      name="send_type" 
+                      class="h-4 w-4 text-uh-red focus:ring-uh-red border-gray-300" 
                     />
-                    <p v-if="form.errors.scheduled_at" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                      {{ form.errors.scheduled_at[0] }}
-                    </p>
+                    <div class="ml-3">
+                      <div class="text-sm font-medium text-gray-900 dark:text-gray-100">Send Immediately</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Campaign will be sent right away</div>
+                    </div>
+                  </label>
+                  
+                  <label class="flex items-center p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
+                    <input 
+                      v-model="form.send_type" 
+                      type="radio" 
+                      value="scheduled" 
+                      name="send_type" 
+                      class="h-4 w-4 text-uh-red focus:ring-uh-red border-gray-300" 
+                    />
+                    <div class="ml-3">
+                      <div class="text-sm font-medium text-gray-900 dark:text-gray-100">Schedule for Later</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Choose a specific date and time</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div v-if="form.send_type === 'scheduled'" class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <InputLabel for="scheduled_date" value="Date" class="text-sm font-medium" />
+                      <div class="mt-1 relative">
+                        <TextInput 
+                          id="scheduled_date" 
+                          v-model="form.scheduled_date" 
+                          type="date" 
+                          name="scheduled_date"
+                          :min="new Date().toISOString().split('T')[0]" 
+                          class="block w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-uh-red focus:border-uh-red" 
+                          :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.scheduled_date || clientErrors.scheduled_date, 'border-gray-300 dark:border-gray-600': !(form.errors.scheduled_date || clientErrors.scheduled_date) }"
+                        />
+                        <CalendarIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      </div>
+                      <InputError class="mt-1" :message="form.errors.scheduled_date || clientErrors.scheduled_date" />
+                    </div>
+                    
+                    <div>
+                      <InputLabel for="scheduled_time" value="Time" class="text-sm font-medium" />
+                      <div class="mt-1 relative">
+                        <TextInput 
+                          id="scheduled_time" 
+                          v-model="form.scheduled_time" 
+                          type="time" 
+                          name="scheduled_time"
+                          class="block w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-uh-red focus:border-uh-red" 
+                          :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.scheduled_time || clientErrors.scheduled_time, 'border-gray-300 dark:border-gray-600': !(form.errors.scheduled_time || clientErrors.scheduled_time) }"
+                        />
+                        <ClockIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      </div>
+                      <InputError class="mt-1" :message="form.errors.scheduled_time || clientErrors.scheduled_time" />
+                    </div>
                   </div>
                   
-                  <!-- Recurring Options -->
-                  <div v-if="form.send_type === 'recurring'" class="mt-4 space-y-4">
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Frequency <span class="text-red-500">*</span>
-                      </label>
-                      <select
-                        v-model="form.recurring_config.frequency"
-                        class="mt-1 block w-64 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      >
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                      </select>
-                    </div>
-                    
-                    <div v-if="form.recurring_config.frequency === 'weekly'">
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Days of Week <span class="text-red-500">*</span>
-                      </label>
-                      <div class="flex space-x-2">
-                        <label v-for="(day, index) in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" 
-                               :key="index" 
-                               class="inline-flex items-center">
-                          <input
-                            v-model="form.recurring_config.days_of_week"
-                            type="checkbox"
-                            :value="index"
-                            class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span class="ml-2 text-gray-700 dark:text-gray-300">{{ day }}</span>
-                        </label>
-                      </div>
-                      <p v-if="form.errors['recurring_config.days_of_week']" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                        {{ form.errors['recurring_config.days_of_week'] }}
-                      </p>
-                    </div>
-                    
-                    <div v-if="form.recurring_config.frequency === 'monthly'">
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Day of Month <span class="text-red-500">*</span>
-                      </label>
-                      <input
-                        v-model.number="form.recurring_config.day_of_month"
-                        type="number"
-                        min="1"
-                        max="31"
-                        class="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      />
-                      <p v-if="form.errors['recurring_config.day_of_month']" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                        {{ form.errors['recurring_config.day_of_month'] }}
-                      </p>
-                    </div>
-                    
-                    <div class="pt-2">
-                      <label class="flex items-center">
-                        <input
-                          v-model="form.recurring_config.has_end_date"
-                          type="checkbox"
-                          class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Set end date</span>
-                      </label>
-                      
-                      <div v-if="form.recurring_config.has_end_date" class="mt-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          End Date <span class="text-red-500">*</span>
-                        </label>
-                        <input
-                          v-model="form.recurring_config.end_date"
-                          type="date"
-                          :min="new Date().toISOString().split('T')[0]"
-                          class="mt-1 block w-64 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        />
-                        <p v-if="form.errors['recurring_config.end_date']" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                          {{ form.errors['recurring_config.end_date'] }}
-                        </p>
-                      </div>
-                    </div>
+                  <div v-if="form.scheduled_date && form.scheduled_time" class="text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 p-3 rounded border">
+                    <strong>Scheduled for:</strong> 
+                    {{ new Date(`${form.scheduled_date}T${form.scheduled_time}`).toLocaleString() }}
                   </div>
+                  
+                  <InputError class="mt-2" :message="form.errors.scheduled_at" />
+                </div>
+
+                <!-- Tracking Toggle -->
+                <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <label class="flex items-start p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
+                    <input
+                      id="enable-tracking"
+                      v-model="form.enable_tracking"
+                      type="checkbox"
+                      class="mt-1 h-4 w-4 text-uh-red focus:ring-uh-red border-gray-300 rounded"
+                    />
+                    <div class="ml-3">
+                      <div class="text-sm font-medium text-gray-900 dark:text-gray-100">Enable open and click tracking</div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">When disabled, tracked URLs like <code>/newsletter/public/track-click/...</code> will be removed from links in the email HTML before sending.</p>
+                    </div>
+                  </label>
                 </div>
               </div>
             </div>
-            
-            <!-- Email Content Section -->
-              <div class="mb-8">
-                <div class="space-y-4 mb-2">
-                <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Campaign Name <span class="text-red-500">*</span>
-                </label>
-                <input
-                  id="name"
-                  v-model="form.name"
-                  type="text"
-                  required
-                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  :class="{ 'border-red-500': form.errors.name }"
-                  placeholder="Enter a name for this campaign"
-                />
-                <p v-if="form.errors.name" class="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {{ form.errors.name }}
-                </p>
-                </div>
-                <div class="space-y-4">
-                  <label for="subject" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    EmailSubject
-                  </label>
-                  <input
-                    id="subject"
-                    v-model="form.subject"
-                    type="text"
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    placeholder="Email subject"
-                  />
-                </div>
-              </div>
-             
-              
-              
-                
-                
-                <div>
-                <div class="mt-1">
-                  <EmailBuilder 
-                    v-model:content="form.content"
-                    v-model:html-content="form.html_content"
-                    :templates="templates"
-                    @update:content="updateContent"
-                    @update:html-content="updateHtmlContent"
-                  />
-                </div>
-              </div>
-         
-            
-            <!-- Form actions -->
-            <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
-              <button
+          </div>
+
+          <!-- Email Content Section - Full Width -->
+          <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg mb-6">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Email Content</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Design your email using the visual editor below</p>
+            </div>
+            <div class="p-6">
+              <EmailBuilder 
+                v-model:content="form.content"
+                v-model:html-content="form.html_content"
+                :templates="templates"
+                @update:content="updateContent"
+                @update:html-content="updateHtmlContent"
+              />
+              <InputError class="mt-2" :message="form.errors.content || clientErrors.content" />
+              <InputError class="mt-2" :message="form.errors.html_content" />
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
+            <div class="px-6 py-4 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
+              <SecondaryButton 
+                @click="saveDraft" 
+                :class="{ 'opacity-25': form.processing }" 
+                :disabled="form.processing" 
                 type="button"
-                @click="saveDraft"
-                :disabled="isSending"
-                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="inline-flex items-center justify-center"
               >
                 <DocumentTextIcon class="-ml-1 mr-2 h-5 w-5" />
                 Save Draft
-              </button>
+              </SecondaryButton>
               
-              <button
-                type="button"
-                @click="confirmSend"
-                :disabled="isSending"
-                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              <PrimaryButton 
+              type="submit"
+                :class="{ 'opacity-25': form.processing || isValidating }" 
+                :disabled="form.processing || isValidating"
+                class="inline-flex items-center justify-center bg-uh-red hover:bg-uh-brick focus:ring-uh-red"
               >
                 <PaperAirplaneIcon class="-ml-1 mr-2 h-5 w-5" />
-                {{ form.send_type === 'scheduled' ? 'Schedule Send' : 'Send Now' }}
-              </button>
+                <span v-if="form.processing">Sending...</span>
+                <span v-else-if="isValidating">Validating...</span>
+                <span v-else>{{ form.send_type === 'immediate' ? 'Send Campaign' : 'Schedule Campaign' }}</span>
+              </PrimaryButton>
             </div>
           </div>
-        </div>
-        
-        <!-- Send Confirmation Modal -->
-        <TransitionRoot as="template" :show="showSendConfirmation">
-          <Dialog as="div" class="relative z-10" @close="showSendConfirmation = false">
-            <TransitionChild as="template" enter="ease-out duration-300" enter-from="opacity-0" enter-to="opacity-100" leave="ease-in duration-200" leave-from="opacity-100" leave-to="opacity-0">
-              <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-            </TransitionChild>
-
-            <div class="fixed inset-0 z-10 overflow-y-auto">
-              <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <TransitionChild as="template" enter="ease-out duration-300" enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" enter-to="opacity-100 translate-y-0 sm:scale-100" leave="ease-in duration-200" leave-from="opacity-100 translate-y-0 sm:scale-100" leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-                  <DialogPanel class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-4 pt-5 pb-4 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
-                    <div class="absolute top-0 right-0 hidden pt-4 pr-4 sm:block">
-                      <button type="button" class="rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" @click="showSendConfirmation = false">
-                        <span class="sr-only">Close</span>
-                        <XMarkIcon class="h-6 w-6" aria-hidden="true" />
-                      </button>
-                    </div>
-                    <div class="sm:flex sm:items-start">
-                      <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20 sm:mx-0 sm:h-10 sm:w-10">
-                        <ExclamationTriangleIcon class="h-6 w-6 text-red-600 dark:text-red-200" aria-hidden="true" />
-                      </div>
-                      <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                        <DialogTitle as="h3" class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
-                          Confirm Send
-                        </DialogTitle>
-                        <div class="mt-2">
-                          <p class="text-sm text-gray-500 dark:text-gray-400">
-                            Are you sure you want to send this campaign to {{ recipientCount }}?
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                      <button type="button" class="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 dark:bg-red-500 px-4 py-2 text-base font-medium text-white hover:bg-red-700 dark:hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm" @click="submit">
-                        Send
-                      </button>
-                      <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm" @click="showSendConfirmation = false" ref="cancelButtonRef">
-                        Cancel
-                      </button>
-                    </div>
-                  </DialogPanel>
-                </TransitionChild>
-              </div>
-            </div>
-          </Dialog>
-        </TransitionRoot>
+        </form>
       </div>
     </div>
   </AuthenticatedLayout>

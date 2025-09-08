@@ -1396,7 +1396,7 @@ function insertTokenIntoEditor(token) {
     <!-- Main Editor Area -->
     <div class="flex-1 flex flex-col">
       <!-- Top Toolbar -->
-      <div class="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+      <div class="bg-white/80 backdrop-blur border-b border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
         <div class="px-6 py-3 flex items-center justify-between">
           <div class="flex items-center gap-2 text-sm text-gray-600">
             <span class="text-gray-900 dark:text-gray-100 font-semibold">Email Builder</span>
@@ -1668,7 +1668,7 @@ function insertTokenIntoEditor(token) {
 
     <!-- Text/Heading Editor Modal -->
     <div v-if="showTextEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="handleModalBackdropClick" @keydown.esc="cancelTextEdit">
-      <div class="bg-white rounded-lg p-6 w-[32rem] max-w-full max-h-full overflow-y-auto" @click.stop>
+      <div class="bg-white text-gray-700 rounded-lg p-6 w-[32rem] max-w-full max-h-full overflow-y-auto" @click.stop>
         <h3 class="text-lg font-medium mb-4">Edit Content</h3>
         <!-- Settings for Text block only -->
         <div v-if="currentEditingBlock && currentEditingBlock.type === 'text'" class="space-y-3 mb-3">
@@ -1777,7 +1777,7 @@ function insertTokenIntoEditor(token) {
 
     <!-- Header Editor Modal -->
     <div v-if="showHeaderEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-[40rem] max-w-full">
+      <div class="bg-white text-gray-700 rounded-lg p-6 w-[40rem] max-w-full">
         <h3 class="text-lg font-medium mb-4">Edit Header</h3>
         <div class="space-y-4">
           <!-- Logo Upload Section -->

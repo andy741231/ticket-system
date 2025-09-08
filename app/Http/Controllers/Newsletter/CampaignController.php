@@ -81,6 +81,7 @@ class CampaignController extends Controller
             'target_groups' => 'required_without:send_to_all|array',
             'target_groups.*' => 'exists:newsletter_groups,id',
             'send_to_all' => 'boolean',
+            'enable_tracking' => 'sometimes|boolean',
             'recurring_config' => 'required_if:send_type,recurring|array',
             'recurring_config.frequency' => 'required_if:send_type,recurring|in:daily,weekly,monthly,quarterly',
             'recurring_config.days_of_week' => 'required_if:recurring_config.frequency,weekly|array',
@@ -92,11 +93,16 @@ class CampaignController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            // Return JSON for API clients, otherwise redirect back with errors for Inertia
+            if ($request->expectsJson()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+            return back()->withErrors($validator)->withInput();
         }
 
         $data = $validator->validated();
         $data['created_by'] = auth()->id();
+        $data['enable_tracking'] = (bool)($request->input('enable_tracking', true));
         
         // Set default empty content if not provided
         if (!isset($data['content'])) {
@@ -153,24 +159,28 @@ class CampaignController extends Controller
             \Log::info("Recurring campaign #{$campaign->id} created. First send will be processed soon.");
             
             return redirect()->route('newsletter.campaigns.show', $campaign)
-                           ->with('success', 'Recurring campaign created successfully. First send is scheduled.');
+                           ->with('success', 'Recurring campaign created successfully. First send is scheduled.')
+                           ->setStatusCode(303);
                             
         } elseif ($campaign->send_type === 'scheduled') {
             // For scheduled campaigns, create the scheduled sends
             $this->scheduleCampaignSends($campaign, $campaign->scheduled_at);
             
             return redirect()->route('newsletter.campaigns.show', $campaign)
-                           ->with('success', 'Campaign scheduled successfully.');
+                           ->with('success', 'Campaign scheduled successfully.')
+                           ->setStatusCode(303);
                            
         } elseif ($campaign->send_type === 'immediate') {
             // Do not auto-send on creation. Keep as draft; user will send from the campaign page.
             return redirect()->route('newsletter.campaigns.show', $campaign)
-                           ->with('success', 'Campaign created as draft. You can send it when ready.');
+                           ->with('success', 'Campaign created as draft. You can send it when ready.')
+                           ->setStatusCode(303);
         }
         
         // Default redirect (shouldn't normally reach here)
         return redirect()->route('newsletter.campaigns.show', $campaign)
-                       ->with('success', 'Campaign created successfully.');
+                       ->with('success', 'Campaign created successfully.')
+                       ->setStatusCode(303);
     }
 
     /**
@@ -270,6 +280,7 @@ class CampaignController extends Controller
             'target_groups' => ['required_without:send_to_all', 'array'],
             'target_groups.*' => ['exists:newsletter_groups,id'],
             'send_to_all' => ['boolean'],
+            'enable_tracking' => ['sometimes', 'boolean'],
         ]);
 
         if ($validator->fails()) {
@@ -278,6 +289,7 @@ class CampaignController extends Controller
 
         try {
             $data = $validator->validated();
+            $data['enable_tracking'] = (bool)($request->input('enable_tracking', true));
 
             // Ensure defaults
             $data['send_to_all'] = (bool)($data['send_to_all'] ?? false);
@@ -444,9 +456,56 @@ class CampaignController extends Controller
 
     public function preview(Campaign $campaign)
     {
+        $html = $campaign->html_content;
+        if (($campaign->enable_tracking ?? true) === false) {
+            $html = $this->stripTrackingLinks($html);
+        }
+
         return Inertia::render('Newsletter/Campaigns/Preview', [
             'campaign' => $campaign,
-            'html_content' => $campaign->html_content,
+            'html_content' => $html,
         ]);
+    }
+
+    /**
+     * Remove newsletter click-tracking wrappers from links and restore original URLs.
+     */
+    private function stripTrackingLinks(string $html = null): string
+    {
+        if (!$html) return '';
+        return preg_replace_callback(
+            '/href=("|\')([^"\']+)(\1)/i',
+            function ($m) {
+                $quote = $m[1];
+                $url = $m[2] ?? '';
+                if ($url === '' || !preg_match('#/newsletter/(public/)?track-click/#i', $url)) {
+                    return $m[0];
+                }
+                try {
+                    $parsed = parse_url($url);
+                    $path = $parsed['path'] ?? '';
+                    $parts = array_values(array_filter(explode('/', $path)));
+                    $idx = null;
+                    foreach ($parts as $i => $p) {
+                        if (strtolower($p) === 'track-click') { $idx = $i; break; }
+                    }
+                    $b64 = ($idx !== null && isset($parts[$idx + 3])) ? $parts[$idx + 3] : null;
+                    if ($b64) {
+                        $b64 = rawurldecode($b64);
+                        $b64 = strtr($b64, '-_', '+/');
+                        $pad = strlen($b64) % 4;
+                        if ($pad) { $b64 .= str_repeat('=', 4 - $pad); }
+                        $orig = base64_decode($b64, true);
+                        if ($orig && preg_match('#^https?://#i', $orig)) {
+                            return 'href=' . $quote . $orig . $quote;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // ignore and fall through
+                }
+                return 'href=' . $quote . '#' . $quote;
+            },
+            $html
+        );
     }
 }
