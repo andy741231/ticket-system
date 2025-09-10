@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ticket #{{ $ticketId }} Completed</title>
     <style>
-        body { font-family: 'Source Sans 3', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827; margin: 0; padding: 0; }
+        body { font-family: 'Source Sans 3', Roboto, Helvetica, Arial, sans-serif; color: #111827; margin: 0; padding: 0; }
         .container { max-width: 640px; margin: 0 auto; padding: 24px; }
         .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; }
         h1 { font-size: 20px; margin: 0 0 12px; }

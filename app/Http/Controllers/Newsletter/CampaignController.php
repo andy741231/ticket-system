@@ -19,7 +19,8 @@ class CampaignController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Campaign::with(['creator', 'template']);
+        $query = Campaign::with(['creator', 'template'])
+            ->where('time_capsule', false); // Exclude time capsule campaigns
 
         // Status filter
         if ($request->filled('status')) {
@@ -72,7 +73,7 @@ class CampaignController extends Controller
             'name' => 'required|string|max:255',
             'subject' => 'required|string|max:255',
             'content' => 'required|array',
-            'html_content' => 'nullable|string',
+            'html_content' => 'required|string',
             'from_name' => 'required|string|max:255',
             'from_email' => 'required|email|max:255',
             'reply_to' => 'nullable|email|max:255',
@@ -107,6 +108,11 @@ class CampaignController extends Controller
         // Set default empty content if not provided
         if (!isset($data['content'])) {
             $data['content'] = [];
+        }
+        
+        // Ensure html_content has a default value if empty
+        if (empty($data['html_content'])) {
+            $data['html_content'] = '<p>Draft content</p>';
         }
         
         // Ensure target_groups is always an array
@@ -239,7 +245,20 @@ class CampaignController extends Controller
         }
 
         $templates = Template::orderBy('is_default', 'desc')->orderBy('name')->get();
-        $groups = Group::active()->get();
+        // Keep groups payload consistent with create() for UI parity
+        $groups = Group::active()
+            ->withCount(['activeSubscribers'])
+            ->get()
+            ->map(function ($group) {
+                return [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'description' => $group->description,
+                    'color' => $group->color,
+                    'is_active' => $group->is_active,
+                    'active_subscriber_count' => $group->active_subscribers_count,
+                ];
+            });
 
         return Inertia::render('Newsletter/Campaigns/Edit', [
             'campaign' => $campaign,
@@ -284,6 +303,14 @@ class CampaignController extends Controller
         ]);
 
         if ($validator->fails()) {
+            // For Inertia requests, redirect back with errors so the client handles them properly
+            if ($request->header('X-Inertia')) {
+                return back()
+                    ->withErrors($validator)
+                    ->withInput()
+                    ->setStatusCode(303);
+            }
+            // For non-Inertia API clients, return JSON errors
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
@@ -350,7 +377,9 @@ class CampaignController extends Controller
                 $message = 'Scheduled campaign updated successfully.';
             }
 
-            if ($request->expectsJson()) {
+            // For Inertia requests, always return a redirect with 303 status so the client can properly navigate
+            // Only return JSON for non-Inertia API clients
+            if ($request->expectsJson() && !$request->header('X-Inertia')) {
                 return response()->json([
                     'message' => $message,
                     'redirect' => route('newsletter.campaigns.show', $campaign),
@@ -424,6 +453,9 @@ class CampaignController extends Controller
 
         $campaign->update(['status' => 'sending']);
 
+        // Kick the processor to continue pending sends
+        \App\Jobs\ProcessScheduledSends::dispatch();
+
         return back()->with('success', 'Campaign resumed successfully.');
     }
 
@@ -434,6 +466,11 @@ class CampaignController extends Controller
         }
 
         $campaign->update(['status' => 'cancelled']);
+
+        // Mark any remaining pending or processing sends as cancelled
+        $campaign->scheduledSends()
+            ->whereIn('status', [\App\Models\Newsletter\ScheduledSend::STATUS_PENDING, \App\Models\Newsletter\ScheduledSend::STATUS_PROCESSING])
+            ->update(['status' => \App\Models\Newsletter\ScheduledSend::STATUS_CANCELLED]);
 
         return back()->with('success', 'Campaign cancelled successfully.');
     }
@@ -465,6 +502,136 @@ class CampaignController extends Controller
             'campaign' => $campaign,
             'html_content' => $html,
         ]);
+    }
+
+    /**
+     * Return paginated scheduled sends for a campaign (JSON only).
+     */
+    public function scheduledSends(Request $request, Campaign $campaign)
+    {
+        $request->validate([
+            'status' => 'nullable|string|in:pending,processing,sent,failed,skipped,cancelled',
+            'search' => 'nullable|string',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+        ]);
+
+        try {
+            // Quick guard: ensure table exists to avoid opaque SQL exceptions in dev
+            if (!\Illuminate\Support\Facades\Schema::hasTable('newsletter_scheduled_sends')) {
+                return response()->json([
+                    'message' => 'Scheduled sends table does not exist.',
+                ], 500);
+            }
+
+            $perPage = (int) $request->input('per_page', 15);
+
+            $query = $campaign->scheduledSends()->with(['subscriber' => function ($q) {
+                $q->select('id', 'email');
+            }]);
+
+            if ($request->filled('status')) {
+                $status = (string) $request->input('status');
+                $query->where('status', $status);
+            }
+
+            if ($request->filled('search')) {
+                $term = $request->string('search');
+                $query->whereHas('subscriber', function ($q) use ($term) {
+                    $q->where('email', 'like', "%{$term}%");
+                });
+            }
+
+            $sends = $query->orderByDesc('id')->paginate($perPage);
+
+            // Build counts by status using a fresh query to avoid inherited order clauses
+            $counts = \App\Models\Newsletter\ScheduledSend::query()
+                ->where('campaign_id', $campaign->id)
+                ->selectRaw('status, COUNT(*) as c')
+                ->groupBy('status')
+                ->pluck('c', 'status');
+
+            return response()->json([
+                'data' => $sends->items(),
+                'meta' => [
+                    'current_page' => $sends->currentPage(),
+                    'per_page' => $sends->perPage(),
+                    'total' => $sends->total(),
+                    'last_page' => $sends->lastPage(),
+                ],
+                'counts' => $counts,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('scheduledSends endpoint failed', [
+                'campaign_id' => $campaign->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'message' => 'Failed to fetch scheduled sends',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Retry selected scheduled sends for a campaign. Optionally auto-resume.
+     */
+    public function retryScheduledSends(Request $request, Campaign $campaign)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer',
+            'auto_resume' => 'sometimes|boolean',
+        ]);
+
+        $ids = collect($validated['ids'])->unique()->values();
+
+        // Ensure all IDs belong to this campaign
+        $sends = $campaign->scheduledSends()->whereIn('id', $ids)->get();
+        if ($sends->count() !== $ids->count()) {
+            return response()->json(['message' => 'One or more selected items do not belong to this campaign.'], 422);
+        }
+
+        // If paused and auto_resume is true, resume campaign; else require sending state
+        if ($campaign->status === 'paused' && $request->boolean('auto_resume')) {
+            $campaign->update(['status' => 'sending']);
+        }
+        if ($campaign->status !== 'sending') {
+            return response()->json(['message' => 'Campaign must be in sending state to dispatch retries.'], 422);
+        }
+
+        $processed = 0;
+        foreach ($sends as $send) {
+            // Reset failed/skipped back to pending; leave pending as-is
+            if (in_array($send->status, ['failed', 'skipped'])) {
+                $send->update(['status' => 'pending', 'error_message' => null]);
+            }
+            // Dispatch individual send job; it will validate status and send
+            \App\Jobs\SendEmailToSubscriber::dispatch($send);
+            $processed++;
+        }
+
+        return response()->json(['message' => 'Dispatching selected sends', 'count' => $processed]);
+    }
+
+    /**
+     * Kick processing of all pending sends for this campaign. Optionally auto-resume.
+     */
+    public function processPending(Request $request, Campaign $campaign)
+    {
+        if ($campaign->status === 'cancelled') {
+            return response()->json(['message' => 'Cannot process a cancelled campaign.'], 422);
+        }
+
+        if (in_array($campaign->status, ['paused', 'scheduled']) && $request->boolean('auto_resume')) {
+            $campaign->update(['status' => 'sending']);
+        }
+
+        if ($campaign->status !== 'sending') {
+            return response()->json(['message' => 'Campaign must be in sending state to process pending sends.'], 422);
+        }
+
+        \App\Jobs\ProcessScheduledSends::dispatch();
+        return response()->json(['message' => 'Processing pending sends has been dispatched.']);
     }
 
     /**
@@ -507,5 +674,75 @@ class CampaignController extends Controller
             },
             $html
         );
+    }
+
+    /**
+     * Display Time Capsule campaigns
+     */
+    public function timeCapsule(Request $request)
+    {
+        $query = Campaign::with(['creator', 'template'])
+            ->where('time_capsule', true);
+
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Search functionality
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('subject', 'like', "%{$search}%");
+            });
+        }
+
+        $campaigns = $query->orderBy('updated_at', 'desc')->paginate(25);
+
+        return Inertia::render('Newsletter/Campaigns/TimeCapsule', [
+            'campaigns' => $campaigns,
+            'filters' => $request->only(['search', 'status']),
+        ]);
+    }
+
+    /**
+     * Move campaigns to Time Capsule
+     */
+    public function storeTimeCapsule(Request $request)
+    {
+        $request->validate([
+            'campaign_ids' => 'required|array',
+            'campaign_ids.*' => 'exists:newsletter_campaigns,id'
+        ]);
+
+        $campaigns = Campaign::whereIn('id', $request->campaign_ids)
+            ->where('status', 'sent')
+            ->where('time_capsule', false)
+            ->get();
+
+        foreach ($campaigns as $campaign) {
+            $campaign->update(['time_capsule' => true]);
+        }
+
+        return redirect()->back()->with('success', 
+            count($campaigns) === 1 
+                ? 'Campaign moved to Time Capsule successfully.'
+                : count($campaigns) . ' campaigns moved to Time Capsule successfully.'
+        );
+    }
+
+    /**
+     * Restore campaign from Time Capsule
+     */
+    public function restoreFromTimeCapsule(Campaign $campaign)
+    {
+        if (!$campaign->time_capsule) {
+            return redirect()->back()->with('error', 'Campaign is not in Time Capsule.');
+        }
+
+        $campaign->update(['time_capsule' => false]);
+
+        return redirect()->back()->with('success', 'Campaign restored from Time Capsule successfully.');
     }
 }

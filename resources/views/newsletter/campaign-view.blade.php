@@ -31,7 +31,7 @@
       });
     </script>
     <style>
-        body { font-family: 'Source Sans 3', 'Segoe UI', Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; margin: 0; background: #f9fafb; }
+        body { font-family: 'Source Sans 3', Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif; margin: 0; background: #f9fafb; }
         .container { max-width: 860px; margin: 0 auto; padding: 24px; }
         .card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; }
         .title { font-size: 1.75rem; font-weight: 800; margin: 0 0 6px; }

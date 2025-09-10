@@ -1,6 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import EmailBuilder from '@/Components/Newsletter/EmailBuilder.vue';
+import TrackingToggle from '@/Components/Newsletter/TrackingToggle.vue';
+import RecipientsSelector from '@/Components/Newsletter/RecipientsSelector.vue';
+import SendOptions from '@/Components/Newsletter/SendOptions.vue';
+import EmailContentSection from '@/Components/Newsletter/EmailContentSection.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -34,55 +38,83 @@ const props = defineProps({
   groups: Array,
 });
 
-// Initialize with default content structure
-const defaultContent = {
-  blocks: [
-    {
-      id: 'header',
-      type: 'header',
-      data: {
-        logo: '',
-        title: 'Your Brand',
-        subtitle: 'A short description',
-        backgroundColor: '#f3f4f6'
-      },
-      editable: true,
-      locked: false
-    },
-    {
-      id: 'content',
-      type: 'text',
-      data: {
-        text: '<p>Start writing your email content here...</p>',
-        textAlign: 'left',
-        backgroundColor: '#ffffff',
-        padding: '20px'
-      },
-      editable: true,
-      locked: false
-    },
-    {
-      id: 'footer',
-      type: 'footer',
-      data: {
-        text: '© ' + new Date().getFullYear() + ' Your Company. All rights reserved.',
-        backgroundColor: '#f3f4f6',
-        textColor: '#6b7280',
-        padding: '20px',
-        textAlign: 'center'
-      },
-      editable: true,
-      locked: true
+// Reference to EmailBuilder component to access default structure
+const emailBuilderRef = ref(null);
+
+// Function to get default content - will be initialized from EmailBuilder or default template
+const getDefaultContent = () => {
+  // Check if there's a default template
+  const defaultTemplate = props.templates?.find(t => t.is_default);
+  if (defaultTemplate && defaultTemplate.content) {
+    try {
+      return typeof defaultTemplate.content === 'string' 
+        ? defaultTemplate.content 
+        : JSON.stringify(defaultTemplate.content);
+    } catch (e) {
+      console.warn('Failed to parse default template content:', e);
     }
-  ],
-  settings: {
-    width: '600px',
-    backgroundColor: '#ffffff',
-    contentBackgroundColor: '#ffffff',
-    textColor: '#1f2937',
-    fontFamily: 'Arial, sans-serif',
-    linkColor: '#3b82f6'
   }
+  
+  // Fallback to EmailBuilder's default structure
+  if (emailBuilderRef.value?.getDefaultEmailStructure) {
+    return JSON.stringify(emailBuilderRef.value.getDefaultEmailStructure());
+  }
+  
+  // Ultimate fallback - basic structure
+  return JSON.stringify({
+    blocks: [
+      {
+        id: 'header',
+        type: 'header',
+        data: {
+          title: 'Newsletter Title',
+          subtitle: 'Your weekly dose of updates',
+          background: '#c8102e',
+          textColor: '#ffffff'
+        },
+        editable: true,
+        locked: false
+      },
+      {
+        id: 'content',
+        type: 'text',
+        data: {
+          content: '<p>Start writing your email content here...</p>',
+          fontSize: '16px',
+          color: '#666666',
+          background: 'transparent',
+          padding: '15px 50px'
+        },
+        editable: true,
+        locked: false
+      },
+      {
+        id: 'footer',
+        type: 'footer',
+        data: {
+          content: 'Thanks for reading! Forward this to someone who might find it useful.',
+          links: [
+            { text: 'Unsubscribe', url: '{{unsubscribe_url}}' },
+            { text: 'Update preferences', url: '{{preferences_url}}' },
+            { text: 'View in browser', url: '{{browser_url}}' }
+          ],
+          copyright: '2025 UH Population Health. All rights reserved.',
+          background: '#c8102e',
+          textColor: '#ffffff'
+        },
+        editable: true,
+        locked: true
+      }
+    ],
+    settings: {
+      width: '600px',
+      backgroundColor: '#ffffff',
+      contentBackgroundColor: '#ffffff',
+      textColor: '#1f2937',
+      fontFamily: 'Arial, sans-serif',
+      linkColor: '#3b82f6'
+    }
+  });
 };
 
 const form = useForm({
@@ -92,8 +124,8 @@ const form = useForm({
   from_email: 'noreply@uhphub.com',
   reply_to: 'noreply@uhphub.com',
   preview_text: '',
-  content: JSON.stringify(defaultContent),
-  html_content: '',
+  content: '', // Will be initialized in onMounted
+  html_content: '<p>Draft content</p>',
   template_id: '',
   send_type: 'immediate',
   scheduled_date: '',
@@ -125,6 +157,9 @@ const initRecurringConfig = () => {
 // Initialize on component mount
 onMounted(() => {
   initRecurringConfig();
+  
+  // Initialize content with default structure
+  form.content = getDefaultContent();
   
   // Set default scheduled time to next hour
   if (!form.scheduled_at) {
@@ -652,186 +687,40 @@ function safeParseJson(str) {
 
           <!-- Settings Row -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <!-- Recipients Section -->
-            <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
-              <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
-                  <UserGroupIcon class="w-5 h-5 mr-2 text-uh-red" />
-                  Recipients
-                </h3>
-              </div>
-              <div class="p-6 space-y-4">
-                <div class="flex items-center">
-                  <input 
-                    id="send-to-all" 
-                    v-model="form.send_to_all" 
-                    type="checkbox" 
-                    class="h-4 w-4 rounded border-gray-300 text-uh-red focus:ring-uh-red focus:ring-offset-0" 
-                  />
-                  <label for="send-to-all" class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Send to all active subscribers
-                  </label>
-                </div>
-                
-                <div v-if="!form.send_to_all">
-                  <InputLabel value="Select Groups" class="mb-3" />
-                  <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3">
-                    <label 
-                      v-for="group in groups" 
-                      :key="group.id" 
-                      class="flex items-center p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                    >
-                      <input 
-                        v-model="form.target_groups" 
-                        :value="group.id" 
-                        type="checkbox" 
-                        class="rounded border-gray-300 text-uh-red shadow-sm focus:ring-uh-red focus:ring-offset-0" 
-                      />
-                      <div class="ml-3 flex-1">
-                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ group.name }}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ group.active_subscriber_count }} subscribers</div>
-                      </div>
-                    </label>
-                  </div>
-                  <InputError class="mt-2" :message="form.errors.target_groups || clientErrors.target_groups" />
-                </div>
+            <!-- Recipients Section (shared) -->
+            <RecipientsSelector
+              :groups="groups"
+              :send-to-all="form.send_to_all"
+              :selected-group-ids="form.target_groups"
+              :estimated-count="recipientCount"
+              :loading-estimated="isLoadingRecipients"
+              :show-estimate="true"
+              @update:sendToAll="(v)=>form.send_to_all=v"
+              @update:selectedGroupIds="(v)=>form.target_groups=v"
+            />
 
-                <div class="bg-uh-cream dark:bg-uh-forest/20 border border-uh-gold/30 rounded-lg p-4">
-                  <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                      <UserGroupIcon class="h-5 w-5 text-uh-gold" />
-                    </div>
-                    <div class="ml-3">
-                      <p class="text-sm font-medium text-uh-chocolate dark:text-uh-cream">
-                        Estimated recipients: 
-                        <span v-if="isLoadingRecipients" class="animate-pulse">Calculating...</span>
-                        <span v-else class="font-bold">{{ recipientCount.toLocaleString() }}</span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Send Options Section -->
-            <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
-              <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center">
-                  <ClockIcon class="w-5 h-5 mr-2 text-uh-red" />
-                  Send Options
-                </h3>
-              </div>
-              <div class="p-6 space-y-6">
-                <div class="space-y-3">
-                  <label class="flex items-center p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
-                    <input 
-                      v-model="form.send_type" 
-                      type="radio" 
-                      value="immediate" 
-                      name="send_type" 
-                      class="h-4 w-4 text-uh-red focus:ring-uh-red border-gray-300" 
-                    />
-                    <div class="ml-3">
-                      <div class="text-sm font-medium text-gray-900 dark:text-gray-100">Send Immediately</div>
-                      <div class="text-xs text-gray-500 dark:text-gray-400">Campaign will be sent right away</div>
-                    </div>
-                  </label>
-                  
-                  <label class="flex items-center p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
-                    <input 
-                      v-model="form.send_type" 
-                      type="radio" 
-                      value="scheduled" 
-                      name="send_type" 
-                      class="h-4 w-4 text-uh-red focus:ring-uh-red border-gray-300" 
-                    />
-                    <div class="ml-3">
-                      <div class="text-sm font-medium text-gray-900 dark:text-gray-100">Schedule for Later</div>
-                      <div class="text-xs text-gray-500 dark:text-gray-400">Choose a specific date and time</div>
-                    </div>
-                  </label>
-                </div>
-
-                <div v-if="form.send_type === 'scheduled'" class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <InputLabel for="scheduled_date" value="Date" class="text-sm font-medium" />
-                      <div class="mt-1 relative">
-                        <TextInput 
-                          id="scheduled_date" 
-                          v-model="form.scheduled_date" 
-                          type="date" 
-                          name="scheduled_date"
-                          :min="new Date().toISOString().split('T')[0]" 
-                          class="block w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-uh-red focus:border-uh-red" 
-                          :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.scheduled_date || clientErrors.scheduled_date, 'border-gray-300 dark:border-gray-600': !(form.errors.scheduled_date || clientErrors.scheduled_date) }"
-                        />
-                        <CalendarIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      </div>
-                      <InputError class="mt-1" :message="form.errors.scheduled_date || clientErrors.scheduled_date" />
-                    </div>
-                    
-                    <div>
-                      <InputLabel for="scheduled_time" value="Time" class="text-sm font-medium" />
-                      <div class="mt-1 relative">
-                        <TextInput 
-                          id="scheduled_time" 
-                          v-model="form.scheduled_time" 
-                          type="time" 
-                          name="scheduled_time"
-                          class="block w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-uh-red focus:border-uh-red" 
-                          :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.scheduled_time || clientErrors.scheduled_time, 'border-gray-300 dark:border-gray-600': !(form.errors.scheduled_time || clientErrors.scheduled_time) }"
-                        />
-                        <ClockIcon class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      </div>
-                      <InputError class="mt-1" :message="form.errors.scheduled_time || clientErrors.scheduled_time" />
-                    </div>
-                  </div>
-                  
-                  <div v-if="form.scheduled_date && form.scheduled_time" class="text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 p-3 rounded border">
-                    <strong>Scheduled for:</strong> 
-                    {{ new Date(`${form.scheduled_date}T${form.scheduled_time}`).toLocaleString() }}
-                  </div>
-                  
-                  <InputError class="mt-2" :message="form.errors.scheduled_at" />
-                </div>
-
-                <!-- Tracking Toggle -->
-                <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <label class="flex items-start p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
-                    <input
-                      id="enable-tracking"
-                      v-model="form.enable_tracking"
-                      type="checkbox"
-                      class="mt-1 h-4 w-4 text-uh-red focus:ring-uh-red border-gray-300 rounded"
-                    />
-                    <div class="ml-3">
-                      <div class="text-sm font-medium text-gray-900 dark:text-gray-100">Enable open and click tracking</div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">When disabled, tracked URLs like <code>/newsletter/public/track-click/...</code> will be removed from links in the email HTML before sending.</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
+            <!-- Send Options Section (shared) -->
+            <SendOptions
+              v-model="form.send_type"
+              :scheduled-date="form.scheduled_date"
+              :scheduled-time="form.scheduled_time"
+              @update:scheduledDate="(v)=>form.scheduled_date=v"
+              @update:scheduledTime="(v)=>form.scheduled_time=v"
+            />
           </div>
 
           <!-- Email Content Section - Full Width -->
-          <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg mb-6">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Email Content</h3>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Design your email using the visual editor below</p>
-            </div>
-            <div class="p-6">
-              <EmailBuilder 
-                v-model:content="form.content"
-                v-model:html-content="form.html_content"
-                :templates="templates"
-                @update:content="updateContent"
-                @update:html-content="updateHtmlContent"
-              />
-              <InputError class="mt-2" :message="form.errors.content || clientErrors.content" />
-              <InputError class="mt-2" :message="form.errors.html_content" />
-            </div>
+          <EmailContentSection
+            ref="emailBuilderRef"
+            :model-value="form.content"
+            :templates="templates"
+            :initial-html="form.html_content"
+            @update:modelValue="(v)=>form.content=v"
+            @update:html-content="updateHtmlContent"
+          />
+          <div class="px-6">
+            <InputError class="mt-2" :message="form.errors.content || clientErrors.content" />
+            <InputError class="mt-2" :message="form.errors.html_content" />
           </div>
 
           <!-- Action Buttons -->

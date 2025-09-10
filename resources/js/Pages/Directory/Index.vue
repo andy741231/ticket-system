@@ -14,8 +14,14 @@ const searchForm = useForm({
   query: props.query,
 });
 
-// Permission: only Hub user managers can add staff (links to Hub Admin create user)
-const canAddStaff = useHasAny(['hub.user.manage']);
+// Permission: Hub user managers or Directory admins (via permission) can add staff
+// Cover both seed variants and explicit cross-app access flags
+const canAddStaff = useHasAny([
+  'hub.user.manage',
+  'directory.profile.update',     // Production seeder
+  'directory.profile.manage',     // Dev seeder / legacy
+  'directory.app.access',         // Explicit access flag if provided
+]);
 
 // Filter out external advisory board and sort by id
 const filteredTeams = computed(() => {

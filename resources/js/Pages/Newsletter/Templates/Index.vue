@@ -9,7 +9,7 @@ const props = defineProps({
 
 function deleteTemplate(t) {
   if (confirm(`Delete template "${t.name}"? This cannot be undone.`)) {
-    router.delete(route('newsletter.templates.destroy', t.id));
+    router.delete(route('newsletter.templates.destroy', t));
   }
 }
 

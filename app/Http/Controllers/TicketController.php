@@ -286,7 +286,7 @@ class TicketController extends Controller
 
         $redirect = redirect()
             ->route('tickets.show', $ticket)
-            ->with('status', 'Ticket created successfully!');
+            ->with('success', 'Ticket created successfully!');
 
         if ($mailWarning) {
             $redirect->with('warning', $mailWarning);
@@ -444,7 +444,7 @@ class TicketController extends Controller
 
         return redirect()
             ->route('tickets.show', $ticket)
-            ->with('status', 'Ticket updated successfully!');
+            ->with('success', 'Ticket updated successfully!');
     }
 
     /**
@@ -543,7 +543,7 @@ class TicketController extends Controller
             if ($mailWarning) {
                 return redirect()
                     ->back()
-                    ->with('status', 'Ticket status updated successfully!')
+                    ->with('success', 'Ticket status updated successfully!')
                     ->with('warning', $mailWarning);
             }
         }
@@ -603,7 +603,7 @@ class TicketController extends Controller
             if ($mailWarning) {
                 return redirect()
                     ->back()
-                    ->with('status', 'Ticket status updated successfully!')
+                    ->with('success', 'Ticket status updated successfully!')
                     ->with('warning', $mailWarning);
             }
         }
@@ -663,14 +663,14 @@ class TicketController extends Controller
             if ($mailWarning) {
                 return redirect()
                     ->back()
-                    ->with('status', 'Ticket status updated successfully!')
+                    ->with('success', 'Ticket status updated successfully!')
                     ->with('warning', $mailWarning);
             }
         }
 
         return redirect()
             ->back()
-            ->with('status', 'Ticket status updated successfully!');
+            ->with('success', 'Ticket status updated successfully!');
     }
 
     /**
@@ -708,6 +708,6 @@ class TicketController extends Controller
 
         return redirect()
             ->route('tickets.index')
-            ->with('status', 'Ticket deleted successfully!');
+            ->with('success', 'Ticket deleted successfully!');
     }
 }

@@ -61,17 +61,25 @@ class UserController extends Controller
     {
         $this->authorize('create', User::class);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:users',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'roles' => 'required|array',
-            'roles.*' => [
-                'integer',
-                Rule::exists('roles', 'id')->whereNotNull('team_id'),
-            ],
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'username' => 'required|string|max:255|unique:users',
+                'email' => 'required|string|email|max:255|unique:users',
+                'password' => 'required|string|min:8|confirmed',
+                'roles' => 'required|array',
+                'roles.*' => [
+                    'integer',
+                    Rule::exists('roles', 'id')->whereNotNull('team_id'),
+                ],
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()
+                ->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Please check the form for errors.');
+        }
 
         $user = User::create([
             'name' => $validated['name'],
@@ -107,7 +115,7 @@ class UserController extends Controller
 
         return redirect()
             ->route('admin.users.index')
-            ->with('status', 'User created successfully!');
+            ->with('success', 'User created successfully!');
         //
     }
 
@@ -175,16 +183,24 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'password' => 'nullable|string|min:8|confirmed',
-            'roles' => 'required|array',
-            'roles.*' => [
-                'integer',
-                Rule::exists('roles', 'id')->whereNotNull('team_id'),
-            ],
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+                'password' => 'nullable|string|min:8|confirmed',
+                'roles' => 'required|array',
+                'roles.*' => [
+                    'integer',
+                    Rule::exists('roles', 'id')->whereNotNull('team_id'),
+                ],
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()
+                ->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Please check the form for errors.');
+        }
 
         $updateData = [
             'name' => $validated['name'],
@@ -239,7 +255,7 @@ class UserController extends Controller
 
         return redirect()
             ->route('admin.users.show', $user)
-            ->with('status', 'User updated successfully!');
+            ->with('success', 'User updated successfully!');
     }
 
     /**
@@ -251,13 +267,21 @@ class UserController extends Controller
 
         // Prevent deleting self
         if (auth()->user()->id === $user->id) {
-            return back()->withErrors(['error' => 'You cannot delete your own account.']);
+            return redirect()
+                ->back()
+                ->with('error', 'You cannot delete your own account.');
         }
 
-        $user->delete();
+        try {
+            $user->delete();
 
-        return redirect()
-            ->route('admin.users.index')
-            ->with('status', 'User deleted successfully!');
+            return redirect()
+                ->route('admin.users.index')
+                ->with('success', 'User deleted successfully!');
+        } catch (\Exception $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Failed to delete user. Please try again.');
+        }
     }
 }

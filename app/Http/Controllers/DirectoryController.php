@@ -48,21 +48,29 @@ class DirectoryController extends Controller
 
     public function update(Request $request, Team $team)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'title' => 'nullable|string|max:500',
-            'degree' => 'nullable|string|max:255',
-            'email' => 'required|email',
-            'bio' => 'nullable|string',
-            'description' => 'nullable|string',
-            'message' => 'nullable|string',
-            'group_1' => 'nullable|string|max:100',
-            'program' => 'nullable|string|max:128',
-            'team' => 'nullable|string|max:128',
-            'department' => 'nullable|string|max:128',
-            'tmp_folder' => 'nullable|string',
-            'tmp_filename' => 'nullable|string',
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'title' => 'nullable|string|max:500',
+                'degree' => 'nullable|string|max:255',
+                'email' => 'required|email',
+                'bio' => 'nullable|string',
+                'description' => 'nullable|string',
+                'message' => 'nullable|string',
+                'group_1' => 'nullable|string|max:100',
+                'program' => 'nullable|string|max:128',
+                'team' => 'nullable|string|max:128',
+                'department' => 'nullable|string|max:128',
+                'tmp_folder' => 'nullable|string',
+                'tmp_filename' => 'nullable|string',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()
+                ->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Please check the form for errors.');
+        }
 
                 if ($request->filled('tmp_folder')) {
             // The tmp_folder now contains the unique temporary filename
@@ -105,7 +113,9 @@ class DirectoryController extends Controller
 
         $team->update($validated);
 
-        return redirect()->route('directory.show', $team);
+        return redirect()
+            ->route('directory.show', $team)
+            ->with('success', 'Directory entry updated successfully!');
     }
 
 
@@ -116,21 +126,29 @@ class DirectoryController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'title' => 'nullable|string|max:500',
-            'degree' => 'nullable|string|max:255',
-            'email' => 'required|email|unique:directory_team,email',
-            'bio' => 'nullable|string',
-            'description' => 'nullable|string',
-            'message' => 'nullable|string',
-            'group_1' => 'nullable|string|max:100',
-            'program' => 'nullable|string|max:128',
-            'team' => 'nullable|string|max:128',
-            'department' => 'nullable|string|max:128',
-            'tmp_folder' => 'nullable|string',
-            'tmp_filename' => 'nullable|string',
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'title' => 'nullable|string|max:500',
+                'degree' => 'nullable|string|max:255',
+                'email' => 'required|email|unique:directory_team,email',
+                'bio' => 'nullable|string',
+                'description' => 'nullable|string',
+                'message' => 'nullable|string',
+                'group_1' => 'nullable|string|max:100',
+                'program' => 'nullable|string|max:128',
+                'team' => 'nullable|string|max:128',
+                'department' => 'nullable|string|max:128',
+                'tmp_folder' => 'nullable|string',
+                'tmp_filename' => 'nullable|string',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()
+                ->back()
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Please check the form for errors.');
+        }
 
         if ($request->filled('tmp_folder')) {
             $tmpFilename = $request->input('tmp_folder');
@@ -154,6 +172,34 @@ class DirectoryController extends Controller
 
         $team = Team::create($validated);
 
-        return redirect()->route('directory.show', $team);
+        return redirect()
+            ->route('directory.show', $team)
+            ->with('success', 'Directory entry created successfully!');
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Team $team)
+    {
+        try {
+            // Delete associated image if it exists
+            if ($team->img) {
+                $imagePath = public_path('storage' . $team->img);
+                if (file_exists($imagePath)) {
+                    unlink($imagePath);
+                }
+            }
+
+            $team->delete();
+
+            return redirect()
+                ->route('directory.index')
+                ->with('success', 'Directory entry deleted successfully!');
+        } catch (\Exception $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Failed to delete directory entry. Please try again.');
+        }
     }
 }

@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import axios from 'axios';
 import {
   PencilIcon,
   PlayIcon,
@@ -28,6 +29,16 @@ const isLoading = ref({
   cancel: false,
   duplicate: false,
 });
+
+// Deliveries (scheduled sends) state
+const deliveries = ref({
+  data: [],
+  meta: { current_page: 1, last_page: 1, total: 0, per_page: 15 },
+  counts: {},
+});
+const deliveryFilters = ref({ status: '', search: '', page: 1, per_page: 15 });
+const isLoadingDeliveries = ref(false);
+const selected = ref(new Set());
 
 // Safe default to avoid accessing length of undefined
 const recentEventsSafe = computed(() => props.recentEvents ?? []);
@@ -143,6 +154,64 @@ function getEventIcon(eventType) {
   }
 }
 
+// --- Deliveries (scheduled sends) helpers ---
+async function fetchDeliveries() {
+  try {
+    isLoadingDeliveries.value = true;
+    selected.value.clear();
+    const params = {
+      status: deliveryFilters.value.status || undefined,
+      search: deliveryFilters.value.search || undefined,
+      page: deliveryFilters.value.page,
+      per_page: deliveryFilters.value.per_page,
+    };
+    const { data } = await axios.get(route('newsletter.campaigns.scheduled-sends', props.campaign.id), { params });
+    // Expecting { data: [], meta: {...}, counts: {...} }
+    deliveries.value = data;
+  } catch (e) {
+    // no-op; UI remains as-is
+  } finally {
+    isLoadingDeliveries.value = false;
+  }
+}
+
+function toggleSelectAll(ev) {
+  const checked = ev.target.checked;
+  selected.value.clear();
+  if (checked) {
+    deliveries.value.data.forEach(item => selected.value.add(item.id));
+  }
+}
+
+function toggleOne(id, ev) {
+  if (ev.target.checked) selected.value.add(id); else selected.value.delete(id);
+}
+
+async function retrySelected(autoResume = true) {
+  if (selected.value.size === 0) return;
+  try {
+    await axios.post(route('newsletter.campaigns.retry-scheduled-sends', props.campaign.id), {
+      ids: Array.from(selected.value),
+      auto_resume: !!autoResume,
+    });
+    await fetchDeliveries();
+    reloadCampaign();
+  } catch (e) {
+    alert('Retry failed: ' + (e.response?.data?.message || e.message));
+  }
+}
+
+async function processPending(autoResume = true) {
+  try {
+    await axios.post(route('newsletter.campaigns.process-pending', props.campaign.id), {
+      auto_resume: !!autoResume,
+    });
+    setTimeout(() => { fetchDeliveries(); reloadCampaign(); }, 1200);
+  } catch (e) {
+    alert('Failed to start processing: ' + (e.response?.data?.message || e.message));
+  }
+}
+
 // --- Real-time polling for status/metrics while sending or paused ---
 let pollTimer = null;
 
@@ -157,6 +226,7 @@ function startPolling() {
   if (pollTimer) return;
   pollTimer = setInterval(() => {
     reloadCampaign();
+    fetchDeliveries();
   }, 4000);
 }
 
@@ -171,6 +241,7 @@ onMounted(() => {
   if (['sending', 'paused'].includes(props.campaign.status)) {
     startPolling();
   }
+  fetchDeliveries();
 });
 
 watch(() => props.campaign.status, (newStatus) => {
@@ -184,6 +255,12 @@ watch(() => props.campaign.status, (newStatus) => {
 onBeforeUnmount(() => {
   stopPolling();
 });
+
+watch(deliveryFilters, () => {
+  // Reset to first page when filters (except page) change
+  deliveryFilters.value.page = deliveryFilters.value.page || 1;
+  fetchDeliveries();
+}, { deep: true });
 </script>
 
 <template>
@@ -446,6 +523,121 @@ onBeforeUnmount(() => {
               </div>
               <div class="bg-white dark:bg-gray-800 p-6">
                 <div v-html="campaign.html_content" class="prose dark:prose-invert max-w-none"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deliveries (Scheduled Sends) -->
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+          <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Deliveries</h3>
+            <div class="flex items-center gap-2">
+              <button
+                @click="processPending(true)"
+                class="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                title="Process pending sends (auto-resume if needed)"
+              >Process Pending</button>
+              <button
+                :disabled="selected.size === 0"
+                @click="retrySelected(true)"
+                class="px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Retry selected (auto-resume if paused)"
+              >Retry Selected</button>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="flex flex-col md:flex-row gap-3 md:items-end">
+              <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-600 dark:text-gray-300">Status</label>
+                <select v-model="deliveryFilters.status" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 rounded-md">
+                  <option value="">All</option>
+                  <option value="pending">Pending</option>
+                  <option value="processing">Processing</option>
+                  <option value="sent">Sent</option>
+                  <option value="failed">Failed</option>
+                  <option value="skipped">Skipped</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div class="flex-1">
+                <input v-model="deliveryFilters.search" type="text" placeholder="Search email..." class="w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 rounded-md" />
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-600 dark:text-gray-300">Per page</label>
+                <select v-model.number="deliveryFilters.per_page" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 rounded-md">
+                  <option :value="10">10</option>
+                  <option :value="15">15</option>
+                  <option :value="25">25</option>
+                  <option :value="50">50</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              <span class="mr-3" v-for="(count, s) in deliveries.counts" :key="s">{{ s }}: <strong>{{ count }}</strong></span>
+            </div>
+
+            <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
+              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    <th class="px-4 py-2">
+                      <input type="checkbox" @change="toggleSelectAll" :checked="selected.size>0 && selected.size===deliveries.data.length" />
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Error</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Scheduled</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sent</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tr v-if="isLoadingDeliveries">
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">Loading...</td>
+                  </tr>
+                  <tr v-else-if="deliveries.data.length === 0">
+                    <td colspan="6" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No results</td>
+                  </tr>
+                  <tr v-for="row in deliveries.data" :key="row.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-4 py-2">
+                      <input type="checkbox" :checked="selected.has(row.id)" @change="(e)=>toggleOne(row.id,e)" />
+                    </td>
+                    <td class="px-6 py-3 text-sm text-gray-900 dark:text-gray-100">{{ row.subscriber?.email || '-' }}</td>
+                    <td class="px-6 py-3 text-sm">
+                      <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                        :class="{
+                          'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200': row.status==='pending',
+                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200': row.status==='processing',
+                          'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': row.status==='sent',
+                          'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': row.status==='failed' || row.status==='cancelled',
+                          'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200': row.status==='skipped',
+                        }"
+                      >{{ row.status }}</span>
+                    </td>
+                    <td class="px-6 py-3 text-xs text-red-600 max-w-xs truncate" :title="row.error_message || ''">{{ row.error_message || '' }}</td>
+                    <td class="px-6 py-3 text-sm text-gray-500">{{ row.scheduled_at ? new Date(row.scheduled_at).toLocaleString() : '-' }}</td>
+                    <td class="px-6 py-3 text-sm text-gray-500">{{ row.sent_at ? new Date(row.sent_at).toLocaleString() : '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+              <div>
+                Showing page {{ deliveries.meta.current_page }} of {{ deliveries.meta.last_page }} ({{ deliveries.meta.total }} total)
+              </div>
+              <div class="flex gap-2">
+                <button
+                  class="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="deliveries.meta.current_page <= 1"
+                  @click="deliveryFilters.page = deliveries.meta.current_page - 1"
+                >Prev</button>
+                <button
+                  class="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="deliveries.meta.current_page >= deliveries.meta.last_page"
+                  @click="deliveryFilters.page = deliveries.meta.current_page + 1"
+                >Next</button>
               </div>
             </div>
           </div>

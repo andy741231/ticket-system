@@ -11,7 +11,7 @@
         body {
             margin: 0;
             padding: 20px;
-            font-family: 'Source Sans 3', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Source Sans 3', Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
             background-color: #f4f4f4;
         }

@@ -50,7 +50,7 @@ class TicketCommentController extends Controller
 
         return redirect()
             ->route('tickets.show', $ticket)
-            ->with('status', 'Comment added successfully!');
+            ->with('success', 'Comment added successfully!');
     }
 
     /**
@@ -95,7 +95,7 @@ class TicketCommentController extends Controller
 
         return redirect()
             ->route('tickets.show', $ticket)
-            ->with('status', 'Comment updated successfully!');
+            ->with('success', 'Comment updated successfully!');
     }
 
     public function destroy(Ticket $ticket, TicketComment $comment)
@@ -122,7 +122,7 @@ class TicketCommentController extends Controller
 
         return redirect()
             ->route('tickets.show', $ticket)
-            ->with('status', 'Comment deleted successfully!');
+            ->with('success', 'Comment deleted successfully!');
     }
 
     public function reactions(Request $request, Ticket $ticket, TicketComment $comment)
@@ -159,7 +159,7 @@ class TicketCommentController extends Controller
 
         return redirect()
             ->route('tickets.show', $ticket)
-            ->with('status', 'Reaction updated!');
+            ->with('info', 'Reaction updated!');
     }
 
     /**
@@ -184,6 +184,6 @@ class TicketCommentController extends Controller
 
         return redirect()
             ->route('tickets.show', $ticket)
-            ->with('status', $comment->pinned ? 'Comment pinned!' : 'Comment unpinned!');
+            ->with('info', $comment->pinned ? 'Comment pinned!' : 'Comment unpinned!');
     }
 }

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Source Sans 3', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f9fafb; }
+        body { font-family: 'Source Sans 3', Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f9fafb; }
         .container { max-width: 640px; margin: 0 auto; padding: 24px; }
         .card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 24px; margin-top: 32px; }
         .title { font-size: 1.5rem; font-weight: 700; margin: 0 0 8px; }

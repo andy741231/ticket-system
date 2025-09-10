@@ -34,6 +34,7 @@ class Campaign extends Model
         'failed_count',
         'template_id',
         'created_by',
+        'time_capsule',
     ];
 
     protected $casts = [
@@ -44,6 +45,7 @@ class Campaign extends Model
         'target_groups' => 'array',
         'send_to_all' => 'boolean',
         'enable_tracking' => 'boolean',
+        'time_capsule' => 'boolean',
         'total_recipients' => 'integer',
         'sent_count' => 'integer',
         'failed_count' => 'integer',

@@ -39,7 +39,27 @@ watch(builderHtml, (val) => {
 });
 
 function submit() {
-  form.put(route('newsletter.templates.update', props.template.id));
+  const transformedData = {
+    ...form.data(),
+    // Send as integers to satisfy Laravel boolean validation unequivocally
+    is_default: form.is_default ? 1 : 0,
+    make_default: form.is_default ? 1 : 0 // Also send as make_default for backward compatibility
+  };
+  
+  form
+    .transform(() => transformedData)
+    .put(route('newsletter.templates.update', props.template.id), {
+      onSuccess: () => {
+        // Success handled by global toast via Inertia flash, if set on backend
+      },
+      onError: (errors) => {
+        console.error('Error updating template:', errors);
+        // Errors can be displayed via form errors; global toast will handle flash
+      },
+      onFinish: () => {
+        form.transform((d) => d);
+      },
+    });
 }
 
 function deleteTemplate() {
@@ -94,9 +114,20 @@ function toggleHtmlView() {
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Default Template</label>
                 <div class="mt-2 flex items-center">
-                  <input id="is_default" type="checkbox" v-model="form.is_default" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
-                  <label for="is_default" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Set as default</label>
+                  <input 
+                    id="is_default" 
+                    type="checkbox" 
+                    v-model="form.is_default" 
+                    class="h-4 w-4 text-uh-red border-gray-300 rounded focus:ring-uh-red" 
+                  />
+                  <label for="is_default" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                    Set as default template for new campaigns
+                  </label>
                 </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  When checked, this template will be used as the starting point for new campaigns instead of the basic layout.
+                </p>
+                <div v-if="form.errors.is_default" class="text-sm text-red-600 mt-1">{{ form.errors.is_default }}</div>
               </div>
 
               <div class="md:col-span-2">

@@ -19,7 +19,10 @@ class TemplateController extends Controller
             ->latest()
             ->paginate(20);
 
-        if ($request->wantsJson()) {
+        // Only return JSON for explicit API requests; Inertia navigations must
+        // receive an Inertia response even though they include JSON Accept headers.
+        $isInertia = (bool) $request->header('X-Inertia');
+        if (!$isInertia && $request->acceptsJson()) {
             return response()->json($templates);
         }
 
@@ -78,10 +81,6 @@ class TemplateController extends Controller
             $template->makeDefault();
         }
 
-        if ($request->wantsJson()) {
-            return response()->json(['data' => $template], 201);
-        }
-
         return redirect()
             ->route('newsletter.templates.edit', $template->id)
             ->with('success', 'Template created successfully.');
@@ -118,6 +117,7 @@ class TemplateController extends Controller
      */
     public function update(Request $request, Template $template)
     {
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -125,7 +125,10 @@ class TemplateController extends Controller
             'html_content' => ['sometimes', 'string'],
             'thumbnail' => ['nullable', 'string'],
             'is_default' => ['sometimes', 'boolean'],
+            'make_default' => ['sometimes', 'boolean'],
         ]);
+
+        file_put_contents('/tmp/debug.log', "After validation: " . json_encode($validated) . "\n", FILE_APPEND);
 
         if (array_key_exists('content', $validated) && is_string($validated['content'])) {
             $decoded = json_decode($validated['content'], true);
@@ -134,15 +137,21 @@ class TemplateController extends Controller
             }
         }
 
+        // Explicitly coerce checkbox boolean when present, covering cases where
+        // the client submits FormData and booleans arrive as "true"/"false" strings
+        if ($request->has('is_default')) {
+            $validated['is_default'] = $request->boolean('is_default');
+        }
+        // If caller explicitly asked to make default, persist the flag too
+        if ($request->boolean('make_default')) {
+            $validated['is_default'] = true;
+        }
+
         $template->fill($validated);
         $template->save();
 
         if ($request->boolean('make_default') || ($validated['is_default'] ?? false)) {
             $template->makeDefault();
-        }
-
-        if ($request->wantsJson()) {
-            return response()->json(['data' => $template]);
         }
 
         return redirect()->route('newsletter.templates.edit', $template->id)
@@ -156,10 +165,6 @@ class TemplateController extends Controller
     {
         $template->delete();
 
-        if ($request->wantsJson()) {
-            return response()->json(['status' => 'deleted']);
-        }
-
-        return redirect()->back()->with('success', 'Template deleted successfully.');
+        return redirect()->route('newsletter.templates.index')->with('success', 'Template deleted successfully.');
     }
 }

@@ -6,6 +6,8 @@ import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
+import { toast } from 'vue3-toastify';
+import 'vue3-toastify/dist/index.css';
 
 // Font Awesome
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -22,14 +24,15 @@ import {
     faAddressBook,
     faChevronDown,
     faNewspaper,
-    faChartBar
+    faChartBar,
+    faArchive
 } from '@fortawesome/free-solid-svg-icons';
 
 // RBAC composable
 import { useHasAny } from '@/Extensions/useAuthz';
 
 // Add icons to the library
-library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper, faChartBar);
+library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper, faChartBar, faArchive);
 
 // Permission helpers (team-aware)
 const isSuperAdmin = computed(() => usePage().props.auth?.user?.isSuperAdmin === true);
@@ -63,11 +66,8 @@ const toggleDarkMode = () => {
     
 };
 
-// ----- Global Flash Messages -----
+// ----- Global Flash Messages (Toastify) -----
 const page = usePage();
-const showFlash = ref(false);
-const flashMessage = ref('');
-const flashStyle = ref('success'); // success | error | info | warning
 
 const extractFlash = (flash) => {
     if (!flash) return null;
@@ -81,26 +81,21 @@ const extractFlash = (flash) => {
     return null;
 };
 
+// Trigger toast when flash props change
 watch(
     () => page.props.flash,
     (val) => {
         const f = extractFlash(val);
-        if (f) {
-            flashMessage.value = f.text;
-            flashStyle.value = f.style;
-            showFlash.value = true;
-            // Auto-dismiss after 4s
-            setTimeout(() => {
-                showFlash.value = false;
-            }, 4000);
-        }
+        if (!f || !f.text) return;
+        const theme = darkMode.value ? 'dark' : 'light';
+        const opts = { autoClose: 4000, theme };
+        if (f.style === 'success') return toast.success(f.text, opts);
+        if (f.style === 'error') return toast.error(f.text, opts);
+        if (f.style === 'warning') return toast.warn(f.text, opts);
+        return toast.info(f.text, opts);
     },
     { immediate: true }
 );
-
-const closeFlash = () => {
-    showFlash.value = false;
-};
 
 // Update dark mode class on HTML element based on saved preference
 const updateDarkMode = () => {
@@ -557,6 +552,30 @@ const navigate = (url) => {
                                 />
                                 <span class="ml-3 font-medium">Analytics</span>
                             </NavLink>
+
+                            <NavLink 
+                                v-if="isSuperAdmin || hasAny(['newsletter.manage'])"
+                                :href="route('newsletter.campaigns.timecapsule')" 
+                                :active="route().current('newsletter.campaigns.timecapsule')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('newsletter.campaigns.timecapsule')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('newsletter.campaigns.timecapsule'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'archive']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('newsletter.campaigns.timecapsule')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Time Capsule</span>
+                            </NavLink>
                         </div>
 
                         <!-- User Management Section -->
@@ -823,25 +842,6 @@ const navigate = (url) => {
 
             <!-- Main content area -->
             <main class="flex-1 overflow-y-auto bg-transparent p-4 md:p-6">
-                <!-- Global Flash Message -->
-                
-                <div v-if="showFlash" class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="mb-4 rounded-md border p-3"
-                     :class="[
-                        flashStyle === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
-                        flashStyle === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
-                        flashStyle === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
-                        'bg-blue-50 border-blue-200 text-blue-800'
-                     ]"
-                     :role="flashStyle === 'error' ? 'alert' : 'status'"
-                     aria-live="polite"
-                >
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="text-sm font-medium">{{ flashMessage }}</div>
-                        <button @click="closeFlash" class="text-xs text-gray-600 hover:text-gray-800 dark:text-gray-900 dark:hover:text-white">Dismiss</button>
-                    </div>
-                </div>
-                </div>
                 <!-- Page Heading -->
                 <header class="mb-6" v-if="$slots.header">
                     <div class="px-4 sm:px-0">

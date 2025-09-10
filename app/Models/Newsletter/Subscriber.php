@@ -19,6 +19,7 @@ class Subscriber extends Model
         'name',
         'first_name',
         'last_name',
+        'organization',
         'status',
         'subscribed_at',
         'unsubscribed_at',
@@ -145,17 +146,11 @@ class Subscriber extends Model
 
     public function getOrganizationAttribute(): ?string
     {
-        return $this->metadata['organization'] ?? null;
+        return $this->attributes['organization'] ?? null;
     }
 
     public function setOrganizationAttribute(?string $value): void
     {
-        $metadata = $this->metadata ?? [];
-        if ($value) {
-            $metadata['organization'] = $value;
-        } else {
-            unset($metadata['organization']);
-        }
-        $this->metadata = $metadata;
+        $this->attributes['organization'] = $value;
     }
 }

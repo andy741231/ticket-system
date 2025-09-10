@@ -68,6 +68,9 @@ class ProcessScheduledSends implements ShouldQueue
         ScheduledSend::with(['campaign', 'subscriber'])
             ->where('status', ScheduledSend::STATUS_PENDING)
             ->where('scheduled_at', '<=', $now)
+            ->whereHas('campaign', function($q) {
+                $q->where('status', 'sending');
+            })
             ->orderBy('scheduled_at')
             ->limit($this->limit)
             ->chunk(50, function ($scheduledSends) use (&$processed, $now) {
@@ -90,18 +93,17 @@ class ProcessScheduledSends implements ShouldQueue
             Log::info("Processed {$processed} scheduled sends");
         } else {
             Log::info("No scheduled sends found to process");
-            // Check if there are any campaigns stuck in 'sending' state with no pending scheduled sends
+            // Check if there are any campaigns stuck in 'sending' state with no pending or processing scheduled sends
             $stuckCampaigns = \App\Models\Newsletter\Campaign::where('status', 'sending')
                 ->whereDoesntHave('scheduledSends', function($query) {
-                    $query->where('status', 'pending')
-                          ->orWhere('status', 'processing');
+                    $query->whereIn('status', ['pending', 'processing']);
                 })
                 ->get();
                 
             foreach ($stuckCampaigns as $campaign) {
                 // Check if there are any completed sends
                 $hasSentSends = $campaign->scheduledSends()
-                    ->whereIn('status', ['sent', 'failed'])
+                    ->whereIn('status', ['sent', 'failed', 'skipped'])
                     ->exists();
                     
                 if ($hasSentSends) {
@@ -125,20 +127,19 @@ class ProcessScheduledSends implements ShouldQueue
             }
         }
 
-        // Check if there are no more pending sends for this campaign
-        $pendingSends = ScheduledSend::where('status', ScheduledSend::STATUS_PENDING)
-            ->whereHas('campaign', function($query) use ($now) {
-                $query->where('status', 'sending');
-            })
+        // Determine if more pending sends remain; if so, re-dispatch this job to continue processing
+        $hasMorePending = ScheduledSend::where('status', ScheduledSend::STATUS_PENDING)
             ->where('scheduled_at', '<=', $now)
             ->exists();
 
-        // If no more pending sends, update campaign status to sent
-        if (!$pendingSends) {
+        if ($hasMorePending) {
+            Log::info('Pending scheduled sends remain, re-dispatching ProcessScheduledSends job');
+            self::dispatch()->onQueue($this->queue ?? 'default')->delay(now()->addSeconds(2));
+        } else {
+            // No pending sends left; mark any campaigns with no pending or processing sends as sent
             $campaignsToUpdate = \App\Models\Newsletter\Campaign::where('status', 'sending')
                 ->whereDoesntHave('scheduledSends', function($query) {
-                    $query->where('status', '!=', 'sent')
-                          ->where('status', '!=', 'failed');
+                    $query->whereIn('status', ['pending', 'processing']);
                 })
                 ->get();
 
@@ -178,9 +179,6 @@ class ProcessScheduledSends implements ShouldQueue
             if ($campaign->isRecurring()) {
                 $campaign = $this->createRecurringCampaignInstance($campaign, $scheduledSend->scheduled_at);
             }
-
-            // Mark as processing first
-            $scheduledSend->markAsProcessing();
             
             // Get a fresh instance to ensure we have the latest data
             $scheduledSend = $scheduledSend->fresh();

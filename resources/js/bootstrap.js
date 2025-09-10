@@ -10,8 +10,17 @@ window.axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
 
 // Add a request interceptor to include the CSRF token
 window.axios.interceptors.request.use(config => {
-    // Only add the token for relative URLs (our API)
-    if (!config.url.startsWith('http')) {
+    // Add the token for our own-origin requests (relative URLs or absolute same-origin URLs)
+    let isSameOrigin = false;
+    try {
+        const reqUrl = new URL(config.url, window.location.origin);
+        isSameOrigin = reqUrl.origin === window.location.origin;
+    } catch (e) {
+        // If URL constructor fails, treat as relative URL
+        isSameOrigin = true;
+    }
+
+    if (isSameOrigin) {
         // Get the CSRF token from the meta tag
         const token = document.head.querySelector('meta[name="csrf-token"]');
         

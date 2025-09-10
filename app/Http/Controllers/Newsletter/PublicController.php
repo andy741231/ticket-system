@@ -259,6 +259,7 @@ class PublicController extends Controller
     public function archive(Request $request)
     {
         $campaigns = Campaign::sent()
+            ->where('time_capsule', false) // Exclude time capsule campaigns
             ->with('creator')
             ->orderBy('sent_at', 'desc')
             ->paginate(10);

@@ -8,6 +8,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import EmailEditor from '@/Components/WYSIWYG/EmailEditor.vue';
+import ColorPicker from '@/Components/Newsletter/ColorPicker.vue';
 import VueCropper from 'vue-cropperjs';
 import 'cropperjs/dist/cropper.css';
 import axios from 'axios';
@@ -62,7 +63,11 @@ library.add(
 
 const props = defineProps({
   modelValue: {
-    type: [String, Object],
+    type: [String, Object, Array],
+    default: '',
+  },
+  initialHtml: {
+    type: String,
     default: '',
   },
   templates: {
@@ -87,19 +92,32 @@ function safeParseJson(val) {
 }
 
 function applyStructure(struct) {
-  if (!struct || !Array.isArray(struct.blocks)) return false;
-  emailBlocks.value = struct.blocks.map((b) => {
+  if (!struct) return false;
+  // Support both { blocks: [...] } and legacy plain array of blocks
+  const blocksIn = Array.isArray(struct) ? struct : (Array.isArray(struct.blocks) ? struct.blocks : null);
+  if (!Array.isArray(blocksIn) || blocksIn.length === 0) return false;
+  isApplying.value = true;
+  emailBlocks.value = blocksIn.map((b) => {
     const id = b.id || generateBlockId();
     const type = b.type || 'text';
     const data = b.data || {};
     const content = b.content || getBlockHtml(type, data);
     return { id, type, data, content, editable: b.editable ?? true, locked: b.locked ?? (type === 'footer') };
   });
-  updateContent();
+  // Ensure only one footer and position it at the end
+  dedupeAndNormalizeFooter();
+  isApplying.value = false;
   return true;
 }
 
 const emit = defineEmits(['update:modelValue', 'update:html-content', 'toggle-html-view']);
+
+// Export the default structure function for external use
+defineExpose({
+  getDefaultEmailStructure
+});
+// Guard to prevent recursive update loops when applying external props
+const isApplying = ref(false);
 
 // UI State
 const editor = ref(null);
@@ -113,6 +131,7 @@ const previewMode = ref('desktop'); // 'desktop' | 'mobile'
 const activePanel = ref('blocks'); // 'blocks' | 'templates' | 'settings'
 const selectedBlockId = ref(null);
 const draggedBlock = ref(null);
+const dragOverIndex = ref(null);
 const editingBlock = ref(null);
 const showImageUpload = ref(false);
 const showButtonEditor = ref(false);
@@ -130,6 +149,7 @@ const textModalContent = ref('');
 // Text block additional settings (background, padding)
 const textBackground = ref('transparent');
 const textPadding = ref('15px 50px');
+const textColor = ref('#666666');
 // Per-text-block TipTap editors
 const blockEditors = ref({});
 // Header/Footer editor state
@@ -150,6 +170,7 @@ const currentEditingBlock = computed(() => emailBlocks.value.find(b => b.id === 
 const footerContent = ref('');
 const footerBackground = ref('');
 const footerCopyright = ref('');
+const footerTextColor = ref('#ffffff');
 const showTokensDropdown = ref(null);
 
 // Columns editor state
@@ -167,9 +188,54 @@ const emailBlocks = ref([
     locked: false,
   },
   {
+    id: 'content',
+    type: 'text',
+    data: {
+      content: '<p>Click to edit this text...</p>',
+      fontSize: '16px',
+      color: '#666666',
+      lineHeight: '1.6',
+      background: 'transparent',
+      padding: '15px 50px',
+      fullWidth: false
+    },
+    content: getBlockHtml('text', {
+      content: '<p>Click to edit this text...</p>',
+      fontSize: '16px',
+      color: '#666666',
+      lineHeight: '1.6',
+      background: 'transparent',
+      padding: '15px 50px',
+      fullWidth: false
+    }),
+    editable: true,
+    locked: false,
+  },
+  {
     id: 'footer',
     type: 'footer',
-    content: '<div style="background-color: #c8102e; color: #ffffff; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;"><div>Thanks for reading! Forward this to someone who might find it useful.</div><p style="margin: 5px 0; color: #fff; font-size: 14px;">Unsubscribe | Update preferences | View in browser</p><p style="margin: 5px 0; color: #fff; font-size: 14px;">&copy; 2025 UH Population Health. All rights reserved.</p></div>',
+    data: {
+      content: 'Thanks for reading! Forward this to someone who might find it useful.',
+      links: [
+        { text: 'Unsubscribe', url: '{{unsubscribe_url}}' },
+        { text: 'Update preferences', url: '{{preferences_url}}' },
+        { text: 'View in browser', url: '{{browser_url}}' }
+      ],
+      copyright: '2025 UH Population Health. All rights reserved.',
+      background: '#c8102e',
+      textColor: '#ffffff'
+    },
+    content: getBlockHtml('footer', {
+      content: 'Thanks for reading! Forward this to someone who might find it useful.',
+      links: [
+        { text: 'Unsubscribe', url: '{{unsubscribe_url}}' },
+        { text: 'Update preferences', url: '{{preferences_url}}' },
+        { text: 'View in browser', url: '{{browser_url}}' }
+      ],
+      copyright: '2025 UH Population Health. All rights reserved.',
+      background: '#c8102e',
+      textColor: '#ffffff'
+    }),
     editable: true,
     locked: true,
   },
@@ -203,7 +269,7 @@ const emailStructure = computed(() => {
     settings: {
       backgroundColor: '#f4f4f4',
       contentWidth: '600px',
-      fontFamily: "'Source Sans 3', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+      fontFamily: "'Source Sans 3', Roboto, Helvetica, Arial, sans-serif",
     },
   };
 });
@@ -258,6 +324,67 @@ const previewInnerHtml = computed(() => {
   return emailBlocks.value.map(block => block.content).join('');
 });
 
+// Export default email structure for use in other components
+function getDefaultEmailStructure() {
+  return {
+    blocks: [
+      {
+        id: 'header',
+        type: 'header',
+        data: {
+          title: 'Newsletter Title',
+          subtitle: 'Your weekly dose of updates',
+          background: '#c8102e',
+          textColor: '#ffffff',
+          padding: '30px 20px'
+        },
+        editable: true,
+        locked: false
+      },
+      {
+        id: 'content',
+        type: 'text',
+        data: {
+          content: '<p>Start writing your email content here...</p>',
+          fontSize: '16px',
+          color: '#666666',
+          lineHeight: '1.6',
+          background: 'transparent',
+          padding: '15px 50px',
+          fullWidth: false
+        },
+        editable: true,
+        locked: false
+      },
+      {
+        id: 'footer',
+        type: 'footer',
+        data: {
+          content: 'Thanks for reading! Forward this to someone who might find it useful.',
+          links: [
+            { text: 'Unsubscribe', url: '{{unsubscribe_url}}' },
+            { text: 'Update preferences', url: '{{preferences_url}}' },
+            { text: 'View in browser', url: '{{browser_url}}' }
+          ],
+          copyright: '2025 UH Population Health. All rights reserved.',
+          background: '#c8102e',
+          textColor: '#ffffff'
+        },
+        editable: true,
+        locked: true
+      }
+    ],
+    settings: {
+      width: '600px',
+      backgroundColor: '#ffffff',
+      contentBackgroundColor: '#ffffff',
+      textColor: '#1f2937',
+      fontFamily: 'Arial, sans-serif',
+      linkColor: '#3b82f6'
+    }
+  };
+}
+
 // Block Management Functions
 function generateBlockId() {
   return 'block-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
@@ -265,10 +392,18 @@ function generateBlockId() {
 
 function addBlock(blockType, insertIndex = null) {
   const newBlock = createBlock(blockType);
-  if (insertIndex !== null) {
+  if (blockType === 'footer') {
+    // Ensure only one footer exists: remove existing footers, then append the new one at the end
+    for (let i = emailBlocks.value.length - 1; i >= 0; i--) {
+      if (emailBlocks.value[i].type === 'footer') {
+        emailBlocks.value.splice(i, 1);
+      }
+    }
+    emailBlocks.value.push(newBlock);
+  } else if (insertIndex !== null) {
     emailBlocks.value.splice(insertIndex, 0, newBlock);
   } else {
-    // Insert before footer if it exists
+    // Insert before footer if it exists (for non-footer blocks)
     const footerIndex = emailBlocks.value.findIndex(b => b.type === 'footer');
     if (footerIndex > -1) {
       emailBlocks.value.splice(footerIndex, 0, newBlock);
@@ -294,6 +429,27 @@ function removeBlock(blockId) {
   }
 }
 
+// Ensure a single footer exists, prefer the last one, and move it to the end
+function dedupeAndNormalizeFooter() {
+  const footerIndexes = emailBlocks.value
+    .map((b, idx) => ({ type: b.type, idx }))
+    .filter(x => x.type === 'footer')
+    .map(x => x.idx);
+  if (footerIndexes.length <= 1) return; // nothing to do
+
+  // Keep the last footer; remove earlier ones
+  const lastIdx = footerIndexes[footerIndexes.length - 1];
+  for (let i = footerIndexes.length - 2; i >= 0; i--) {
+    emailBlocks.value.splice(footerIndexes[i], 1);
+  }
+  // After removals, re-find the last footer and move it to the end if needed
+  const currentFooterIdx = emailBlocks.value.findIndex(b => b.type === 'footer');
+  if (currentFooterIdx > -1 && currentFooterIdx !== emailBlocks.value.length - 1) {
+    const [footer] = emailBlocks.value.splice(currentFooterIdx, 1);
+    emailBlocks.value.push(footer);
+  }
+}
+
 function moveBlock(blockId, direction) {
   const index = emailBlocks.value.findIndex(b => b.id === blockId);
   if (index === -1) return;
@@ -315,6 +471,7 @@ function updateBlockContent(blockId, content) {
 }
 
 function updateContent() {
+  if (isApplying.value) return;
   const structure = JSON.stringify(emailStructure.value);
   emit('update:modelValue', structure);
   emit('update:html-content', finalHtmlContent.value);
@@ -326,17 +483,49 @@ function onDragStart(event, blockType) {
   event.dataTransfer.effectAllowed = 'copy';
 }
 
-function onDragOver(event) {
-  event.preventDefault();
-  event.dataTransfer.dropEffect = 'copy';
+function onDragEnd() {
+  // Clear any visual placeholder and dragged state
+  dragOverIndex.value = null;
+  draggedBlock.value = null;
 }
 
-function onDrop(event, insertIndex) {
+function onDragOver(event, insertIndex = null) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+  if (draggedBlock.value && insertIndex !== null) {
+    dragOverIndex.value = insertIndex;
+  }
+}
+
+function onDragEnter(insertIndex) {
+  if (draggedBlock.value) {
+    dragOverIndex.value = insertIndex;
+  }
+}
+
+function onDragLeave(insertIndex) {
+  // Only clear if we're leaving the currently highlighted zone
+  if (dragOverIndex.value === insertIndex) {
+    dragOverIndex.value = null;
+  }
+}
+
+function onDrop(event, insertIndex = null) {
   event.preventDefault();
   if (draggedBlock.value) {
-    addBlock(draggedBlock.value, insertIndex);
+    const targetIndex = insertIndex !== null ? insertIndex : (dragOverIndex.value ?? emailBlocks.value.length);
+    addBlock(draggedBlock.value, targetIndex);
     draggedBlock.value = null;
+    dragOverIndex.value = null;
   }
+}
+
+function onDropAt(event, insertIndex) {
+  onDrop(event, insertIndex);
+}
+
+function clearDragOver() {
+  dragOverIndex.value = null;
 }
 
 // Template Functions
@@ -371,12 +560,16 @@ function loadTemplate(template) {
             locked: block.locked || false
           };
         });
+        // Normalize duplicate footers and move footer to the end
+        dedupeAndNormalizeFooter();
       } else {
         console.log('No blocks structure found, parsing HTML content');
         // Parse HTML content and try to split into meaningful blocks
         const htmlContent = template.html_content || parsed || template.content;
         console.log('HTML content to parse:', htmlContent);
         emailBlocks.value = parseHtmlIntoBlocks(htmlContent);
+        // Normalize duplicate footers and move footer to the end
+        dedupeAndNormalizeFooter();
       }
     } catch (e) {
       console.log('JSON parse failed:', e);
@@ -384,6 +577,8 @@ function loadTemplate(template) {
       const htmlContent = template.html_content || template.content;
       console.log('Fallback HTML content:', htmlContent);
       emailBlocks.value = parseHtmlIntoBlocks(htmlContent);
+      // Normalize duplicate footers and move footer to the end
+      dedupeAndNormalizeFooter();
     }
   }
   
@@ -455,6 +650,7 @@ function parseHtmlIntoBlocks(htmlContent) {
   }
 
   console.log('Candidate elements count:', candidates.length, 'root tag:', tag);
+  console.log('Candidates:', candidates.map(c => ({ tag: c.tagName, class: c.className, id: c.id })));
 
   if (candidates.length === 0) {
     // As a fallback, treat full HTML as a single text block
@@ -485,6 +681,42 @@ function parseHtmlIntoBlocks(htmlContent) {
     if (deepChildren.length > 1) {
       console.log('Performed secondary unwrap. New candidate count:', deepChildren.length);
       candidates = deepChildren;
+    }
+  }
+
+  // Special handling for newsletter containers - look for direct children that are content blocks
+  if (candidates.length <= 8 && candidates.length > 0) {
+    console.log('Checking for newsletter container in candidates...');
+    
+    // Check each candidate for newsletter container
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      console.log(`Candidate ${i}:`, {
+        tag: candidate.tagName,
+        class: candidate.className,
+        hasNewsletterClass: candidate.classList?.contains('newsletter-container'),
+        childrenCount: candidate.children?.length || 0
+      });
+      
+      if (candidate.classList?.contains('newsletter-container')) {
+        console.log('Found newsletter container directly, children count:', candidate.children.length);
+        if (candidate.children.length > 1) {
+          candidates = Array.from(candidate.children);
+          console.log('Updated candidates to newsletter container children:', candidates.length);
+          break;
+        }
+      }
+      
+      // Also check if this candidate contains a newsletter container
+      const nestedContainer = candidate.querySelector('.newsletter-container');
+      if (nestedContainer) {
+        console.log('Found nested newsletter container, children count:', nestedContainer.children.length);
+        if (nestedContainer.children.length > 1) {
+          candidates = Array.from(nestedContainer.children);
+          console.log('Updated candidates to nested newsletter container children:', candidates.length);
+          break;
+        }
+      }
     }
   }
 
@@ -692,50 +924,42 @@ function getBlockHtml(type, data) {
 
   switch (type) {
     case 'header':
+      data = data || {};
       const logoHtml = data.logo ? `<img src="${data.logo}" alt="Logo" style="max-width: ${data.logoSize || '150px'}; height: auto; margin: ${data.logoMargin || '0 0 20px 0'}; padding: ${data.logoPadding || '10px'}; display: block; margin-left: ${data.logoAlignment === 'left' ? '0' : data.logoAlignment === 'right' ? 'auto' : 'auto'}; margin-right: ${data.logoAlignment === 'left' ? 'auto' : data.logoAlignment === 'right' ? '0' : 'auto'};" />` : '';
-      return `
-        <div style="background: ${data.background}; color: ${data.textColor}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0;">
-          ${logoHtml}
-          <h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title}</h1>
-          <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle}</p>
-        </div>`;
+      return `<div style="background: ${data.background || '#c8102e'}; color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0;">${logoHtml}<h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title || 'Newsletter Title'}</h1><p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle || 'Your weekly dose of updates'}</p></div>`;
     case 'text':
-      return `<div style="margin: 0; padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize}; line-height: ${data.lineHeight}; color: ${data.color};">${data.content}</div>`;
+      data = data || {};
+      return `<div style="margin: 0; padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'};">${data.content || '<p>Click to edit this text...</p>'}</div>`;
     case 'heading':
-      return `<div style="padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'};"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize}; font-weight: ${data.fontWeight}; color: ${data.color};">${data.content}</h${data.level || 2}></div>`;
+      data = data || {};
+      return `<div style="padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'};"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${data.content || 'Your Heading Here'}</h${data.level || 2}></div>`;
     case 'image':
+      data = data || {};
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
       return data.src ?
-        `<div style="padding: ${getPadding(data)};">
-          <img src="${data.src}" alt="${data.alt}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" />
-        </div>` :
-        `<div style="padding: ${getPadding(data)};">
-          <div style="width: 100%; height: ${data.height}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">
-            Image Placeholder (Click to upload)
-          </div>
-        </div>`;
+        `<div style="padding: ${getPadding(data)};"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
+        `<div style="padding: ${getPadding(data)};"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
     case 'button':
       return `<div style="text-align: center; margin: 20px 0;"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${data.background}; color: ${data.color}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
     case 'columns':
+      data = data || {};
       const count = data.count || (data.columns ? data.columns.length : 2);
       const gap = data.gap || '20px';
       const widthCalc = `calc(${(100 / (count || 1)).toFixed(3)}% - ${gap})`;
-      const columnsHtml = (data.columns || []).map(col => 
-        `<div style="width: ${widthCalc}; display: inline-block; vertical-align: top; margin: 0 calc(${gap} / 2);">${col.content}</div>`
+      const cols = Array.isArray(data.columns) ? data.columns : [];
+      const columnsHtml = cols.map(col => 
+        `<div style="width: ${widthCalc}; display: inline-block; vertical-align: top; margin: 0 calc(${gap} / 2);">${(col && col.content) || ''}</div>`
       ).join('');
       return `<div style="padding: ${getPadding(data)}; text-align: left;">${columnsHtml}</div>`;
     case 'divider':
-      return `<hr style="border: none; border-top: 1px ${data.style} ${data.color}; margin: ${data.margin};" />`;
+      data = data || {};
+      return `<hr style="border: none; border-top: 1px ${data.style || 'solid'} ${data.color || '#e5e7eb'}; margin: ${data.margin || '20px 0'};" />`;
     case 'footer':
-      const footerLinks = data.links.map(link => 
-        `<a href="${link.url}" style="color: ${data.textColor || '#ffffff'}; text-decoration: none;">${link.text}</a>`
+      const linksArr = Array.isArray(data.links) ? data.links : [];
+      const footerLinks = linksArr.map(link => 
+        `<a href="${(link && link.url) || '#'}" style="color: ${(data && data.textColor) || '#ffffff'}; text-decoration: none;">${(link && link.text) || ''}</a>`
       ).join(' | ');
-      return `
-        <div style="background-color: ${data.background}; color: ${data.textColor}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;">
-          <div>${data.content}</div>
-          <p style="margin: 5px 0; color: ${data.textColor || '#ffffff'}; font-size: 14px;">${footerLinks}</p>
-          <p style="margin: 5px 0; color: ${data.textColor || '#ffffff'}; font-size: 14px;">&copy; ${data.copyright}</p>
-        </div>`;
+      return `<div style="background-color: ${(data && data.background) || '#c8102e'}; color: ${(data && data.textColor) || '#ffffff'}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;"><div>${(data && data.content) || ''}</div><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">${footerLinks}</p><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">&copy; ${(data && data.copyright) || ''}</p></div>`;
     case 'spacer':
       return `<div style="height: ${data.height};"></div>`;
     default:
@@ -781,12 +1005,14 @@ function editBlock(blockId) {
       // Use EmailEditor in a modal for text blocks, with background and padding settings
       textModalContent.value = block.data?.content || block.content || '';
       textBackground.value = block.data?.background || 'transparent';
+      textColor.value = block.data?.color || '#666666';
       // Remove textFullWidth since we're removing the option
       showTextEditor.value = true;
     } else if (block.type === 'heading') {
       // Use EmailEditor in a modal for heading blocks
       textModalContent.value = block.data?.content || block.content || '';
       textBackground.value = block.data?.background || 'transparent';
+      textColor.value = block.data?.color || '#333333';
       showTextEditor.value = true;
     } else if (block.type === 'header') {
       headerTitle.value = block.data?.title || 'Newsletter Title';
@@ -803,6 +1029,7 @@ function editBlock(blockId) {
       footerContent.value = block.data?.content || 'Thanks for reading! Forward this to someone who might find it useful.';
       footerBackground.value = block.data?.background || '#c8102e';
       footerCopyright.value = block.data?.copyright || '2025 Your Company Name. All rights reserved.';
+      footerTextColor.value = block.data?.textColor || '#ffffff';
       showFooterEditor.value = true;
     }
   }
@@ -1094,12 +1321,14 @@ function saveTextChanges() {
     updateBlockData(editingBlock.value, {
       content: textModalContent.value,
       background: textBackground.value,
+      color: textColor.value,
       padding: '15px 50px',
     });
   } else if (blk && blk.type === 'heading') {
     updateBlockData(editingBlock.value, {
       content: textModalContent.value,
       background: textBackground.value,
+      color: textColor.value,
     });
   } else {
     updateBlockData(editingBlock.value, { content: textModalContent.value });
@@ -1201,10 +1430,41 @@ onBeforeUnmount(() => {
 // Emit initial content so parent has html on first render
 onMounted(() => {
   const parsed = safeParseJson(props.modelValue);
-  if (!applyStructure(parsed)) {
-    // No valid incoming structure; emit defaults
-    updateContent();
+  if (applyStructure(parsed)) {
+    return;
   }
+  // Prefer initialHtml if provided
+  if (typeof props.initialHtml === 'string' && props.initialHtml.trim() !== '') {
+    try {
+      const blocks = parseHtmlIntoBlocks(props.initialHtml);
+      if (Array.isArray(blocks) && blocks.length) {
+        isApplying.value = true;
+        emailBlocks.value = blocks;
+        dedupeAndNormalizeFooter();
+        isApplying.value = false;
+        return;
+      }
+    } catch (e) {
+      // ignore and fall through
+    }
+  }
+  // Fallback: if modelValue is a non-empty string, try to treat it as HTML
+  if (typeof props.modelValue === 'string' && props.modelValue.trim() !== '') {
+    try {
+      const blocks = parseHtmlIntoBlocks(props.modelValue);
+      if (Array.isArray(blocks) && blocks.length) {
+        isApplying.value = true;
+        emailBlocks.value = blocks;
+        dedupeAndNormalizeFooter();
+        isApplying.value = false;
+        return;
+      }
+    } catch (e) {
+      // ignore and fall through to defaults
+    }
+  }
+  // No valid incoming structure; emit defaults
+  updateContent();
 });
 
 // Keep builder in sync if parent provides a different structure
@@ -1212,12 +1472,53 @@ watch(
   () => props.modelValue,
   (newVal) => {
     const parsed = safeParseJson(newVal);
-    if (!parsed) return;
-    // Compare with current to avoid loops
-    const currentJson = JSON.stringify(emailStructure.value);
-    const incomingJson = typeof newVal === 'string' ? newVal : JSON.stringify(parsed);
-    if (incomingJson && incomingJson !== currentJson) {
-      applyStructure(parsed);
+    if (applyStructure(parsed)) return;
+    if (typeof props.initialHtml === 'string' && props.initialHtml.trim() !== '') {
+      try {
+        const blocks = parseHtmlIntoBlocks(props.initialHtml);
+        if (Array.isArray(blocks) && blocks.length) {
+          isApplying.value = true;
+          emailBlocks.value = blocks;
+          dedupeAndNormalizeFooter();
+          isApplying.value = false;
+          return;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (typeof newVal === 'string' && newVal.trim() !== '') {
+      try {
+        const blocks = parseHtmlIntoBlocks(newVal);
+        if (Array.isArray(blocks) && blocks.length) {
+          isApplying.value = true;
+          emailBlocks.value = blocks;
+          dedupeAndNormalizeFooter();
+          isApplying.value = false;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+);
+
+// React if initialHtml changes
+watch(
+  () => props.initialHtml,
+  (newHtml) => {
+    if (typeof newHtml === 'string' && newHtml.trim() !== '') {
+      try {
+        const blocks = parseHtmlIntoBlocks(newHtml);
+        if (Array.isArray(blocks) && blocks.length) {
+          isApplying.value = true;
+          emailBlocks.value = blocks;
+          dedupeAndNormalizeFooter();
+          isApplying.value = false;
+        }
+      } catch (e) {
+        // ignore
+      }
     }
   }
 );
@@ -1243,6 +1544,7 @@ function saveFooterChanges() {
   updateBlockData(editingBlock.value, {
     content: footerContent.value,
     background: footerBackground.value,
+    textColor: footerTextColor.value,
     copyright: footerCopyright.value,
   });
   showFooterEditor.value = false;
@@ -1297,7 +1599,7 @@ const personalizationTokens = [
   'first_name',
   'last_name',
   'email',
-  'company',
+  'organization',
 ];
 
 function insertPersonalizationToken(token) {
@@ -1366,6 +1668,7 @@ function insertTokenIntoEditor(token) {
             :key="blockType.type"
             :draggable="true"
             @dragstart="onDragStart($event, blockType.type)"
+            @dragend="onDragEnd"
             @click="addBlock(blockType.type)"
             class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer  transition-colors dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-600"
           >
@@ -1432,13 +1735,24 @@ function insertTokenIntoEditor(token) {
           }`"
         >
           <div
-            class="bg-white shadow-lg rounded-lg overflow-hidden"
-            @drop="onDrop"
-            @dragover="onDragOver"
-            style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"
+            class="bg-white shadow-lg rounded-lg overflow-hidden email-canvas"
+            @drop="onDrop($event)"
+            @dragover="onDragOver($event)"
+            @dragleave="clearDragOver"
+            style="font-family: 'Source Sans 3', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"
           >
             <!-- Email Content -->
             <div class="min-h-96">
+              <!-- Top Drop Zone (index 0) -->
+              <div
+                v-if="draggedBlock"
+                class="transition-all duration-150 rounded mx-2"
+                :class="dragOverIndex === 0 ? 'h-3 bg-blue-400/60 opacity-100' : 'h-2 bg-blue-200 opacity-60'"
+                @dragenter="onDragEnter(0)"
+                @dragleave="onDragLeave(0)"
+                @dragover="onDragOver($event, 0)"
+                @drop="onDropAt($event, 0)"
+              ></div>
               <div
                 v-for="(block, index) in emailBlocks"
                 :key="block.id"
@@ -1459,8 +1773,7 @@ function insertTokenIntoEditor(token) {
                 
                 <!-- Block Controls -->
                 <div
-                  v-if="selectedBlockId === block.id"
-                  class="absolute top-2 right-2 flex gap-1 bg-white shadow-lg rounded-md p-1 z-10"
+                  class="absolute top-2 right-2 flex gap-1 bg-white shadow-lg rounded-md p-1 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
                 >
                   <button type="button"
                     @click.stop="editBlock(block.id)"
@@ -1499,15 +1812,29 @@ function insertTokenIntoEditor(token) {
                   </button>
                 </div>
                 
-                <!-- Drop Zone -->
+                <!-- Between Drop Zone (after each block) -->
                 <div
                   v-if="draggedBlock"
-                  class="h-2 bg-blue-200 opacity-0 hover:opacity-100 transition-opacity"
-                  @drop="onDropBetween($event, index + 1)"
-                  @dragover="onDragOver"
+                  class="transition-all duration-150 rounded mx-2"
+                  :class="dragOverIndex === (index + 1) ? 'h-3 bg-blue-400/60 opacity-100' : 'h-2 bg-blue-200 opacity-60'"
+                  @dragenter="onDragEnter(index + 1)"
+                  @dragleave="onDragLeave(index + 1)"
+                  @dragover="onDragOver($event, index + 1)"
+                  @drop="onDropAt($event, index + 1)"
                 ></div>
               </div>
-              
+
+              <!-- Bottom Drop Zone (after last block) -->
+              <div
+                v-if="draggedBlock"
+                class="transition-all duration-150 rounded mx-2"
+                :class="dragOverIndex === emailBlocks.length ? 'h-3 bg-blue-400/60 opacity-100' : 'h-2 bg-blue-200 opacity-60'"
+                @dragenter="onDragEnter(emailBlocks.length)"
+                @dragleave="onDragLeave(emailBlocks.length)"
+                @dragover="onDragOver($event, emailBlocks.length)"
+                @drop="onDropAt($event, emailBlocks.length)"
+              ></div>
+            
               <!-- Empty State -->
               <div
                 v-if="emailBlocks.length === 0"
@@ -1529,19 +1856,19 @@ function insertTokenIntoEditor(token) {
 
     <!-- Preview Overlay -->
     <div v-if="showPreview" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" @click="handlePreviewBackdropClick" @keydown.esc="closePreview">
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-full overflow-auto" @click.stop>
+      <div class="bg-white text-gray-700 rounded-lg shadow-xl max-w-3xl w-full max-h-full overflow-auto" @click.stop>
         <div class="flex items-center justify-between p-3 border-b">
           <div class="text-sm font-medium">Preview</div>
         </div>
         <div class="p-4">
-          <div v-html="previewInnerHtml" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"></div>
+          <div class="email-preview" v-html="previewInnerHtml" style="font-family: 'Source Sans 3', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;"></div>
         </div>
       </div>
     </div>
 
     <!-- Source Editor Overlay -->
     <div v-if="showSourceEditor" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" @click="handleSourceBackdropClick" @keydown.esc="cancelSourceEdit">
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-full overflow-auto" @click.stop>
+      <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-full overflow-auto" @click.stop>
         <div class="flex items-center justify-between p-3 border-b">
           <div class="text-sm font-medium">HTML Source</div>
         </div>
@@ -1641,12 +1968,7 @@ function insertTokenIntoEditor(token) {
             />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Background Color</label>
-            <input
-              v-model="buttonBackground"
-              type="color"
-              class="w-full p-2 border border-gray-300 rounded"
-            />
+            <ColorPicker v-model="buttonBackground" :showAlpha="true" label="Background Color" />
           </div>
         </div>
         <div class="flex gap-2 mt-4">
@@ -1668,21 +1990,21 @@ function insertTokenIntoEditor(token) {
 
     <!-- Text/Heading Editor Modal -->
     <div v-if="showTextEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="handleModalBackdropClick" @keydown.esc="cancelTextEdit">
-      <div class="bg-white text-gray-700 rounded-lg p-6 w-[32rem] max-w-full max-h-full overflow-y-auto" @click.stop>
+      <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg p-6 w-[64rem] max-w-full max-h-full overflow-y-auto" @click.stop>
         <h3 class="text-lg font-medium mb-4">Edit Content</h3>
         <!-- Settings for Text block only -->
         <div v-if="currentEditingBlock && currentEditingBlock.type === 'text'" class="space-y-3 mb-3">
           <div>
-            <label class="block text-sm text-gray-600 mb-2">Background Color</label>
+            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Background Color</label>
             <div class="flex gap-3">
               <div class="flex-shrink-0">
-                <input type="color" v-model="textBackground" class="w-12 h-10 border rounded cursor-pointer" title="Pick color" />
+                <ColorPicker v-model="textBackground" :showAlpha="true" />
               </div>
               <div class="flex-1">
                 <input 
                   type="text" 
                   v-model="textBackground" 
-                  class="w-full border rounded px-3 py-2 font-mono text-sm" 
+                  class="w-full border dark:bg-gray-800 rounded px-3 py-2 font-mono text-sm" 
                   placeholder="#ffffff or transparent"
                   pattern="^(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|transparent|rgba?\(.+\)|hsla?\(.+\))$"
                   title="Enter CSS color value"
@@ -1690,9 +2012,10 @@ function insertTokenIntoEditor(token) {
               </div>
             </div>
           </div>
+         
           <!-- Personalization Tokens -->
           <div class="border-t pt-3">
-            <div class="text-sm font-medium text-gray-700 mb-2">Insert Personalization Tokens:</div>
+            <div class="text-sm font-medium text-gray-700 dark:text-gray-400 mb-2">Insert Personalization Tokens:</div>
             <div class="flex flex-wrap gap-2">
               <button type="button"
                 v-for="token in personalizationTokens"
@@ -1708,10 +2031,10 @@ function insertTokenIntoEditor(token) {
         <!-- Settings for Heading block -->
         <div v-if="currentEditingBlock && currentEditingBlock.type === 'heading'" class="space-y-3 mb-3">
           <div>
-            <label class="block text-sm text-gray-600 mb-2">Background Color</label>
+            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Background Color</label>
             <div class="flex gap-3">
               <div class="flex-shrink-0">
-                <input type="color" v-model="textBackground" class="w-12 h-10 border rounded cursor-pointer" title="Pick color" />
+                <ColorPicker v-model="textBackground" :showAlpha="true" />
               </div>
               <div class="flex-1">
                 <input 
@@ -1725,6 +2048,24 @@ function insertTokenIntoEditor(token) {
               </div>
             </div>
           </div>
+          <div>
+            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Text Color</label>
+            <div class="flex gap-3">
+              <div class="flex-shrink-0">
+                <ColorPicker v-model="textColor" :showAlpha="true" />
+              </div>
+              <div class="flex-1">
+                <input 
+                  type="text" 
+                  v-model="textColor" 
+                  class="w-full border rounded px-3 py-2 font-mono text-sm" 
+                  placeholder="#333333"
+                  pattern="^(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|transparent|rgba?\(.+\)|hsla?\(.+\))$"
+                  title="Enter CSS color value"
+                />
+              </div>
+            </div>
+          </div>
         </div>
         <div class="border border-gray-300 rounded p-2 bg-white min-h-[200px] max-h-[400px] overflow-y-auto">
           <EmailEditor v-model="textModalContent" label="" />
@@ -1732,13 +2073,13 @@ function insertTokenIntoEditor(token) {
         <div class="flex gap-2 mt-4 justify-end">
           <button type="button"
             @click="cancelTextEdit"
-            class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+            class="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400"
           >
             Cancel
           </button>
           <button type="button"
             @click="saveTextChanges"
-            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700"
           >
             Save
           </button>
@@ -1777,9 +2118,26 @@ function insertTokenIntoEditor(token) {
 
     <!-- Header Editor Modal -->
     <div v-if="showHeaderEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white text-gray-700 rounded-lg p-6 w-[40rem] max-w-full">
+      <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg p-6 w-[40rem] max-w-full max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-medium mb-4">Edit Header</h3>
         <div class="space-y-4">
+          <!-- Colors first -->
+          <div class="flex gap-4">
+            <div class="flex-1">
+              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Background</label>
+              <div class="flex items-center gap-3">
+                <ColorPicker v-model="headerBackground" :showAlpha="true" />
+                <input v-model="headerBackground" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#c8102e or any CSS background" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Text Color</label>
+              <div class="flex items-center gap-3">
+                <ColorPicker v-model="footerTextColor" :showAlpha="false" />
+                <input v-model="footerTextColor" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#ffffff or any CSS color" />
+              </div>
+            </div>
+          </div>
           <!-- Logo Upload Section -->
           <div class="border-b pb-4">
             <label class="block text-sm font-medium mb-2">Logo</label>
@@ -1796,46 +2154,36 @@ function insertTokenIntoEditor(token) {
               </div>
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-xs text-gray-600 mb-1">Alignment</label>
-                  <select v-model="headerLogoAlignment" class="w-full p-1 border border-gray-300 rounded text-sm">
+                  <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Alignment</label>
+                  <select v-model="headerLogoAlignment" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm">
                     <option value="left">Left</option>
                     <option value="center">Center</option>
                     <option value="right">Right</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-xs text-gray-600 mb-1">Size</label>
-                  <input v-model="headerLogoSize" type="text" class="w-full p-1 border border-gray-300 rounded text-sm" placeholder="150px" />
+                  <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Size</label>
+                  <input v-model="headerLogoSize" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="150px" />
                 </div>
                 <div>
-                  <label class="block text-xs text-gray-600 mb-1">Padding</label>
-                  <input v-model="headerLogoPadding" type="text" class="w-full p-1 border border-gray-300 rounded text-sm" placeholder="10px" />
+                  <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Padding</label>
+                  <input v-model="headerLogoPadding" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="10px" />
                 </div>
               </div>
               <div>
-                <label class="block text-xs text-gray-600 mb-1">Margin</label>
-                <input v-model="headerLogoMargin" type="text" class="w-full p-1 border border-gray-300 rounded text-sm" placeholder="0 0 20px 0" />
+                <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Margin</label>
+                <input v-model="headerLogoMargin" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="0 0 20px 0" />
               </div>
             </div>
           </div>
           
           <div>
-            <label class="block text-sm font-medium mb-1">Title</label>
-            <input v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 rounded" />
+            <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Title</label>
+            <input v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Subtitle</label>
-            <input v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 rounded" />
-          </div>
-          <div class="flex gap-4">
-            <div class="flex-1">
-              <label class="block text-sm font-medium mb-1">Background (CSS)</label>
-              <input v-model="headerBackground" type="text" class="w-full p-2 border border-gray-300 rounded" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Text Color</label>
-              <input v-model="headerTextColor" type="color" class="p-2 border border-gray-300 rounded" />
-            </div>
+            <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Subtitle</label>
+            <input v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" />
           </div>
         </div>
         <div class="flex gap-2 mt-4 justify-end">
@@ -1847,22 +2195,33 @@ function insertTokenIntoEditor(token) {
 
     <!-- Footer Editor Modal -->
     <div v-if="showFooterEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-[32rem] max-w-full">
+      <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg p-6 w-[32rem] max-w-full max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-medium mb-4">Edit Footer</h3>
         <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-1">Content</label>
-            <textarea v-model="footerContent" rows="3" class="w-full p-2 border border-gray-300 rounded"></textarea>
-          </div>
+          <!-- Colors first -->
           <div class="flex gap-4">
-            <div class="flex-1">
-              <label class="block text-sm font-medium mb-1">Background</label>
-              <input v-model="footerBackground" type="text" class="w-full p-2 border border-gray-300 rounded" />
+            <div>
+              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Background</label>
+              <div class="flex items-center gap-3">
+                <ColorPicker v-model="footerBackground" :showAlpha="true" />
+                <input v-model="footerBackground" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#c8102e or any CSS background" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Text Color</label>
+              <div class="flex items-center gap-3">
+                <ColorPicker v-model="footerTextColor" :showAlpha="false" />
+                <input v-model="footerTextColor" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#ffffff or any CSS color" />
+              </div>
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Copyright</label>
-            <input v-model="footerCopyright" type="text" class="w-full p-2 border border-gray-300 rounded" />
+            <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Content</label>
+            <textarea v-model="footerContent" rows="3" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded"></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Copyright</label>
+            <input v-model="footerCopyright" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" />
           </div>
         </div>
         <div class="flex gap-2 mt-4 justify-end">
@@ -1879,6 +2238,48 @@ function insertTokenIntoEditor(token) {
 <style>
 .ProseMirror {
   outline: none;
+}
+
+/* Ensure paragraphs have an extra row of space in both the canvas and preview */
+.email-canvas p,
+.email-preview p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+/* Drop cap styling (only when explicitly applied via class) */
+.email-canvas p.has-dropcap:first-letter,
+.email-preview p.has-dropcap:first-letter {
+  float: left;
+  font-size: 3.5em;
+  line-height: 0.8;
+  margin: 0.1em 0.2em 0 0;
+  color: #333;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.email-canvas p.has-dropcap,
+.email-preview p.has-dropcap {
+  overflow: hidden; /* Contains the floated drop cap */
+}
+
+@media screen and (max-width: 600px) {
+  .email-canvas p.has-dropcap:first-letter,
+  .email-preview p.has-dropcap:first-letter {
+    font-size: 2.5em;
+    line-height: 1;
+  }
+}
+
+/* Optional: reduce margin for consecutive paragraphs inside headings or footers if needed */
+.email-canvas h1 + p,
+.email-canvas h2 + p,
+.email-canvas h3 + p,
+.email-preview h1 + p,
+.email-preview h2 + p,
+.email-preview h3 + p {
+  margin-top: 0.5em;
 }
 
 .ProseMirror table {

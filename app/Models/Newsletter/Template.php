@@ -51,8 +51,10 @@ class Template extends Model
 
     public function makeDefault(): void
     {
-        // Remove default status from all other templates
-        static::where('is_default', true)->update(['is_default' => false]);
+        // Remove default status from all other templates (excluding this one)
+        static::where('is_default', true)
+            ->where('id', '!=', $this->id)
+            ->update(['is_default' => false]);
         
         // Set this template as default
         $this->update(['is_default' => true]);

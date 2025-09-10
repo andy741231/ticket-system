@@ -39,11 +39,12 @@ class SubscriberController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-            'status' => 'sometimes|string|in:active,inactive,unsubscribed',
+            // Allow empty values from the UI without failing validation
+            'status' => 'nullable|string|in:active,unsubscribed,bounced,pending',
             'search' => 'nullable|string|max:255',
             'per_page' => 'sometimes|integer|min:1|max:100',
             'page' => 'sometimes|integer|min:1',
-            'group_id' => 'sometimes|exists:newsletter_groups,id'
+            'group_id' => 'nullable|exists:newsletter_groups,id'
         ]);
 
         $query = Subscriber::with('groups');
@@ -68,7 +69,7 @@ class SubscriberController extends Controller
                   ->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('first_name', 'like', "%{$search}%")
                   ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.organization')) LIKE ?", ["%{$search}%"]);
+                  ->orWhere('organization', 'like', "%{$search}%");
             });
         }
 
@@ -77,12 +78,15 @@ class SubscriberController extends Controller
         $subscribers = $query->orderBy('created_at', 'desc')->paginate($perPage);
         $groups = Group::active()->get();
 
-        // Return JSON response for API requests
-        if ($request->wantsJson()) {
+        // If this is an explicit JSON API request (and not an Inertia navigation),
+        // return JSON. Inertia requests include the X-Inertia header and must
+        // receive an Inertia response, even though they also send JSON Accept headers.
+        $isInertia = (bool) $request->header('X-Inertia');
+        if (!$isInertia && $request->acceptsJson()) {
             return response()->json($subscribers);
         }
 
-        // Return Inertia response for web requests
+        // Default: return Inertia response for web requests (including Inertia navigations)
         return Inertia::render('Newsletter/Subscribers/Index', [
             'subscribers' => $subscribers,
             'groups' => $groups,
@@ -201,10 +205,40 @@ class SubscriberController extends Controller
             if (empty($data[0])) continue;
 
             $email = trim($data[0]);
-            $name = isset($data[1]) ? trim($data[1]) : null;
-            $firstName = isset($data[2]) ? trim($data[2]) : null;
-            $lastName = isset($data[3]) ? trim($data[3]) : null;
-            $organization = isset($data[4]) ? trim($data[4]) : null;
+            // Raw inputs from CSV
+            $rawName = isset($data[1]) && $data[1] !== '' ? trim($data[1]) : null; // Could be full name or just first name
+            $firstName = isset($data[2]) && $data[2] !== '' ? trim($data[2]) : null;
+            $lastName = isset($data[3]) && $data[3] !== '' ? trim($data[3]) : null;
+            $organization = isset($data[4]) && $data[4] !== '' ? trim($data[4]) : null;
+
+            // If first/last are missing, try to derive from the Name column
+            if ($rawName) {
+                $parts = preg_split('/\s+/', $rawName);
+                if (!$firstName && !$lastName) {
+                    if (count($parts) >= 2) {
+                        // Derive first/last from the Name field
+                        $firstName = $parts[0];
+                        $lastName = implode(' ', array_slice($parts, 1));
+                    } else {
+                        // Single token in Name -> treat as first name only; do not set name
+                        $firstName = $parts[0];
+                        $rawName = null; // prevent using it for name below
+                    }
+                }
+            }
+
+            // Build `name` only when we truly have a full name
+            $name = null;
+            if ($rawName) {
+                // Prefer explicit Name field as-is when provided
+                $name = $rawName;
+            } elseif ($firstName && $lastName) {
+                // Only set name if we have both first and last names
+                $name = trim($firstName . ' ' . $lastName);
+            } else {
+                // If only first OR only last -> leave name null to avoid duplication
+                $name = null;
+            }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = "Row {$row}: Invalid email format";

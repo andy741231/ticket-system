@@ -4,16 +4,11 @@ import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import {
   MagnifyingGlassIcon,
-  PlusIcon,
   FunnelIcon,
   EyeIcon,
-  PencilIcon,
   TrashIcon,
-  PlayIcon,
-  PauseIcon,
-  StopIcon,
-  DocumentDuplicateIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  ArrowUturnLeftIcon
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -28,7 +23,7 @@ const searchForm = useForm({
 
 // Time Capsule functionality
 const selectedCampaigns = ref([]);
-const showTimeCapsuleButton = computed(() => selectedCampaigns.value.length > 0);
+const showRestoreButton = computed(() => selectedCampaigns.value.length > 0);
 
 const statusColors = {
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
@@ -40,7 +35,7 @@ const statusColors = {
 };
 
 function search() {
-  searchForm.get(route('newsletter.campaigns.index'), {
+  searchForm.get(route('newsletter.campaigns.timecapsule'), {
     preserveState: true,
     replace: true,
   });
@@ -51,36 +46,14 @@ function clearFilters() {
   search();
 }
 
-function sendCampaign(campaign) {
-  if (confirm(`Are you sure you want to send "${campaign.name}" to ${campaign.total_recipients} recipients?`)) {
-    router.post(route('newsletter.campaigns.send', campaign.id));
+function restoreCampaign(campaign) {
+  if (confirm(`Are you sure you want to restore "${campaign.name}" from the Time Capsule?`)) {
+    router.post(route('newsletter.campaigns.timecapsule.restore', campaign.id));
   }
-}
-
-function pauseCampaign(campaign) {
-  if (confirm(`Are you sure you want to pause "${campaign.name}"?`)) {
-    router.post(route('newsletter.campaigns.pause', campaign.id));
-  }
-}
-
-function resumeCampaign(campaign) {
-  if (confirm(`Are you sure you want to resume sending "${campaign.name}"?`)) {
-    router.post(route('newsletter.campaigns.resume', campaign.id));
-  }
-}
-
-function cancelCampaign(campaign) {
-  if (confirm(`Are you sure you want to cancel "${campaign.name}"? This action cannot be undone.`)) {
-    router.post(route('newsletter.campaigns.cancel', campaign.id));
-  }
-}
-
-function duplicateCampaign(campaign) {
-  router.post(route('newsletter.campaigns.duplicate', campaign.id));
 }
 
 function deleteCampaign(campaign) {
-  if (confirm(`Are you sure you want to delete "${campaign.name}"? This action cannot be undone.`)) {
+  if (confirm(`Are you sure you want to permanently delete "${campaign.name}"? This action cannot be undone.`)) {
     router.delete(route('newsletter.campaigns.destroy', campaign.id));
   }
 }
@@ -103,28 +76,29 @@ function toggleCampaignSelection(campaignId) {
   }
 }
 
-function sendToTimeCapsule() {
+function restoreSelectedCampaigns() {
   if (selectedCampaigns.value.length === 0) return;
   
   const campaignCount = selectedCampaigns.value.length;
   const message = campaignCount === 1 
-    ? 'Are you sure you want to send this campaign to the Time Capsule?' 
-    : `Are you sure you want to send ${campaignCount} campaigns to the Time Capsule?`;
+    ? 'Are you sure you want to restore this campaign from the Time Capsule?' 
+    : `Are you sure you want to restore ${campaignCount} campaigns from the Time Capsule?`;
     
   if (confirm(message)) {
-    router.post(route('newsletter.campaigns.timecapsule.store'), {
-      campaign_ids: selectedCampaigns.value
-    }, {
-      onSuccess: () => {
-        selectedCampaigns.value = [];
-      }
+    selectedCampaigns.value.forEach(campaignId => {
+      router.post(route('newsletter.campaigns.timecapsule.restore', campaignId), {}, {
+        preserveState: true,
+        onSuccess: () => {
+          selectedCampaigns.value = [];
+        }
+      });
     });
   }
 }
 </script>
 
 <template>
-  <Head title="Newsletter Campaigns" />
+  <Head title="Time Capsule - Newsletter Campaigns" />
   <AuthenticatedLayout>
     <template #header>
       
@@ -132,25 +106,25 @@ function sendToTimeCapsule() {
 
     <div class="">
       <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center">
-        <div>
-          <button
-            v-if="showTimeCapsuleButton"
-            @click="sendToTimeCapsule"
-            class="inline-flex items-center px-4 py-2 mb-2 bg-orange-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-orange-700 focus:bg-orange-700 active:bg-orange-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition ease-in-out duration-150"
-          >
-            <TrashIcon class="w-4 h-4 mr-2" />
-            Send to Time Capsule ({{ selectedCampaigns.length }})
-          </button>
+        <div class="flex justify-between items-center mb-6">
+          <div>
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Time Capsule</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Archived campaigns that are hidden from regular views and public archive
+            </p>
+          </div>
+          <div>
+            <button
+              v-if="showRestoreButton"
+              @click="restoreSelectedCampaigns"
+              class="inline-flex items-center px-4 py-2 mb-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 focus:bg-green-700 active:bg-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150"
+            >
+              <ArrowUturnLeftIcon class="w-4 h-4 mr-2" />
+              Restore ({{ selectedCampaigns.length }})
+            </button>
+          </div>
         </div>
-        <Link
-          :href="route('newsletter.campaigns.create')"
-          class="inline-flex items-center px-4 py-2 mb-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150"
-        >
-          <PlusIcon class="w-4 h-4 mr-2" />
-          New Campaign
-        </Link>
-      </div>
+
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
           
           <!-- Filters and Search -->
@@ -163,7 +137,7 @@ function sendToTimeCapsule() {
                     v-model="searchForm.search"
                     @keyup.enter="search"
                     type="text"
-                    placeholder="Search campaigns..."
+                    placeholder="Search archived campaigns..."
                     class="pl-10 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-blue-500 dark:focus:border-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 rounded-md shadow-sm"
                   />
                 </div>
@@ -226,11 +200,10 @@ function sendToTimeCapsule() {
                 <tr v-for="campaign in campaigns.data" :key="campaign.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td class="px-6 py-4">
                     <input
-                      v-if="campaign.status === 'sent'"
                       type="checkbox"
                       :checked="selectedCampaigns.includes(campaign.id)"
                       @change="toggleCampaignSelection(campaign.id)"
-                      class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                      class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                     />
                   </td>
                   <td class="px-6 py-4">
@@ -305,71 +278,20 @@ function sendToTimeCapsule() {
                         <EyeIcon class="w-4 h-4" />
                       </Link>
 
-                      <!-- Edit (only for draft/scheduled) -->
-                      <Link
-                        v-if="['draft', 'scheduled'].includes(campaign.status)"
-                        :href="route('newsletter.campaigns.edit', campaign.id)"
-                        class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                        title="Edit Campaign"
-                      >
-                        <PencilIcon class="w-4 h-4" />
-                      </Link>
-
-                      <!-- Send (only for draft) -->
+                      <!-- Restore -->
                       <button
-                        v-if="campaign.status === 'draft'"
-                        @click="sendCampaign(campaign)"
+                        @click="restoreCampaign(campaign)"
                         class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                        title="Send Campaign"
+                        title="Restore from Time Capsule"
                       >
-                        <PlayIcon class="w-4 h-4" />
+                        <ArrowUturnLeftIcon class="w-4 h-4" />
                       </button>
 
-                      <!-- Pause (only for sending) -->
+                      <!-- Delete Permanently -->
                       <button
-                        v-if="campaign.status === 'sending'"
-                        @click="pauseCampaign(campaign)"
-                        class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
-                        title="Pause Campaign"
-                      >
-                        <PauseIcon class="w-4 h-4" />
-                      </button>
-
-                      <!-- Resume (only for paused) -->
-                      <button
-                        v-if="campaign.status === 'paused'"
-                        @click="resumeCampaign(campaign)"
-                        class="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                        title="Resume Campaign"
-                      >
-                        <PlayIcon class="w-4 h-4" />
-                      </button>
-
-                      <!-- Cancel (for scheduled/sending/paused) -->
-                      <button
-                        v-if="['scheduled', 'sending', 'paused'].includes(campaign.status)"
-                        @click="cancelCampaign(campaign)"
-                        class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                        title="Cancel Campaign"
-                      >
-                        <StopIcon class="w-4 h-4" />
-                      </button>
-
-                      <!-- Duplicate -->
-                      <button
-                        @click="duplicateCampaign(campaign)"
-                        class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                        title="Duplicate Campaign"
-                      >
-                        <DocumentDuplicateIcon class="w-4 h-4" />
-                      </button>
-
-                      <!-- Delete (only for draft/cancelled) -->
-                      <button
-                        v-if="['draft', 'cancelled'].includes(campaign.status)"
                         @click="deleteCampaign(campaign)"
                         class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                        title="Delete Campaign"
+                        title="Delete Permanently"
                       >
                         <TrashIcon class="w-4 h-4" />
                       </button>
@@ -384,17 +306,16 @@ function sendToTimeCapsule() {
           <div v-if="campaigns.data.length === 0" class="text-center py-12">
             <ChartBarIcon class="w-12 h-12 mx-auto text-gray-400 mb-4" />
             <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-              No campaigns found
+              No archived campaigns found
             </h3>
             <p class="text-gray-500 dark:text-gray-400 mb-6">
-              Get started by creating your first email campaign
+              Campaigns moved to the Time Capsule will appear here
             </p>
             <Link
-              :href="route('newsletter.campaigns.create')"
+              :href="route('newsletter.campaigns.index')"
               class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition ease-in-out duration-150"
             >
-              <PlusIcon class="w-4 h-4 mr-2" />
-              Create Campaign
+              View Active Campaigns
             </Link>
           </div>
 

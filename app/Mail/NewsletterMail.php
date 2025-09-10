@@ -54,7 +54,8 @@ class NewsletterMail extends Mailable
         $firstName = $this->subscriber->first_name ?: ($this->subscriber->name ?: '');
         $lastName = $this->subscriber->last_name ?: '';
         $fullName = $this->subscriber->full_name;
-        $company = is_array($this->subscriber->metadata) ? ($this->subscriber->metadata['company'] ?? '') : '';
+        // Get organization from the dedicated column
+        $organization = $this->subscriber->organization ?: '';
 
         // Map token names to values (support both legacy subscriber_* and shorthand tokens)
         $tokenMap = [
@@ -73,7 +74,10 @@ class NewsletterMail extends Mailable
             'first_name' => $firstName,
             'last_name' => $lastName,
             'full_name' => $fullName,
-            'company' => $company,
+            // New preferred token name
+            'organization' => $organization,
+            // Backward-compat alias
+            'company' => $organization,
         ];
 
         // FIRST: Replace tokens while they're still in regular {{ }} format

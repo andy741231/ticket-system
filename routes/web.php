@@ -62,6 +62,7 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
     // Newsletter Archive landing
     Route::get('/', function () {
         $campaigns = \App\Models\Newsletter\Campaign::query()
+            ->where('time_capsule', false) // Exclude time capsule campaigns
             ->orderByDesc('sent_at')
             ->orderByDesc('created_at')
             ->paginate(10, ['id', 'name', 'subject', 'sent_at', 'created_at']);
@@ -111,9 +112,15 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
     
     // Campaigns
     Route::prefix('campaigns')->name('campaigns.')->group(function () {
+        // Literal routes must come before wildcard '{campaign}' routes
         Route::get('/', [CampaignController::class, 'index'])->name('index');
         Route::get('/create', [CampaignController::class, 'create'])->name('create');
         Route::post('/', [CampaignController::class, 'store'])->name('store');
+        // Time Capsule routes (literal)
+        Route::get('/timecapsule', [CampaignController::class, 'timeCapsule'])->name('timecapsule');
+        Route::post('/timecapsule', [CampaignController::class, 'storeTimeCapsule'])->name('timecapsule.store');
+        Route::post('/timecapsule/{campaign}/restore', [CampaignController::class, 'restoreFromTimeCapsule'])->name('timecapsule.restore');
+        // Wildcard routes for specific campaigns
         Route::get('/{campaign}', [CampaignController::class, 'show'])->name('show');
         Route::get('/{campaign}/edit', [CampaignController::class, 'edit'])->name('edit');
         Route::put('/{campaign}', [CampaignController::class, 'update'])->name('update');
@@ -125,6 +132,10 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
         Route::post('/{campaign}/resume', [CampaignController::class, 'resume'])->name('resume');
         Route::post('/{campaign}/cancel', [CampaignController::class, 'cancel'])->name('cancel');
         Route::post('/{campaign}/duplicate', [CampaignController::class, 'duplicate'])->name('duplicate');
+        // Delivery management endpoints
+        Route::get('/{campaign}/scheduled-sends', [CampaignController::class, 'scheduledSends'])->name('scheduled-sends');
+        Route::post('/{campaign}/retry-scheduled-sends', [CampaignController::class, 'retryScheduledSends'])->name('retry-scheduled-sends');
+        Route::post('/{campaign}/process-pending', [CampaignController::class, 'processPending'])->name('process-pending');
     });
     
     // Templates

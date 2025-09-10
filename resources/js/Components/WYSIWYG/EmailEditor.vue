@@ -14,7 +14,9 @@ import TextAlign from '@tiptap/extension-text-align';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Placeholder } from '@tiptap/extension-placeholder';
+import ParagraphWithClass from '@/Extensions/ParagraphWithClass';
 import { ref, onBeforeUnmount, watch, nextTick } from 'vue';
+import ColorPicker from '@/Components/Newsletter/ColorPicker.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -37,6 +39,7 @@ import {
   faImage,
   faFont,
   faHighlighter,
+  faTextHeight,
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
@@ -57,7 +60,8 @@ library.add(
   faLink,
   faImage,
   faFont,
-  faHighlighter
+  faHighlighter,
+  faTextHeight
 );
 
 const props = defineProps({
@@ -75,6 +79,14 @@ const props = defineProps({
   },
 });
 
+// Text color state for toolbar ColorPicker
+const textColor = ref('#000000');
+
+watch(textColor, (val) => {
+  if (!editor?.value) return;
+  editor.value.chain().focus().setColor(val || '#000000').run();
+});
+
 const emit = defineEmits(['update:modelValue']);
 
 // Toast notification state
@@ -86,6 +98,7 @@ const currentFormat = ref('paragraph');
 const editor = useEditor({
   extensions: [
     StarterKit.configure({
+      paragraph: false,
       heading: {
         levels: [1, 2, 3],
       },
@@ -113,6 +126,8 @@ const editor = useEditor({
       link: false, // Disable default Link extension
       underline: false, // Disable default Underline extension
     }),
+    // Override paragraph to allow class attribute (for drop cap)
+    ParagraphWithClass,
     Underline,
     TiptapLink.configure({
       openOnClick: false,
@@ -400,6 +415,45 @@ const hideImagePasteToast = () => {
   showImagePasteToast.value = false;
 };
 
+// Determine if the current paragraph has the drop cap class
+const isDropCapActive = () => {
+  if (!editor.value) return false;
+  const { selection } = editor.value.state;
+  const $pos = selection.$from;
+  const parent = $pos.parent;
+  if (!parent || parent.type.name !== 'paragraph') return false;
+  const cls = parent.attrs?.class || '';
+  return String(cls).split(/\s+/).includes('has-dropcap');
+};
+
+// Toggle drop cap on the current paragraph
+const toggleDropCap = () => {
+  if (!editor.value) return;
+  const { selection } = editor.value.state;
+  const $pos = selection.$from;
+  const parent = $pos.parent;
+  if (!parent || parent.type.name !== 'paragraph') return;
+
+  const classes = String(parent.attrs?.class || '')
+    .split(/\s+/)
+    .filter(Boolean);
+  const idx = classes.indexOf('has-dropcap');
+  if (idx >= 0) {
+    classes.splice(idx, 1);
+  } else {
+    classes.push('has-dropcap');
+  }
+
+  editor.value
+    .chain()
+    .focus()
+    .updateAttributes('paragraph', {
+      ...parent.attrs,
+      class: classes.join(' '),
+    })
+    .run();
+};
+
 onBeforeUnmount(() => {
   if (editor?.value) {
     editor.value.destroy();
@@ -498,27 +552,15 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <!-- Text Color Button with Color Picker -->
-            <div class="relative group">
-              <button type="button" class="p-2 rounded hover:bg-gray-200" :class="{ 'bg-gray-200': editor.isActive('textStyle') }" title="Text Color">
-                <font-awesome-icon :icon="['fas', 'font']" class="w-5 h-5" />
-              </button>
-              <!-- Color Picker Dropdown -->
-              <div class="absolute z-10 hidden group-hover:block bg-white shadow-lg rounded-md p-2 w-48">
-                <div class="text-xs text-gray-500 mb-1 mt-2">Text Color</div>
-
-                <div class="mt-2 flex gap-1">
-                  <button type="button" @click="editor.chain().focus().setColor('#000000').run()" class="w-5 h-5 rounded-full bg-black border border-gray-300"></button>
-                  <button type="button" @click="editor.chain().focus().setColor('#ef4444').run()" class="w-5 h-5 rounded-full bg-red-500"></button>
-                  <button type="button" @click="editor.chain().focus().setColor('#3b82f6').run()" class="w-5 h-5 rounded-full bg-blue-500"></button>
-                  <button type="button" @click="editor.chain().focus().setColor('#10b981').run()" class="w-5 h-5 rounded-full bg-emerald-500"></button>
-                  <button type="button" @click="editor.chain().focus().setColor('#f59e0b').run()" class="w-5 h-5 rounded-full bg-yellow-500"></button>
-                  <button type="button" @click="editor.chain().focus().setColor('#8b5cf6').run()" class="w-5 h-5 rounded-full bg-violet-500"></button>
-                </div>
-                <div class="mt-2">
-                  <input type="color" @input="editor.chain().focus().setColor($event.target.value).run()" value="#000000" class="w-full h-8 cursor-pointer rounded border border-gray-300" />
-                </div>
-              </div>
+            <!-- Text Color with ColorPicker (custom trigger retains font icon) -->
+            <div class="flex items-center">
+              <ColorPicker v-model="textColor" :showAlpha="true">
+                <template #trigger>
+                  <button type="button" class="p-2 rounded hover:bg-gray-200" :class="{ 'bg-gray-200': editor.isActive('textStyle') }" title="Text Color">
+                    <font-awesome-icon :icon="['fas', 'font']" class="w-5 h-5" />
+                  </button>
+                </template>
+              </ColorPicker>
             </div>
           </div>
 
@@ -544,6 +586,9 @@ onBeforeUnmount(() => {
 
           <!-- Links & Media -->
           <div class="flex items-center gap-1">
+            <button type="button" @click="toggleDropCap" :class="{ 'bg-gray-200': isDropCapActive() }" class="p-2 rounded hover:bg-gray-200" title="Toggle Drop Cap">
+              <font-awesome-icon :icon="['fas', 'text-height']" class="w-5 h-5" />
+            </button>
             <button type="button" @click="setLink" :class="{ 'bg-gray-200': editor.isActive('link') }" class="p-2 rounded hover:bg-gray-200" title="Add Link">
               <font-awesome-icon :icon="['fas', 'link']" class="w-5 h-5" />
             </button>
@@ -554,7 +599,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Editor Content -->
-        <div class="p-4 bg-white min-h-[300px] max-h-[600px] overflow-y-auto focus:outline-none" :class="{ 'border-red-500': error }">
+        <div class="p-4 bg-white text-gray-900 min-h-[300px] max-h-[600px] overflow-y-auto focus:outline-none" :class="{ 'border-red-500': error }">
           <EditorContent :editor="editor" class="prose max-w-none focus:outline-none" :class="{ 'border-red-500': error }" />
         </div>
         <InputError v-if="error" :message="error" class="mt-1" />
@@ -659,15 +704,34 @@ onBeforeUnmount(() => {
 <style>
 .ProseMirror {
   outline: none;
-  min-height: 200px;
+  min-height: 100%;
 }
 
-.ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
+.ProseMirror p {
+  margin: 1em 0;
+}
+
+/* Drop cap styles */
+.ProseMirror p.has-dropcap:first-letter {
   float: left;
-  color: #9ca3af;
-  pointer-events: none;
-  height: 0;
+  font-size: 3.5em;
+  line-height: 0.8;
+  margin: 0.1em 0.2em 0 0;
+  color: #333;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.ProseMirror p.has-dropcap {
+  overflow: hidden; /* Contains the floated drop cap */
+}
+
+/* Mobile styles */
+@media screen and (max-width: 600px) {
+  .ProseMirror p.has-dropcap:first-letter {
+    font-size: 2.5em;
+    line-height: 1;
+  }
 }
 
 .ProseMirror img {
