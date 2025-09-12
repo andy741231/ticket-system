@@ -94,8 +94,8 @@ class CampaignController extends Controller
         ]);
 
         if ($validator->fails()) {
-            // Return JSON for API clients, otherwise redirect back with errors for Inertia
-            if ($request->expectsJson()) {
+            // For Inertia requests, redirect back with errors so the client handles them properly
+            if ($request->expectsJson() && !$request->header('X-Inertia')) {
                 return response()->json(['errors' => $validator->errors()], 422);
             }
             return back()->withErrors($validator)->withInput();

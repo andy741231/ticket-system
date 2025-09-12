@@ -24,8 +24,13 @@ class NewsletterMail extends Mailable
 
     public function envelope(): Envelope
     {
-        $fromAddress = env('MAIL_NEWSLETTER_FROM_ADDRESS', config('mail.from.address'));
-        $fromName = env('MAIL_NEWSLETTER_FROM_NAME', 'UHPH News');
+        // Prefer campaign-provided values, then template overrides, then env/config defaults
+        $fromAddress = $this->campaign->from_email
+            ?: optional($this->campaign->template)->from_email
+            ?: env('MAIL_NEWSLETTER_FROM_ADDRESS', config('mail.from.address'));
+        $fromName = $this->campaign->from_name
+            ?: optional($this->campaign->template)->from_name
+            ?: env('MAIL_NEWSLETTER_FROM_NAME', config('mail.from.name', 'UHPH News'));
 
         return new Envelope(
             from: new Address($fromAddress, $fromName),

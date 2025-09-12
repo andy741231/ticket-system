@@ -19,6 +19,8 @@ class Template extends Model
         'description',
         'content',
         'html_content',
+        'from_name',
+        'from_email',
         'thumbnail',
         'is_default',
         'created_by',

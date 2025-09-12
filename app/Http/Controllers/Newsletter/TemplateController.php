@@ -37,7 +37,7 @@ class TemplateController extends Controller
     public function create(Request $request): Response
     {
         // Provide a few templates to load into the builder quickly
-        $templates = Template::query()->latest()->limit(20)->get(['id', 'name', 'description', 'content', 'html_content']);
+        $templates = Template::query()->latest()->limit(20)->get(['id', 'name', 'description', 'content', 'html_content', 'from_name', 'from_email']);
 
         return Inertia::render('Newsletter/Templates/Create', [
             'templates' => $templates,
@@ -54,6 +54,8 @@ class TemplateController extends Controller
             'description' => ['nullable', 'string'],
             'content' => ['required'], // JSON structure (array or JSON string)
             'html_content' => ['required', 'string'],
+            'from_name' => ['nullable', 'string', 'max:255'],
+            'from_email' => ['nullable', 'email', 'max:255'],
             'thumbnail' => ['nullable', 'string'],
             'is_default' => ['sometimes', 'boolean'],
         ]);
@@ -71,6 +73,8 @@ class TemplateController extends Controller
             'description' => $validated['description'] ?? null,
             'content' => $validated['content'],
             'html_content' => $validated['html_content'],
+            'from_name' => $validated['from_name'] ?? null,
+            'from_email' => $validated['from_email'] ?? null,
             'thumbnail' => $validated['thumbnail'] ?? null,
             'is_default' => (bool) ($validated['is_default'] ?? false),
             'created_by' => optional($request->user())->id,
@@ -83,7 +87,8 @@ class TemplateController extends Controller
 
         return redirect()
             ->route('newsletter.templates.edit', $template->id)
-            ->with('success', 'Template created successfully.');
+            ->with('success', 'Template created successfully.')
+            ->setStatusCode(303);
     }
 
     /**
@@ -91,7 +96,8 @@ class TemplateController extends Controller
      */
     public function show(Template $template, Request $request)
     {
-        if ($request->wantsJson()) {
+        // Only return JSON for non-Inertia API clients
+        if (!$request->header('X-Inertia') && $request->expectsJson()) {
             return response()->json(['data' => $template]);
         }
 
@@ -123,6 +129,8 @@ class TemplateController extends Controller
             'description' => ['nullable', 'string'],
             'content' => ['sometimes'], // JSON structure (array or JSON string)
             'html_content' => ['sometimes', 'string'],
+            'from_name' => ['nullable', 'string', 'max:255'],
+            'from_email' => ['nullable', 'email', 'max:255'],
             'thumbnail' => ['nullable', 'string'],
             'is_default' => ['sometimes', 'boolean'],
             'make_default' => ['sometimes', 'boolean'],
@@ -155,7 +163,8 @@ class TemplateController extends Controller
         }
 
         return redirect()->route('newsletter.templates.edit', $template->id)
-            ->with('success', 'Template updated successfully.');
+            ->with('success', 'Template updated successfully.')
+            ->setStatusCode(303);
     }
 
     /**

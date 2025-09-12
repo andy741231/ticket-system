@@ -89,6 +89,58 @@ function safeParseJson(val) {
   } catch (e) {
     return null;
   }
+
+}
+
+ 
+
+// Canvas Columns DnD handlers
+// removed misplaced duplicate canvas handlers
+
+  async function handleLogoLibraryUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
+      formData.append('folder', 'images/newsletters/logos');
+
+      const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
+      const uploadUrl = (typeof route === 'function')
+        ? route('image.upload')
+        : (typeof window !== 'undefined' && typeof window.route === 'function')
+          ? window.route('image.upload')
+          : '/api/image-upload';
+
+      await axios.post(uploadUrl, formData, {
+        headers: {
+          ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+          Accept: 'application/json',
+        },
+      });
+      await fetchHeaderLogos();
+    } catch (e) {
+      console.error('Upload failed', e);
+    }
+  }
+
+// Prevent navigation for header logo links inside the canvas while editing
+function handleCanvasClick(event, block) {
+  try {
+    if (!block || block.type !== 'header') return;
+    const target = event.target;
+    if (!target) return;
+    // Check if an anchor was clicked inside the header block
+    const anchor = target.closest && target.closest('a');
+    if (anchor) {
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    }
+  } catch (e) {
+    // no-op
+  }
 }
 
 function applyStructure(struct) {
@@ -106,11 +158,15 @@ function applyStructure(struct) {
   });
   // Ensure only one footer and position it at the end
   dedupeAndNormalizeFooter();
+  const changed = normalizeAllPaddings();
   isApplying.value = false;
+  if (changed) {
+    updateContent();
+  }
   return true;
 }
 
-const emit = defineEmits(['update:modelValue', 'update:html-content', 'toggle-html-view']);
+const emit = defineEmits(['update:modelValue', 'update:html-content', 'toggle-html-view', 'template-selected']);
 
 // Export the default structure function for external use
 defineExpose({
@@ -132,18 +188,23 @@ const activePanel = ref('blocks'); // 'blocks' | 'templates' | 'settings'
 const selectedBlockId = ref(null);
 const draggedBlock = ref(null);
 const dragOverIndex = ref(null);
+const columnDragOverIndex = ref(null);
+const canvasColumnHover = ref({ blockId: null, colIdx: null });
 const editingBlock = ref(null);
 const showImageUpload = ref(false);
+const imageFileInput = ref(null);
+const imageCropper = ref(null);
+const imageCropSrc = ref(null);
+const imageFullWidth = ref(false);
 const showButtonEditor = ref(false);
 const showColumnEditor = ref(false);
 const showTextEditor = ref(false);
 const textEditor = ref(null);
-// Image cropper state
-const imageCropSrc = ref(null);
-const imageCropper = ref(null);
-const imageMargin = ref('20px 0');
-const imagePadding = ref('0');
-const imageFullWidth = ref(false);
+// Nested columns state
+const editingNested = ref(null); // { blockId, colIdx, itemIndex }
+const nestedDragging = ref(null); // { blockId, colIdx, index }
+const nestedDragOver = ref(null); // { blockId, colIdx, index }
+const lastDroppedByBlock = ref({}); // { [blockId]: { colIdx, itemIndex } }
 // Temporary model for the heading editor modal
 const textModalContent = ref('');
 // Text block additional settings (background, padding)
@@ -159,11 +220,13 @@ const headerSubtitle = ref('');
 const headerBackground = ref('');
 const headerTextColor = ref('');
 const headerLogo = ref('');
+const headerLogoAlt = ref('');
+const headerLogoUrl = ref('');
 const headerLogoAlignment = ref('center');
 const headerLogoSize = ref('150px');
 const headerLogoPadding = ref('10px');
-const headerLogoMargin = ref('0 0 20px 0');
-
+const headerLogos = ref([]); // New logos array
+const showLogoLibrary = ref(false); // New logo library modal visibility
 const showFooterEditor = ref(false);
 // Currently editing block (computed helper)
 const currentEditingBlock = computed(() => emailBlocks.value.find(b => b.id === editingBlock.value) || null);
@@ -183,7 +246,34 @@ const emailBlocks = ref([
   {
     id: 'header',
     type: 'header',
-    content: '<div style="background: #c8102e; color: #ffffff; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0;"><h1 style="margin: 0; font-size: 28px; font-weight: 300;">Newsletter Title</h1><p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">Your weekly dose of updates</p></div>',
+    data: {
+      title: 'Newsletter Title',
+      subtitle: 'Your weekly dose of updates',
+      background: '#c8102e',
+      textColor: '#ffffff',
+      padding: '30px 12px',
+      fullWidth: false,
+      logo: '',
+      logoAlt: '',
+      logoUrl: '',
+      logoAlignment: 'center',
+      logoSize: '150px',
+      logoPadding: '10px'
+    },
+    content: getBlockHtml('header', {
+      title: 'Newsletter Title',
+      subtitle: 'Your weekly dose of updates',
+      background: '#c8102e',
+      textColor: '#ffffff',
+      padding: '30px 12px',
+      fullWidth: false,
+      logo: '',
+      logoAlt: '',
+      logoUrl: '',
+      logoAlignment: 'center',
+      logoSize: '150px',
+      logoPadding: '10px'
+    }),
     editable: true,
     locked: false,
   },
@@ -252,14 +342,14 @@ const jsonContent = computed(() => {
 // Draggable Block Types with improved FontAwesome icons
 const blockTypes = [
   { type: 'header', label: 'Header', icon: ['fas', 'inbox'] },
-  { type: 'text', label: 'Text', icon: ['fas', 'align-left'] },
   { type: 'heading', label: 'Heading', icon: ['fas', 'heading'] },
+  { type: 'text', label: 'Text', icon: ['fas', 'align-left'] },
   { type: 'image', label: 'Image', icon: ['fas', 'image'] },
   { type: 'button', label: 'Button', icon: ['fas', 'square'] },
   { type: 'columns', label: 'Columns', icon: ['fas', 'table-columns'] },
   { type: 'divider', label: 'Divider', icon: ['fas', 'minus'] },
-  { type: 'footer', label: 'Footer', icon: ['fas', 'flag'] },
   { type: 'spacer', label: 'Spacer', icon: ['fas', 'ruler-horizontal'] },
+  { type: 'footer', label: 'Footer', icon: ['fas', 'flag'] },
 ];
 
 // Computed properties for email structure
@@ -336,7 +426,14 @@ function getDefaultEmailStructure() {
           subtitle: 'Your weekly dose of updates',
           background: '#c8102e',
           textColor: '#ffffff',
-          padding: '30px 20px'
+          padding: '30px 12px',
+          fullWidth: false,
+          logo: '',
+          logoAlt: '',
+          logoUrl: '',
+          logoAlignment: 'center',
+          logoSize: '150px',
+          logoPadding: '10px'
         },
         editable: true,
         locked: false
@@ -487,6 +584,8 @@ function onDragEnd() {
   // Clear any visual placeholder and dragged state
   dragOverIndex.value = null;
   draggedBlock.value = null;
+  columnDragOverIndex.value = null;
+  canvasColumnHover.value = { blockId: null, colIdx: null };
 }
 
 function onDragOver(event, insertIndex = null) {
@@ -526,6 +625,325 @@ function onDropAt(event, insertIndex) {
 
 function clearDragOver() {
   dragOverIndex.value = null;
+}
+
+// Column drop zone handlers (for Columns Editor modal)
+function onColumnDragOver(event, colIdx) {
+  event.preventDefault();
+  columnDragOverIndex.value = colIdx;
+}
+
+function onColumnDragLeave(colIdx) {
+  if (columnDragOverIndex.value === colIdx) {
+    columnDragOverIndex.value = null;
+  }
+}
+
+function onColumnDrop(event, colIdx) {
+  event.preventDefault();
+  try {
+    if (!draggedBlock.value) return;
+    // Create a new block from the dragged type and take its rendered HTML
+    const newBlock = createBlock(draggedBlock.value);
+    const html = newBlock?.content || '';
+    const existing = columnsContent.value[colIdx] || '';
+    // Append if existing content present, otherwise set
+    columnsContent.value[colIdx] = existing ? existing + html : html;
+  } finally {
+    draggedBlock.value = null;
+    columnDragOverIndex.value = null;
+  }
+}
+
+// Canvas Columns DnD handlers (for drop zones on the email canvas)
+function onCanvasColumnDragOver(event, blockId, colIdx) {
+  event.preventDefault();
+  canvasColumnHover.value = { blockId, colIdx };
+}
+
+function onCanvasColumnDragLeave(blockId, colIdx) {
+  const cur = canvasColumnHover.value || {};
+  if (cur.blockId === blockId && cur.colIdx === colIdx) {
+    canvasColumnHover.value = { blockId: null, colIdx: null };
+  }
+}
+
+function onCanvasColumnDrop(event, blockId, colIdx) {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    if (!draggedBlock.value) return;
+    const newBlock = createBlock(draggedBlock.value);
+    const blk = emailBlocks.value.find(b => b.id === blockId);
+    if (!blk) return;
+    // Normalize columns to items-based structure
+    const cols = normalizeColumnsItems(blk.data?.columns || []);
+    const item = {
+      id: generateBlockId(),
+      type: newBlock.type,
+      data: newBlock.data,
+      content: newBlock.content,
+    };
+    cols[colIdx].items.push(item);
+    lastDroppedByBlock.value[blockId] = { colIdx, itemIndex: cols[colIdx].items.length - 1 };
+    updateBlockData(blockId, { columns: cols });
+  } finally {
+    draggedBlock.value = null;
+    canvasColumnHover.value = { blockId: null, colIdx: null };
+  }
+}
+
+// Helpers for nested columns items
+function normalizeColumnsItems(columns) {
+  const cols = Array.isArray(columns) ? columns : [];
+  // Ensure 2 columns
+  const two = [cols[0] || {}, cols[1] || {}];
+  return two.map((c, i) => {
+    const items = Array.isArray(c.items) ? c.items : [];
+    // If legacy content string exists and no items, convert to a single text item
+    if (!items.length && typeof c.content === 'string' && c.content.trim() !== '') {
+      return {
+        items: [{ id: generateBlockId(), type: 'text', data: { content: c.content, background: 'transparent', padding: '15px 12px', fullWidth: false }, content: c.content }],
+      };
+    }
+    return { items };
+  });
+}
+
+function getNestedItem(blockId, colIdx, itemIndex) {
+  const blk = emailBlocks.value.find(b => b.id === blockId);
+  if (!blk) return null;
+  const cols = normalizeColumnsItems(blk.data?.columns || []);
+  return (cols[colIdx]?.items || [])[itemIndex] || null;
+}
+
+function updateNestedItem(blockId, colIdx, itemIndex, newDataPartial) {
+  const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
+  if (blkIdx === -1) return;
+  const blk = emailBlocks.value[blkIdx];
+  const cols = normalizeColumnsItems(blk.data?.columns || []);
+  const items = cols[colIdx].items;
+  if (!items || !items[itemIndex]) return;
+  const item = items[itemIndex];
+  item.data = { ...(item.data || {}), ...(newDataPartial || {}) };
+  item.content = getBlockHtml(item.type, item.data);
+  updateBlockData(blockId, { columns: cols });
+}
+
+function removeNestedItem(blockId, colIdx, itemIndex) {
+  const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
+  if (blkIdx === -1) return;
+  const blk = emailBlocks.value[blkIdx];
+  const cols = normalizeColumnsItems(blk.data?.columns || []);
+  cols[colIdx].items.splice(itemIndex, 1);
+  updateBlockData(blockId, { columns: cols });
+}
+
+function moveNestedItem(blockId, colIdx, fromIndex, toIndex) {
+  if (fromIndex === toIndex) return;
+  const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
+  if (blkIdx === -1) return;
+  const blk = emailBlocks.value[blkIdx];
+  const cols = normalizeColumnsItems(blk.data?.columns || []);
+  const arr = cols[colIdx].items;
+  if (!arr || fromIndex < 0 || fromIndex >= arr.length || toIndex < 0 || toIndex > arr.length) return;
+  const [it] = arr.splice(fromIndex, 1);
+  // Insert before toIndex
+  arr.splice(toIndex, 0, it);
+  updateBlockData(blockId, { columns: cols });
+}
+
+// Nested drag handlers
+function onNestedDragStart(event, blockId, colIdx, index) {
+  nestedDragging.value = { blockId, colIdx, index };
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function onNestedDragOver(event, blockId, colIdx, index) {
+  event.preventDefault();
+  event.stopPropagation();
+  nestedDragOver.value = { blockId, colIdx, index };
+}
+
+function onNestedDrop(event, blockId, colIdx, index) {
+  event.preventDefault();
+  event.stopPropagation();
+  // Reorder existing item
+  if (nestedDragging.value) {
+    const d = nestedDragging.value;
+    if (d.blockId === blockId && d.colIdx === colIdx) {
+      moveNestedItem(blockId, colIdx, d.index, index);
+    }
+    nestedDragging.value = null;
+    nestedDragOver.value = null;
+    return;
+  }
+  // Insert a new block at this position
+  if (draggedBlock.value) {
+    const newBlock = createBlock(draggedBlock.value);
+    const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
+    if (blkIdx !== -1) {
+      const blk = emailBlocks.value[blkIdx];
+      const cols = normalizeColumnsItems(blk.data?.columns || []);
+      const arr = cols[colIdx].items;
+      const item = { id: generateBlockId(), type: newBlock.type, data: newBlock.data, content: newBlock.content };
+      const safeIndex = Math.max(0, Math.min(index, arr.length));
+      arr.splice(safeIndex, 0, item);
+      lastDroppedByBlock.value[blockId] = { colIdx, itemIndex: safeIndex };
+      updateBlockData(blockId, { columns: cols });
+    }
+    draggedBlock.value = null;
+  }
+}
+
+function onNestedDragEnd() {
+  nestedDragging.value = null;
+  nestedDragOver.value = null;
+}
+
+// Open nested item editor
+function openNestedEditor(blockId, colIdx, itemIndex) {
+  const item = getNestedItem(blockId, colIdx, itemIndex);
+  if (!item) return;
+  editingNested.value = { blockId, colIdx, itemIndex };
+  if (item.type === 'text' || item.type === 'heading') {
+    textModalContent.value = item.data?.content || '';
+    textBackground.value = item.data?.background || 'transparent';
+    textColor.value = item.data?.color || (item.type === 'heading' ? '#333333' : '#666666');
+    showTextEditor.value = true;
+  } else if (item.type === 'image') {
+    imageCropSrc.value = item.data?.src || null;
+    imageFullWidth.value = item.data?.fullWidth || false;
+    showImageUpload.value = true;
+  } else if (item.type === 'button') {
+    buttonText.value = item.data?.text || 'Click Here';
+    buttonUrl.value = item.data?.url || '#';
+    buttonBackground.value = item.data?.background || '#c8102e';
+    showButtonEditor.value = true;
+  } else {
+    // Fallback: treat as text content
+    textModalContent.value = item.data?.content || item.content || '';
+    showTextEditor.value = true;
+  }
+}
+
+// Helper: get normalized items for a block's column index (0-based)
+function columnsItems(block, zeroBasedColIdx) {
+  try {
+    const cols = normalizeColumnsItems(block?.data?.columns || []);
+    const arr = cols[zeroBasedColIdx]?.items;
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Open last nested item in a specific column, or open Columns modal if none
+function openLastNestedOrColumns(block, colIdx) {
+  try {
+    const items = columnsItems(block, colIdx);
+    if (items.length > 0) {
+      openNestedEditor(block.id, colIdx, items.length - 1);
+    } else {
+      editingBlock.value = block.id;
+      columnGap.value = block.data?.gap || '20px';
+      showColumnEditor.value = true;
+    }
+  } catch (e) {}
+}
+
+// Open last nested item across both columns; fallback to Columns modal
+function openLastNestedAcross(block) {
+  try {
+    // Prefer the last dropped item if available
+    const last = lastDroppedByBlock.value?.[block.id];
+    if (last) {
+      const items = columnsItems(block, last.colIdx);
+      if (items && items[last.itemIndex]) {
+        openNestedEditor(block.id, last.colIdx, last.itemIndex);
+        return;
+      }
+    }
+    const left = columnsItems(block, 0);
+    const right = columnsItems(block, 1);
+    if (right.length > 0) {
+      openNestedEditor(block.id, 1, right.length - 1);
+      return;
+    }
+    if (left.length > 0) {
+      openNestedEditor(block.id, 0, left.length - 1);
+      return;
+    }
+    editingBlock.value = block.id;
+    columnGap.value = block.data?.gap || '20px';
+    showColumnEditor.value = true;
+  } catch (e) {}
+}
+
+// --- Padding Normalization Utilities ---
+const OLD_TEXT_PADDINGS = new Set(['15px 12px', '15px 50px']);
+const OLD_HEADING_PADDINGS = new Set(['15px 12px']);
+const OLD_IMAGE_PADDINGS = new Set(['15px 12px', '20px 12px']);
+
+function normalizePaddingForBlockType(type, data) {
+  if (!data) return data;
+  const out = { ...data };
+  if (type === 'text') {
+    if (!out.padding || OLD_TEXT_PADDINGS.has(String(out.padding))) {
+      out.padding = '15px 35px';
+    }
+  } else if (type === 'heading') {
+    if (!out.padding || OLD_HEADING_PADDINGS.has(String(out.padding))) {
+      out.padding = '15px 35px';
+    }
+  } else if (type === 'image') {
+    const isFull = !!out.fullWidth;
+    const target = isFull ? '0' : '0 35px';
+    if (!out.padding || OLD_IMAGE_PADDINGS.has(String(out.padding))) {
+      out.padding = target;
+    }
+  }
+  return out;
+}
+
+// Returns true if any change was made. Also regenerates block/item content if changed.
+function normalizeAllPaddings() {
+  let changed = false;
+  const blocks = emailBlocks.value || [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (!b) continue;
+    // Normalize top-level
+    const newData = normalizePaddingForBlockType(b.type, b.data || {});
+    if (JSON.stringify(newData) !== JSON.stringify(b.data || {})) {
+      b.data = newData;
+      b.content = getBlockHtml(b.type, b.data || {});
+      changed = true;
+    }
+    // Normalize nested items inside columns
+    if (b.type === 'columns') {
+      const cols = normalizeColumnsItems((b.data && b.data.columns) || []);
+      let nestedChanged = false;
+      for (let c = 0; c < cols.length; c++) {
+        const items = cols[c]?.items || [];
+        for (let j = 0; j < items.length; j++) {
+          const it = items[j];
+          const nd = normalizePaddingForBlockType(it.type, it.data || {});
+          if (JSON.stringify(nd) !== JSON.stringify(it.data || {})) {
+            it.data = nd;
+            it.content = getBlockHtml(it.type, it.data);
+            nestedChanged = true;
+          }
+        }
+      }
+      if (nestedChanged) {
+        b.data = { ...(b.data || {}), columns: cols };
+        b.content = getBlockHtml(b.type, b.data || {});
+        changed = true;
+      }
+    }
+  }
+  return changed;
 }
 
 // Template Functions
@@ -583,6 +1001,8 @@ function loadTemplate(template) {
   }
   
   console.log('Final emailBlocks:', emailBlocks.value);
+  // Emit selected template to allow parent to react (e.g., override from name/email)
+  try { emit('template-selected', template); } catch (e) {}
   showTemplates.value = false;
   updateContent();
 }
@@ -796,7 +1216,7 @@ function parseHtmlIntoBlocks(htmlContent) {
         editable: true,
         locked: false
       });
-    } else if (/(unsubscribe|copyright|©|all rights reserved)/i.test(innerHTML)) {
+    } else if (/(unsubscribe|copyright|&copy;|all rights reserved)/i.test(innerHTML)) {
       blocks.push({
         id: generateBlockId(),
         type: 'footer',
@@ -805,6 +1225,21 @@ function parseHtmlIntoBlocks(htmlContent) {
           content: innerHTML,
           background: safeStyle(element, 'backgroundColor', '#c8102e'),
           textColor: safeStyle(element, 'color', '#ffffff')
+        },
+        editable: true,
+        locked: false
+      });
+    } else if (/Image Placeholder/i.test(innerHTML)) {
+      // Recognize our image placeholder markup as an image block (no src yet)
+      blocks.push({
+        id: generateBlockId(),
+        type: 'image',
+        content: outerHTML,
+        data: {
+          src: '',
+          alt: 'Image',
+          width: '100%',
+          height: 'auto'
         },
         editable: true,
         locked: false
@@ -845,7 +1280,13 @@ function createBlock(type) {
       background: '#c8102e',
       textColor: '#ffffff',
       padding: '30px 12px',
-      fullWidth: false
+      fullWidth: false,
+      logo: '',
+      logoAlt: '',
+      logoUrl: '',
+      logoAlignment: 'center',
+      logoSize: '250px',
+      logoPadding: '10px'
     },
     text: { 
       content: '<p>Click to edit this text...</p>',
@@ -925,32 +1366,61 @@ function getBlockHtml(type, data) {
   switch (type) {
     case 'header':
       data = data || {};
-      const logoHtml = data.logo ? `<img src="${data.logo}" alt="Logo" style="max-width: ${data.logoSize || '150px'}; height: auto; margin: ${data.logoMargin || '0 0 20px 0'}; padding: ${data.logoPadding || '10px'}; display: block; margin-left: ${data.logoAlignment === 'left' ? '0' : data.logoAlignment === 'right' ? 'auto' : 'auto'}; margin-right: ${data.logoAlignment === 'left' ? 'auto' : data.logoAlignment === 'right' ? '0' : 'auto'};" />` : '';
-      return `<div style="background: ${data.background || '#c8102e'}; color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0;">${logoHtml}<h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title || 'Newsletter Title'}</h1><p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle || 'Your weekly dose of updates'}</p></div>`;
+      let logoHtml = '';
+      if (data.logo) {
+        const logoImg = `<img src="${data.logo}" alt="${data.logoAlt || 'Logo'}" style="max-width: ${data.logoSize || '150px'}; height: auto; padding: ${data.logoPadding || '10px'}; display: block; margin-left: ${data.logoAlignment === 'left' ? '0' : data.logoAlignment === 'right' ? 'auto' : 'auto'}; margin-right: ${data.logoAlignment === 'left' ? 'auto' : data.logoAlignment === 'right' ? '0' : 'auto'};" />`;
+        logoHtml = data.logoUrl ? `<a href="${data.logoUrl}" style="display: block; text-align: ${data.logoAlignment || 'center'}; margin: 0 0 20px 0;">${logoImg}</a>` : `<div style="margin: 0 0 20px 0; text-align: ${data.logoAlignment || 'center'};">${logoImg}</div>`;
+      }
+      const titleHtml = data.title ? `<h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title}</h1>` : '';
+      const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle}</p>` : '';
+      return `<div class="header-block" style="background: ${data.background || '#c8102e'}; color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0;">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
     case 'text':
       data = data || {};
-      return `<div style="margin: 0; padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'};">${data.content || '<p>Click to edit this text...</p>'}</div>`;
+      return `<div style="margin: 0; padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'};">${data.content || '<p>Click to edit this text...</p>'}</div>`;
     case 'heading':
       data = data || {};
-      return `<div style="padding: ${getPadding(data)}; background-color: ${data.background || 'transparent'};"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${data.content || 'Your Heading Here'}</h${data.level || 2}></div>`;
+      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'};"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${data.content || 'Your Heading Here'}</h${data.level || 2}></div>`;
     case 'image':
       data = data || {};
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
+      const imgPadding = data.fullWidth ? '0' : (data.padding || '0 35px');
       return data.src ?
-        `<div style="padding: ${getPadding(data)};"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
-        `<div style="padding: ${getPadding(data)};"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
+        `<div style="padding: ${imgPadding};"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
+        `<div style="padding: ${imgPadding};"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
     case 'button':
       return `<div style="text-align: center; margin: 20px 0;"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${data.background}; color: ${data.color}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
     case 'columns':
       data = data || {};
-      const count = data.count || (data.columns ? data.columns.length : 2);
+      const count = 2; // enforce two columns only
       const gap = data.gap || '20px';
-      const widthCalc = `calc(${(100 / (count || 1)).toFixed(3)}% - ${gap})`;
       const cols = Array.isArray(data.columns) ? data.columns : [];
-      const columnsHtml = cols.map(col => 
-        `<div style="width: ${widthCalc}; display: inline-block; vertical-align: top; margin: 0 calc(${gap} / 2);">${(col && col.content) || ''}</div>`
-      ).join('');
-      return `<div style="padding: ${getPadding(data)}; text-align: left;">${columnsHtml}</div>`;
+      const getInner = (col) => {
+        const items = Array.isArray(col?.items) ? col.items : [];
+        return items.length
+          ? items.map(it => (it && (it.content || getBlockHtml(it.type || 'text', it.data || {})))).join('')
+          : ((col && col.content) || '');
+      };
+      const c0 = getInner(cols[0] || {});
+      const c1 = getInner(cols[1] || {});
+      // Derive half-gap (px only). If not px, fallback to 20px total gap.
+      let gapPx = 20;
+      try {
+        const m = String(gap).match(/^(\d+)px$/);
+        if (m) gapPx = Math.max(0, parseInt(m[1], 10));
+      } catch (e) {}
+      const halfGap = Math.round(gapPx / 2);
+      const tdLeftStyle = `text-align: center; vertical-align: top; padding-right: ${halfGap}px;`;
+      const tdRightStyle = `text-align: center; vertical-align: top; padding-left: ${halfGap}px;`;
+      return [
+        `<div style="padding: ${getPadding(data)}; text-align: center;">`,
+        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">`,
+        `<tr>`,
+        `<td align="center" valign="top" width="50%" style="${tdLeftStyle}">${c0}</td>`,
+        `<td align="center" valign="top" width="50%" style="${tdRightStyle}">${c1}</td>`,
+        `</tr>`,
+        `</table>`,
+        `</div>`
+      ].join('');
     case 'divider':
       data = data || {};
       return `<hr style="border: none; border-top: 1px ${data.style || 'solid'} ${data.color || '#e5e7eb'}; margin: ${data.margin || '20px 0'};" />`;
@@ -975,8 +1445,6 @@ function editBlock(blockId) {
     if (block.type === 'image') {
       // Preload current image and spacing settings
       imageCropSrc.value = block.data?.src || null;
-      imageMargin.value = block.data?.margin || '20px 0';
-      imagePadding.value = block.data?.padding || '0';
       imageFullWidth.value = block.data?.fullWidth || false;
       showImageUpload.value = true;
     } else if (block.type === 'button') {
@@ -988,18 +1456,16 @@ function editBlock(blockId) {
     } else if (block.type === 'columns') {
       // Initialize columns editor state from block
       const data = block.data || { count: 2, gap: '20px', columns: [{ content: '<p>Column 1 content</p>' }, { content: '<p>Column 2 content</p>' }] };
-      columnCount.value = Math.max(1, parseInt(data.count || 2, 10));
+      // Enforce exactly 2 columns in the editor
+      columnCount.value = 2;
       columnGap.value = data.gap || '20px';
       const cols = Array.isArray(data.columns) ? data.columns : [];
-      columnsContent.value = cols.map((c, i) => (c && c.content) ? c.content : `<p>Column ${i + 1} content</p>`);
-      // Ensure length matches count
-      if (columnsContent.value.length < columnCount.value) {
-        for (let i = columnsContent.value.length; i < columnCount.value; i++) {
-          columnsContent.value.push(`<p>Column ${i + 1} content</p>`);
-        }
-      } else if (columnsContent.value.length > columnCount.value) {
-        columnsContent.value = columnsContent.value.slice(0, columnCount.value);
-      }
+      const mapped = cols.map((c, i) => (c && c.content) ? c.content : `<p>Column ${i + 1} content</p>`);
+      // Ensure exactly two slots
+      columnsContent.value = [
+        mapped[0] ?? '<p>Column 1 content</p>',
+        mapped[1] ?? '<p>Column 2 content</p>',
+      ];
       showColumnEditor.value = true;
     } else if (block.type === 'text') {
       // Use EmailEditor in a modal for text blocks, with background and padding settings
@@ -1015,15 +1481,16 @@ function editBlock(blockId) {
       textColor.value = block.data?.color || '#333333';
       showTextEditor.value = true;
     } else if (block.type === 'header') {
-      headerTitle.value = block.data?.title || 'Newsletter Title';
-      headerSubtitle.value = block.data?.subtitle || 'Your weekly dose of updates';
+      headerTitle.value = block.data?.title || '';
+      headerSubtitle.value = block.data?.subtitle || '';
       headerBackground.value = block.data?.background || '#c8102e';
       headerTextColor.value = block.data?.textColor || '#ffffff';
       headerLogo.value = block.data?.logo || '';
+      headerLogoAlt.value = block.data?.logoAlt || '';
+      headerLogoUrl.value = block.data?.logoUrl || '';
       headerLogoAlignment.value = block.data?.logoAlignment || 'center';
       headerLogoSize.value = block.data?.logoSize || '150px';
       headerLogoPadding.value = block.data?.logoPadding || '10px';
-      headerLogoMargin.value = block.data?.logoMargin || '0 0 20px 0';
       showHeaderEditor.value = true;
     } else if (block.type === 'footer') {
       footerContent.value = block.data?.content || 'Thanks for reading! Forward this to someone who might find it useful.';
@@ -1050,6 +1517,12 @@ function handleImageUpload(event) {
     const reader = new FileReader();
     reader.onload = (e) => {
       imageCropSrc.value = e.target.result;
+      // Force VueCropper to refresh with new image
+      nextTick(() => {
+        if (imageCropper.value) {
+          imageCropper.value.replace(e.target.result);
+        }
+      });
     };
     reader.readAsDataURL(file);
   }
@@ -1104,28 +1577,50 @@ async function cropAndSaveImage() {
       // Fallback normalization to absolute URL
       url = `${window.location.origin}${url}`;
     }
-    updateBlockData(editingBlock.value, {
-      src: url,
-      // Keep image fluid inside the content container; spacing on wrapper
-      margin: imageMargin.value,
-      padding: imagePadding.value,
-      width: '100%',
-      height: 'auto',
-      fullWidth: imageFullWidth.value,
-    });
+    if (editingNested.value) {
+      const { blockId, colIdx, itemIndex } = editingNested.value;
+      updateNestedItem(blockId, colIdx, itemIndex, {
+        src: url,
+        width: '100%',
+        height: 'auto',
+        fullWidth: imageFullWidth.value,
+      });
+    } else {
+      updateBlockData(editingBlock.value, {
+        src: url,
+        width: '100%',
+        height: 'auto',
+        fullWidth: imageFullWidth.value,
+      });
+    }
 
     // Close modal
     showImageUpload.value = false;
     imageCropSrc.value = null;
+    editingNested.value = null;
+    // Reset file input
+    if (imageFileInput.value) {
+      imageFileInput.value.value = '';
+    }
   } catch (e) {
     // No-op; could add user feedback here
   }
 }
 
 // Handle header logo upload
-async function handleHeaderLogoUpload(event) {
+  async function handleHeaderLogoUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
+
+  // Check file size (100KB limit)
+  const maxSize = 100 * 1024; // 100KB in bytes
+  if (file.size > maxSize) {
+    // File exceeds size limit, show warning to user
+    console.warn(`Logo file size (${(file.size / 1024).toFixed(1)}KB) exceeds 100KB limit. Auto-optimizing...`);
+    
+    // For now, we'll still upload the file but could implement client-side resizing in the future
+    // This would require additional image processing libraries
+  }
 
   try {
     const formData = new FormData();
@@ -1152,14 +1647,89 @@ async function handleHeaderLogoUpload(event) {
       url = `${window.location.origin}${url}`;
     }
     headerLogo.value = url;
+    
+    // Set default alt text to filename if not already set
+    if (!headerLogoAlt.value) {
+      headerLogoAlt.value = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+    }
   } catch (e) {
     console.error('Logo upload failed:', e);
+  }
+}
+
+// Logo Library Management
+async function fetchHeaderLogos() {
+  try {
+    const resp = await axios.get('/api/newsletter/logos');
+    headerLogos.value = Array.isArray(resp.data?.logos) ? resp.data.logos : [];
+  } catch (e) {
+    console.error('Failed to fetch logos', e);
+    headerLogos.value = [];
+  }
+}
+
+function openLogoLibrary() {
+  showLogoLibrary.value = true;
+  fetchHeaderLogos();
+}
+
+function closeLogoLibrary() {
+  showLogoLibrary.value = false;
+}
+
+function selectLogoFromLibrary(logo) {
+  if (!logo) return;
+  headerLogo.value = logo.url;
+  if (!headerLogoAlt.value) {
+    headerLogoAlt.value = (logo.filename || 'Logo').replace(/\.[^/.]+$/, '');
+  }
+  showLogoLibrary.value = false;
+}
+
+async function deleteLogoFromLibrary(logo) {
+  if (!logo || !logo.filename) return;
+  if (!confirm(`Delete logo "${logo.filename}"?`)) return;
+  try {
+    const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
+    await axios.delete(`/api/newsletter/logos/${encodeURIComponent(logo.filename)}`, {
+      headers: {
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+        Accept: 'application/json',
+      },
+    });
+    await fetchHeaderLogos();
+  } catch (e) {
+    console.error('Failed to delete logo', e);
+  }
+}
+
+async function renameLogoFromLibrary(logo) {
+  if (!logo || !logo.filename) return;
+  const newName = prompt('Enter new filename (with or without extension):', logo.filename);
+  if (!newName || newName === logo.filename) return;
+  try {
+    const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
+    await axios.put(`/api/newsletter/logos/${encodeURIComponent(logo.filename)}/rename`, { new_name: newName }, {
+      headers: {
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+        Accept: 'application/json',
+      },
+    });
+    await fetchHeaderLogos();
+  } catch (e) {
+    console.error('Failed to rename logo', e);
   }
 }
 
 function closeImageEditor() {
   showImageUpload.value = false;
   imageCropSrc.value = null;
+  editingBlock.value = null;
+  editingNested.value = null;
+  // Reset file input
+  if (imageFileInput.value) {
+    imageFileInput.value.value = '';
+  }
 }
 
 // WYSIWYG Editor for text blocks
@@ -1278,12 +1848,24 @@ const buttonUrl = ref('');
 const buttonBackground = ref('');
 
 function saveButtonChanges() {
-  updateBlockData(editingBlock.value, {
-    text: buttonText.value,
-    url: buttonUrl.value,
-    background: buttonBackground.value
-  });
-  showButtonEditor.value = false;
+  if (editingNested.value) {
+    const { blockId, colIdx, itemIndex } = editingNested.value;
+    updateNestedItem(blockId, colIdx, itemIndex, {
+      text: buttonText.value,
+      url: buttonUrl.value,
+      background: buttonBackground.value,
+    });
+    showButtonEditor.value = false;
+    editingNested.value = null;
+  } else {
+    updateBlockData(editingBlock.value, {
+      text: buttonText.value,
+      url: buttonUrl.value,
+      background: buttonBackground.value
+    });
+    showButtonEditor.value = false;
+    editingBlock.value = null;
+  }
 }
 
 // Columns editor handlers
@@ -1300,44 +1882,65 @@ function adjustColumnsLength(newCount) {
 }
 
 function saveColumnChanges() {
-  const cols = columnsContent.value.map(c => ({ content: c }));
+  // Only update spacing (gap). Content is edited directly on canvas.
   updateBlockData(editingBlock.value, {
-    count: columnCount.value,
     gap: columnGap.value,
-    columns: cols,
   });
   showColumnEditor.value = false;
+  editingBlock.value = null;
 }
 
 function cancelColumnEdit() {
   showColumnEditor.value = false;
+  editingBlock.value = null;
 }
 
 // Text editor save/cancel handlers
 function saveTextChanges() {
   // Save EmailEditor modal content. If text block, also save background and padding.
-  const blk = currentEditingBlock.value;
-  if (blk && blk.type === 'text') {
-    updateBlockData(editingBlock.value, {
+  if (editingNested.value) {
+    const { blockId, colIdx, itemIndex } = editingNested.value;
+    const nested = getNestedItem(blockId, colIdx, itemIndex);
+    const isHeading = nested?.type === 'heading';
+    const isText = nested?.type === 'text';
+    const payload = {
       content: textModalContent.value,
       background: textBackground.value,
       color: textColor.value,
-      padding: '15px 50px',
-    });
-  } else if (blk && blk.type === 'heading') {
-    updateBlockData(editingBlock.value, {
-      content: textModalContent.value,
-      background: textBackground.value,
-      color: textColor.value,
-    });
+    };
+    if (isText) {
+      payload.padding = '15px 35px';
+    }
+    updateNestedItem(blockId, colIdx, itemIndex, payload);
+    showTextEditor.value = false;
+    editingNested.value = null;
   } else {
-    updateBlockData(editingBlock.value, { content: textModalContent.value });
+    const blk = currentEditingBlock.value;
+    if (blk && blk.type === 'text') {
+      updateBlockData(editingBlock.value, {
+        content: textModalContent.value,
+        background: textBackground.value,
+        color: textColor.value,
+        padding: '15px 35px',
+      });
+    } else if (blk && blk.type === 'heading') {
+      updateBlockData(editingBlock.value, {
+        content: textModalContent.value,
+        background: textBackground.value,
+        color: textColor.value,
+      });
+    } else {
+      updateBlockData(editingBlock.value, { content: textModalContent.value });
+    }
+    showTextEditor.value = false;
+    editingBlock.value = null;
   }
-  showTextEditor.value = false;
 }
 
 function cancelTextEdit() {
   showTextEditor.value = false;
+  editingBlock.value = null;
+  editingNested.value = null;
 }
 
 // Modal backdrop click handler
@@ -1508,6 +2111,11 @@ watch(
   () => props.initialHtml,
   (newHtml) => {
     if (typeof newHtml === 'string' && newHtml.trim() !== '') {
+      // Guard: if the incoming HTML matches what this builder just emitted,
+      // ignore to prevent a parse/apply feedback loop (notably in campaigns page wrapper)
+      if (newHtml === finalHtmlContent.value) {
+        return;
+      }
       try {
         const blocks = parseHtmlIntoBlocks(newHtml);
         if (Array.isArray(blocks) && blocks.length) {
@@ -1531,12 +2139,14 @@ function saveHeaderChanges() {
     background: headerBackground.value,
     textColor: headerTextColor.value,
     logo: headerLogo.value,
+    logoAlt: headerLogoAlt.value,
+    logoUrl: headerLogoUrl.value,
     logoAlignment: headerLogoAlignment.value,
     logoSize: headerLogoSize.value,
     logoPadding: headerLogoPadding.value,
-    logoMargin: headerLogoMargin.value,
   });
   showHeaderEditor.value = false;
+  editingBlock.value = null;
 }
 
 // Footer editor save/cancel
@@ -1548,6 +2158,17 @@ function saveFooterChanges() {
     copyright: footerCopyright.value,
   });
   showFooterEditor.value = false;
+  editingBlock.value = null;
+}
+
+function cancelHeaderEdit() {
+  showHeaderEditor.value = false;
+  editingBlock.value = null;
+}
+
+function cancelFooterEdit() {
+  showFooterEditor.value = false;
+  editingBlock.value = null;
 }
 
 // Block movement functions
@@ -1670,7 +2291,7 @@ function insertTokenIntoEditor(token) {
             @dragstart="onDragStart($event, blockType.type)"
             @dragend="onDragEnd"
             @click="addBlock(blockType.type)"
-            class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer  transition-colors dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-600"
+            class="flex justify-center items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer  transition-colors dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-600"
           >
             <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ blockType.label }}</span>
           </div>
@@ -1683,7 +2304,7 @@ function insertTokenIntoEditor(token) {
             v-for="template in templates"
             :key="template.id"
             @click="loadTemplate(template)"
-            class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+            class="flex justify-center items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
           >
             <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ template.name }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ template.description }}</div>
@@ -1761,6 +2382,7 @@ function insertTokenIntoEditor(token) {
               >
                 <!-- Block Content (static render; dblclick to edit) -->
                 <div
+                  v-if="block.type !== 'columns'"
                   :class="`transition-all duration-200 ${
                     selectedBlockId === block.id
                       ? 'ring-2 ring-blue-500 ring-opacity-50'
@@ -1768,8 +2390,91 @@ function insertTokenIntoEditor(token) {
                   }`"
                   class="cursor-pointer"
                   v-html="block.content"
+                  @click.capture="handleCanvasClick($event, block)"
                   @dblclick="editBlock(block.id)"
                 ></div>
+
+                <!-- Interactive Columns Block Rendering on Canvas -->
+                <div
+                  v-else
+                  :class="`transition-all duration-200 ${
+                    selectedBlockId === block.id
+                      ? 'ring-2 ring-blue-500 ring-opacity-50'
+                      : 'hover:ring-1 hover:ring-gray-300'
+                  }`"
+                  class="cursor-pointer"
+                  @dblclick="openLastNestedAcross(block)"
+                >
+                  <div
+                    class="w-full"
+                    :style="{ padding: (block.data && block.data.fullWidth) ? '0' : (block.data?.padding || '20px 12px') }"
+                  >
+                    <div class="grid grid-cols-2"
+                         :style="{ gap: block.data?.gap || '20px' }">
+                      <div
+                        v-for="colIdx in 2"
+                        :key="`${block.id}-col-${colIdx-1}`"
+                        class="border border-gray-200 rounded p-0 min-h-[80px] text-center"
+                        :class="{
+                          'ring-2 ring-blue-400': canvasColumnHover?.blockId === block.id && canvasColumnHover?.colIdx === (colIdx - 1)
+                        }"
+                        @dragover="onCanvasColumnDragOver($event, block.id, colIdx - 1)"
+                        @dragleave="onCanvasColumnDragLeave(block.id, colIdx - 1)"
+                        @drop="onCanvasColumnDrop($event, block.id, colIdx - 1)"
+                        @dblclick.stop="openLastNestedOrColumns(block, colIdx - 1)"
+                      >
+                        <template v-if="columnsItems(block, colIdx - 1).length === 0">
+                          <div class="text-xs text-gray-400">Drop blocks here</div>
+                        </template>
+
+                        <!-- Top insertion drop zone -->
+                        <div
+                          v-if="draggedBlock || nestedDragging"
+                          class="h-2 my-1 rounded transition-all"
+                          :class="nestedDragOver?.blockId === block.id && nestedDragOver?.colIdx === (colIdx - 1) && nestedDragOver?.index === 0 ? 'bg-blue-400' : 'bg-transparent'"
+                          @dragover="onNestedDragOver($event, block.id, colIdx - 1, 0)"
+                          @drop="onNestedDrop($event, block.id, colIdx - 1, 0)"
+                        ></div>
+
+                        <!-- Render nested items with controls -->
+                        <div v-for="(it, idx) in columnsItems(block, colIdx - 1)" :key="it.id" class="group relative text-center">
+                          <!-- Item content (dblclick to edit) -->
+                          <div class="inline-block max-w-full text-left"
+                               draggable="true"
+                               @dragstart="onNestedDragStart($event, block.id, colIdx - 1, idx)"
+                               @dragend="onNestedDragEnd"
+                               @dblclick.stop="openNestedEditor(block.id, colIdx - 1, idx)"
+                          >
+                            <div v-html="it.content"></div>
+                          </div>
+
+                          <!-- Item toolbar -->
+                          <div class="absolute top-1 right-1 flex gap-1 bg-white/90 dark:bg-gray-800/90 shadow rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
+                            <button type="button" @click.stop="removeNestedItem(block.id, colIdx - 1, idx)" class="p-0.5 text-[10px] text-red-600 hover:bg-red-50 rounded">Delete</button>
+                          </div>
+
+                          <!-- Drop zone after item (for insertion/reorder) -->
+                          <div
+                            v-if="draggedBlock || nestedDragging"
+                            class="h-2 my-1 rounded transition-all"
+                            :class="nestedDragOver?.blockId === block.id && nestedDragOver?.colIdx === (colIdx - 1) && nestedDragOver?.index === (idx + 1) ? 'bg-blue-400' : 'bg-transparent'"
+                            @dragover="onNestedDragOver($event, block.id, colIdx - 1, idx + 1)"
+                            @drop="onNestedDrop($event, block.id, colIdx - 1, idx + 1)"
+                          ></div>
+                        </div>
+
+                        <!-- Final drop zone at end -->
+                        <div
+                          v-if="draggedBlock || nestedDragging"
+                          class="h-2 my-1 rounded transition-all"
+                          :class="nestedDragOver?.blockId === block.id && nestedDragOver?.colIdx === (colIdx - 1) && nestedDragOver?.index === columnsItems(block, colIdx - 1).length ? 'bg-blue-400' : 'bg-transparent'"
+                          @dragover="onNestedDragOver($event, block.id, colIdx - 1, columnsItems(block, colIdx - 1).length)"
+                          @drop="onNestedDrop($event, block.id, colIdx - 1, columnsItems(block, colIdx - 1).length)"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 
                 <!-- Block Controls -->
                 <div
@@ -1894,6 +2599,7 @@ function insertTokenIntoEditor(token) {
         <h3 class="text-lg font-medium mb-4">Upload & Crop Image</h3>
         <div class="space-y-3">
           <input
+            ref="imageFileInput"
             type="file"
             accept="image/*"
             @change="handleImageUpload"
@@ -1909,17 +2615,7 @@ function insertTokenIntoEditor(token) {
               style="max-height: 420px; width: 100%;"
             />
           </div>
-          <!-- Spacing settings -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-sm text-gray-700 mb-1">Margin (CSS)</label>
-              <input type="text" v-model="imageMargin" class="w-full p-2 border border-gray-300 rounded" placeholder="e.g. 20px 0" />
-            </div>
-            <div>
-              <label class="block text-sm text-gray-700 mb-1">Padding (CSS)</label>
-              <input type="text" v-model="imagePadding" class="w-full p-2 border border-gray-300 rounded" placeholder="e.g. 0 or 10px" />
-            </div>
-          </div>
+          <!-- Spacing settings removed: margin and padding fields no longer displayed -->
           <div>
             <label class="flex items-center">
               <input type="checkbox" v-model="imageFullWidth" class="mr-2" />
@@ -2089,25 +2785,14 @@ function insertTokenIntoEditor(token) {
 
     <!-- Columns Editor Modal -->
     <div v-if="showColumnEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-[40rem] max-w-full">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-[40rem] max-w-full">
         <h3 class="text-lg font-medium mb-4">Edit Columns</h3>
         <div class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-1">Number of Columns</label>
-              <input type="number" min="1" max="4" :value="columnCount" @input="adjustColumnsLength($event.target.value)" class="w-full p-2 border border-gray-300 rounded" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Column Gap (e.g., 20px)</label>
-              <input type="text" v-model="columnGap" class="w-full p-2 border border-gray-300 rounded" />
-            </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Column Gap (e.g., 20px)</label>
+            <input type="text" v-model="columnGap" class="dark:bg-gray-800 w-full p-2 border border-gray-300 rounded" />
           </div>
-          <div class="space-y-3">
-            <div v-for="(content, idx) in columnsContent" :key="idx">
-              <label class="block text-sm font-medium mb-1">Column {{ idx + 1 }} HTML</label>
-              <textarea v-model="columnsContent[idx]" rows="4" class="w-full p-2 border border-gray-300 rounded"></textarea>
-            </div>
-          </div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">Tip: Drag blocks from the left panel directly into each column on the email canvas. Modal only controls spacing.</div>
         </div>
         <div class="flex gap-2 mt-5 justify-end">
           <button type="button" @click="cancelColumnEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
@@ -2133,8 +2818,8 @@ function insertTokenIntoEditor(token) {
             <div>
               <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Text Color</label>
               <div class="flex items-center gap-3">
-                <ColorPicker v-model="footerTextColor" :showAlpha="false" />
-                <input v-model="footerTextColor" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#ffffff or any CSS color" />
+                <ColorPicker v-model="headerTextColor" :showAlpha="false" />
+                <input v-model="headerTextColor" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#ffffff or any CSS color" />
               </div>
             </div>
           </div>
@@ -2148,9 +2833,29 @@ function insertTokenIntoEditor(token) {
                 @change="handleHeaderLogoUpload"
                 class="w-full p-2 border border-gray-300 rounded"
               />
+              <div>
+                <button type="button" @click="openLogoLibrary" class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded border">Browse Library</button>
+              </div>
+              <div class="flex items-center gap-2">
+                <input 
+                  v-model="headerLogo" 
+                  type="text" 
+                  class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" 
+                  placeholder="Logo URL or upload an image" 
+                />
+                <button v-if="headerLogo" type="button" @click="headerLogo = ''" class="text-red-600 hover:text-red-800 text-sm">Clear</button>
+              </div>
               <div v-if="headerLogo" class="flex items-center gap-3">
-                <img :src="headerLogo" alt="Logo preview" class="w-16 h-16 object-contain border rounded" />
+                <img :src="headerLogo" :alt="headerLogoAlt || 'Logo preview'" class="w-16 h-16 object-contain border rounded" />
                 <button type="button" @click="headerLogo = ''" class="text-red-600 hover:text-red-800">Remove</button>
+              </div>
+              <div>
+                <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Logo Alt Text</label>
+                <input v-model="headerLogoAlt" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="Logo description" />
+              </div>
+              <div>
+                <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Logo Click URL</label>
+                <input v-model="headerLogoUrl" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="https://example.com" />
               </div>
               <div class="grid grid-cols-3 gap-3">
                 <div>
@@ -2170,25 +2875,51 @@ function insertTokenIntoEditor(token) {
                   <input v-model="headerLogoPadding" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="10px" />
                 </div>
               </div>
-              <div>
-                <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Margin</label>
-                <input v-model="headerLogoMargin" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="0 0 20px 0" />
-              </div>
             </div>
           </div>
           
           <div>
             <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Title</label>
-            <input v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" />
+            <input v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Newsletter Title (optional)" />
           </div>
           <div>
             <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Subtitle</label>
-            <input v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" />
+            <input v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Your weekly dose of updates (optional)" />
           </div>
         </div>
         <div class="flex gap-2 mt-4 justify-end">
-          <button type="button" @click="showHeaderEditor = false" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
+          <button type="button" @click="cancelHeaderEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
           <button type="button" @click="saveHeaderChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logo Library Modal -->
+    <div v-if="showLogoLibrary" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="closeLogoLibrary">
+      <div class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-lg shadow-xl w-[64rem] max-w-full max-h-[90vh] overflow-y-auto" @click.stop>
+        <div class="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 class="text-lg font-medium">Logo Library</h3>
+          <div class="flex items-center gap-2">
+            <input type="file" accept="image/*" @change="handleLogoLibraryUpload" class="text-sm" />
+            <button type="button" @click="fetchHeaderLogos" class="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded border dark:border-gray-600">Refresh</button>
+            <button type="button" @click="closeLogoLibrary" class="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded border dark:border-gray-600">Close</button>
+          </div>
+        </div>
+        <div class="p-4">
+          <div v-if="headerLogos.length === 0" class="text-sm text-gray-500 dark:text-gray-400">No logos found. Upload a logo to get started.</div>
+          <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            <div v-for="logo in headerLogos" :key="logo.filename" class="border dark:border-gray-700 rounded p-2 flex flex-col">
+              <div class="aspect-[4/3] bg-gray-50 dark:bg-gray-900 border dark:border-gray-700 rounded flex items-center justify-center overflow-hidden">
+                <img :src="logo.url" :alt="logo.filename" class="object-contain max-h-40" />
+              </div>
+              <div class="mt-2 text-xs break-all">{{ logo.filename }}</div>
+              <div class="mt-2 flex gap-2 flex-wrap">
+                <button type="button" @click="selectLogoFromLibrary(logo)" class="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">Select</button>
+                <button type="button" @click="renameLogoFromLibrary(logo)" class="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 rounded border dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600">Rename</button>
+                <button type="button" @click="deleteLogoFromLibrary(logo)" class="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2225,7 +2956,7 @@ function insertTokenIntoEditor(token) {
           </div>
         </div>
         <div class="flex gap-2 mt-4 justify-end">
-          <button type="button" @click="showFooterEditor = false" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
+          <button type="button" @click="cancelFooterEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
           <button type="button" @click="saveFooterChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
         </div>
       </div>
@@ -2245,6 +2976,12 @@ function insertTokenIntoEditor(token) {
 .email-preview p {
   margin-top: 0.75em;
   margin-bottom: 0.75em;
+}
+
+/* Disable clicks on header logo links inside the editing canvas to prevent misclicks */
+.email-canvas .header-block a {
+  pointer-events: none;
+  cursor: default;
 }
 
 /* Drop cap styling (only when explicitly applied via class) */
@@ -2271,6 +3008,7 @@ function insertTokenIntoEditor(token) {
     line-height: 1;
   }
 }
+
 
 /* Optional: reduce margin for consecutive paragraphs inside headings or footers if needed */
 .email-canvas h1 + p,

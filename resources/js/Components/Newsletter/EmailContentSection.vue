@@ -9,7 +9,7 @@ const props = defineProps({
   subtitle: { type: String, default: 'Design your email using the visual editor below' },
 });
 
-const emit = defineEmits(['update:modelValue', 'update:html-content']);
+const emit = defineEmits(['update:modelValue', 'update:html-content', 'template-selected']);
 </script>
 
 <template>
@@ -25,6 +25,7 @@ const emit = defineEmits(['update:modelValue', 'update:html-content']);
         :initial-html="initialHtml"
         @update:modelValue="$emit('update:modelValue', $event)"
         @update:html-content="$emit('update:html-content', $event)"
+        @template-selected="$emit('template-selected', $event)"
       />
     </div>
   </div>

@@ -704,7 +704,8 @@ onBeforeUnmount(() => {
 <style>
 .ProseMirror {
   outline: none;
-  min-height: 100%;
+  /* Use a fixed min-height so clicks in empty space are within the editable area */
+  min-height: 300px;
 }
 
 .ProseMirror p {

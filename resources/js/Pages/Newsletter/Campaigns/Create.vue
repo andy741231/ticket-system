@@ -117,6 +117,17 @@ const getDefaultContent = () => {
   });
 };
 
+// Apply from name/email overrides from a selected template
+function applyTemplateOverrides(tpl) {
+  if (!tpl) return;
+  if (tpl.from_name && String(tpl.from_name).trim() !== '') {
+    form.from_name = tpl.from_name;
+  }
+  if (tpl.from_email && String(tpl.from_email).trim() !== '') {
+    form.from_email = tpl.from_email;
+  }
+}
+
 const form = useForm({
   name: '',
   subject: '',
@@ -160,6 +171,12 @@ onMounted(() => {
   
   // Initialize content with default structure
   form.content = getDefaultContent();
+
+  // If a default template exists, apply its overrides
+  const defaultTemplate = props.templates?.find(t => t.is_default);
+  if (defaultTemplate) {
+    applyTemplateOverrides(defaultTemplate);
+  }
   
   // Set default scheduled time to next hour
   if (!form.scheduled_at) {
@@ -707,7 +724,16 @@ function safeParseJson(str) {
               @update:scheduledDate="(v)=>form.scheduled_date=v"
               @update:scheduledTime="(v)=>form.scheduled_time=v"
             />
+            
+            <!-- Tracking Toggle -->
+            <TrackingToggle
+              v-model="form.enable_tracking"
+              label="Enable URL tracking"
+              help="When disabled, tracked URLs will be removed from links in the email HTML before sending."
+              input-id="enable-tracking"
+            />
           </div>
+          
 
           <!-- Email Content Section - Full Width -->
           <EmailContentSection
@@ -715,6 +741,7 @@ function safeParseJson(str) {
             :model-value="form.content"
             :templates="templates"
             :initial-html="form.html_content"
+            @template-selected="applyTemplateOverrides"
             @update:modelValue="(v)=>form.content=v"
             @update:html-content="updateHtmlContent"
           />

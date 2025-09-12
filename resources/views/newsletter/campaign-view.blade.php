@@ -54,7 +54,12 @@
             <div class="meta">
                 Subject: <strong>{{ $campaign->subject }}</strong>
                 @if($campaign->sent_at)
-                    · Sent on {{ $campaign->sent_at->format('M d, Y \a\t h:ia') }}
+                    @php
+                        $rawSentAt = $campaign->getRawOriginal('sent_at');
+                        $tz = env('APP_TIMEZONE', config('app.timezone', 'UTC'));
+                        $localSentAt = \Carbon\Carbon::parse($rawSentAt, 'UTC')->setTimezone($tz);
+                    @endphp
+                    · Sent on {{ $localSentAt->format('M d, Y \\a\\t h:ia') }}
                 @endif
             </div>
         </header>

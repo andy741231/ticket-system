@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\TempFileController;
 use App\Http\Controllers\Newsletter\PublicController as NewsletterPublicController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\ImageUploadController;
+use App\Http\Controllers\Newsletter\LogoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,6 +37,11 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     // Dashboard stats
     Route::get('/dashboard-stats', [DashboardController::class, 'stats']);
+
+    // Newsletter logos management
+    Route::get('/newsletter/logos', [LogoController::class, 'index']);
+    Route::delete('/newsletter/logos/{filename}', [LogoController::class, 'destroy']);
+    Route::put('/newsletter/logos/{filename}/rename', [LogoController::class, 'rename']);
 });
 
 // Public Newsletter Subscription API (no auth)

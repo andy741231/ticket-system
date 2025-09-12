@@ -20,6 +20,8 @@ const form = useForm({
   description: '',
   content: '',
   html_content: '',
+  from_name: '',
+  from_email: '',
   is_default: false,
 });
 
@@ -81,6 +83,30 @@ function toggleHtmlView() {
                   <input id="is_default" type="checkbox" v-model="form.is_default" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
                   <label for="is_default" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Set as default</label>
                 </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Name Override</label>
+                <input
+                  v-model="form.from_name"
+                  type="text"
+                  class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-blue-500 dark:focus:border-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 rounded-md shadow-sm"
+                  placeholder="MAIL_NEWSLETTER_FROM_NAME (optional)"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Overrides <code>MAIL_NEWSLETTER_FROM_NAME</code> when this template is used in a campaign.</p>
+                <div v-if="form.errors.from_name" class="text-sm text-red-600 mt-1">{{ form.errors.from_name }}</div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">From Email Override</label>
+                <input
+                  v-model="form.from_email"
+                  type="email"
+                  class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-blue-500 dark:focus:border-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 rounded-md shadow-sm"
+                  placeholder="MAIL_NEWSLETTER_FROM_ADDRESS (optional)"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Overrides <code>MAIL_NEWSLETTER_FROM_ADDRESS</code> when this template is used in a campaign.</p>
+                <div v-if="form.errors.from_email" class="text-sm text-red-600 mt-1">{{ form.errors.from_email }}</div>
               </div>
 
               <div class="md:col-span-2">
