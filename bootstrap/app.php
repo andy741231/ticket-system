@@ -3,7 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
+use Illuminate\Http\Request as HttpRequest;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,7 +14,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Trust proxy/load balancer headers (including X-Forwarded-Proto) so HTTPS is respected
-        $middleware->trustProxies(at: '*', headers: SymfonyRequest::HEADER_X_FORWARDED_ALL);
+        $middleware->trustProxies(
+            at: '*',
+            headers: HttpRequest::HEADER_X_FORWARDED_FOR
+                | HttpRequest::HEADER_X_FORWARDED_HOST
+                | HttpRequest::HEADER_X_FORWARDED_PROTO
+                | HttpRequest::HEADER_X_FORWARDED_PORT
+        );
 
         $middleware->web(append: [
             \App\Http\Middleware\SetAppContext::class,
