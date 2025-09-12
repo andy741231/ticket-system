@@ -48,6 +48,9 @@ $publicRoutes = function () {
         ->name('track-click');
 };
 
+// Public newsletter archive at /public/archive
+Route::get('/public/archive', [\App\Http\Controllers\Newsletter\PublicController::class, 'publicArchive'])->name('public.archive');
+
 // Register routes under both /newsletter/ and /newsletter/public/ for backward compatibility
 Route::prefix('newsletter')->name('newsletter.public.')->group($publicRoutes);
 Route::prefix('newsletter/public')->name('newsletter.public.')->group($publicRoutes);

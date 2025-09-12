@@ -86,7 +86,7 @@ function formatDate(dateString) {
               <!-- View Archive Button -->
               <div class="p-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
                 <a 
-                  :href="route('newsletter.public.archive')"
+                  :href="route('public.archive')"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="w-full inline-flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors duration-200"
