@@ -279,25 +279,4 @@ class PublicController extends Controller
 
         return view('newsletter.campaign-view', compact('campaign'));
     }
-
-    /**
-     * Display the public newsletter archive at /public/archive
-     */
-    public function publicArchive(Request $request)
-    {
-        $campaigns = Campaign::sent()
-            ->where('time_capsule', false) // Exclude time capsule campaigns
-            ->with('creator')
-            ->orderBy('sent_at', 'desc')
-            ->paginate(10);
-
-        if ($request->wantsJson()) {
-            return response()->json($campaigns);
-        }
-
-        return view('newsletter.public-archive', [
-            'campaigns' => $campaigns,
-            'title' => 'Newsletter Archive'
-        ]);
-    }
 }
