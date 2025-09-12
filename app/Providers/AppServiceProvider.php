@@ -33,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // In production, ensure all generated URLs use HTTPS to avoid mixed content
+        // In production, always generate HTTPS URLs to avoid mixed content
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
         }
