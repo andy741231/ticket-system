@@ -8,33 +8,26 @@ window.axios.defaults.withCredentials = true;
 window.axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
 window.axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
 
-// Add a request interceptor to include the CSRF token
+// Add a request interceptor for same-origin requests
+// Do NOT inject X-CSRF-TOKEN from the meta tag. After logout, Laravel regenerates the token
+// and the meta tag can become stale without a full page reload. Axios will automatically
+// read the fresh XSRF-TOKEN cookie and send it as X-XSRF-TOKEN, which Laravel validates.
 window.axios.interceptors.request.use(config => {
-    // Add the token for our own-origin requests (relative URLs or absolute same-origin URLs)
     let isSameOrigin = false;
     try {
         const reqUrl = new URL(config.url, window.location.origin);
         isSameOrigin = reqUrl.origin === window.location.origin;
     } catch (e) {
-        // If URL constructor fails, treat as relative URL
         isSameOrigin = true;
     }
 
     if (isSameOrigin) {
-        // Get the CSRF token from the meta tag
-        const token = document.head.querySelector('meta[name="csrf-token"]');
-        
-        if (token) {
-            config.headers['X-CSRF-TOKEN'] = token.content;
-        }
-        
-        // Add the Accept header for JSON responses
+        // Prefer JSON responses for XHR requests
         config.headers['Accept'] = 'application/json';
-        
         // Ensure credentials are sent with the request
         config.withCredentials = true;
     }
-    
+
     return config;
 });
 
