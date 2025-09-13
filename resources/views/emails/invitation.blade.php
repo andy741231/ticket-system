@@ -23,11 +23,15 @@
         .header {
             text-align: center;
             margin-bottom: 30px;
+            background-color: #c8102e;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
         }
         .logo {
             font-size: 24px;
             font-weight: bold;
-            color: #4f46e5;
+            color: white;
             margin-bottom: 10px;
         }
         .title {
@@ -54,7 +58,7 @@
         }
         .cta-button {
             display: inline-block;
-            background: #4f46e5;
+            background: #c8102e;
             color: white;
             padding: 12px 24px;
             text-decoration: none;
@@ -63,7 +67,7 @@
             margin: 20px 0;
         }
         .cta-button:hover {
-            background: #4338ca;
+            background: #c8102e;
         }
         .footer {
             margin-top: 40px;
@@ -88,13 +92,12 @@
         <div class="header">
             <div class="logo">{{ $appName }}</div>
             <h1 class="title">You're Invited!</h1>
-            <p class="subtitle">{{ $invitedBy }} has invited you to join {{ $appName }}</p>
         </div>
 
         <div class="content">
-            <p>Hello!</p>
+            <p>Hello {{ $invite->first_name ?? 'there' }}!</p>
             
-            <p>You've been invited to join <strong>{{ $appName }}</strong> by <strong>{{ $invitedBy }}</strong>. We're excited to have you on board!</p>
+            <p>You've been invited to join <strong>{{ $appName }}</strong>. We're excited to have you on board!</p>
 
             <div class="invite-details">
                 <p><strong>Email:</strong> {{ $invite->email }}</p>
