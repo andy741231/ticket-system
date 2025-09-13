@@ -8,6 +8,7 @@ use App\Models\Newsletter\Campaign;
 use App\Models\Newsletter\Subscriber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Schema;
 
 class PublicController extends Controller
 {
@@ -258,11 +259,16 @@ class PublicController extends Controller
 
     public function archive(Request $request)
     {
-        $campaigns = Campaign::sent()
-            ->where('time_capsule', false) // Exclude time capsule campaigns
+        $query = Campaign::sent()
             ->with('creator')
-            ->orderBy('sent_at', 'desc')
-            ->paginate(10);
+            ->orderBy('sent_at', 'desc');
+
+        // Guard against environments without the column to prevent 500s
+        if (Schema::hasColumn('newsletter_campaigns', 'time_capsule')) {
+            $query->where('time_capsule', false); // Exclude time capsule campaigns
+        }
+
+        $campaigns = $query->paginate(10);
 
         if ($request->wantsJson()) {
             return response()->json($campaigns);

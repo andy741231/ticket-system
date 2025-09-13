@@ -61,11 +61,16 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
     
     // Newsletter Archive landing
     Route::get('/', function () {
-        $campaigns = \App\Models\Newsletter\Campaign::query()
-            ->where('time_capsule', false) // Exclude time capsule campaigns
+        $query = \App\Models\Newsletter\Campaign::query()
             ->orderByDesc('sent_at')
-            ->orderByDesc('created_at')
-            ->paginate(10, ['id', 'name', 'subject', 'sent_at', 'created_at']);
+            ->orderByDesc('created_at');
+
+        // Only apply filter if the column exists (avoid SQL errors across envs)
+        if (\Illuminate\Support\Facades\Schema::hasColumn('newsletter_campaigns', 'time_capsule')) {
+            $query->where('time_capsule', false); // Exclude time capsule campaigns
+        }
+
+        $campaigns = $query->paginate(10, ['id', 'name', 'subject', 'sent_at', 'created_at']);
 
         return Inertia::render('Newsletter/Archive', [
             'campaigns' => $campaigns,

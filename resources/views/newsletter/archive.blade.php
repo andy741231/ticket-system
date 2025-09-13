@@ -8,7 +8,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <!-- Use Tailwind via CDN to avoid build/manifest dependency on public pages -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Preserve brand color used in classes without relying on Tailwind config */
+      .bg-uh-red { background-color: #c8102e; }
+    </style>
 </head>
 <body class="font-sans bg-gray-50">
     <div class="min-h-screen flex flex-col">
@@ -150,7 +155,7 @@
         <footer class="bg-white border-t border-gray-200 mt-12">
             <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                 <p class="text-center text-sm text-gray-500">
-                    &copy; {{ date('Y') }} UH Population Health. All rights reserved.
+                    &copy; {{ date('Y') }} UH Population Health. All rights reserved :).
                 </p>
             </div>
         </footer>
