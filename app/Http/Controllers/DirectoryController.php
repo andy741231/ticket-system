@@ -33,9 +33,8 @@ class DirectoryController extends Controller
                        ->orWhere('description', 'like', "%{$query}%");
                 });
             })
-            ->orderByRaw("FIELD(group_1, 'leadership', 'team', 'external advisory board')")
-            ->orderBy('last_name')
-            ->orderBy('first_name')
+            // Default sort: by id ascending
+            ->orderBy('id')
             ->limit(50)
             ->get();
 
