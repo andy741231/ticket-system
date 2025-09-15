@@ -308,7 +308,7 @@ class TicketController extends Controller
             'assignees',
             'updatedBy',
             'comments' => function ($q) {
-                $q->with(['user:id,name,email'])
+                $q->with(['user:id,first_name,last_name,email'])
                   ->orderBy('created_at', 'asc');
             },
         ]);

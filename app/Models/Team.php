@@ -36,7 +36,8 @@ class Team extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
         'title',
         'degree',
         'email',
@@ -49,4 +50,23 @@ class Team extends Model
         'team',
         'department',
     ];
+
+    /**
+     * Append computed attributes when serializing to arrays/JSON.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'name',
+    ];
+
+    /**
+     * Accessor for a combined full name for backward compatibility.
+     */
+    public function getNameAttribute(): string
+    {
+        $first = $this->attributes['first_name'] ?? '';
+        $last = $this->attributes['last_name'] ?? '';
+        return trim($first . ' ' . $last);
+    }
 }

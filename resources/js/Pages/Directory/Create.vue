@@ -14,7 +14,8 @@ import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import AvatarUploader from '@/Components/AvatarUploader.vue';
 
 const form = useForm({
-    name: '',
+    first_name: '',
+    last_name: '',
     email: '',
     degree: '',
     title: '',
@@ -111,7 +112,7 @@ const showMessageEditor = ref(false);
                                 <AvatarUploader 
                                     ref="avatarUploader" 
                                     v-model="form.img" 
-                                    :team-name="form.name" 
+                                    :team-name="`${form.first_name} ${form.last_name}`.trim()" 
                                     :team-id="null"
                                     @on-upload="onImageUploaded"
                                     :render-button="false"
@@ -122,9 +123,15 @@ const showMessageEditor = ref(false);
                         <div class="md:col-span-2 space-y-6">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <InputLabel for="name" value="Name" required />
-                                    <TextInput id="name" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.name" autofocus required />
-                                    <InputError class="mt-2" :message="form.errors.name" />
+                                    <InputLabel for="first_name" value="First Name" required />
+                                    <TextInput id="first_name" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.first_name" autofocus required />
+                                    <InputError class="mt-2" :message="form.errors.first_name" />
+                                </div>
+
+                                <div>
+                                    <InputLabel for="last_name" value="Last Name" required />
+                                    <TextInput id="last_name" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.last_name" required />
+                                    <InputError class="mt-2" :message="form.errors.last_name" />
                                 </div>
 
                                 <div>

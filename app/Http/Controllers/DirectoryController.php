@@ -6,6 +6,7 @@ use App\Models\Team;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class DirectoryController extends Controller
 {
@@ -14,15 +15,18 @@ class DirectoryController extends Controller
         $query = $request->input('query');
 
         $teams = Team::query()
-            ->select(['id', 'name', 'description', 'img', 'title', 'degree', 'email', 'bio', 'group_1', 'program', 'team'])
+            ->select(['id', 'first_name', 'last_name', 'description', 'img', 'title', 'degree', 'email', 'bio', 'group_1', 'program', 'team'])
             ->when($query, function ($q, $query) {
-                // Search across name and description with proper grouping
+                // Search across first/last name and description with proper grouping
                 $q->where(function ($qq) use ($query) {
-                    $qq->where('name', 'like', "%{$query}%")
+                    $qq->where('first_name', 'like', "%{$query}%")
+                       ->orWhere('last_name', 'like', "%{$query}%")
+                       ->orWhere(DB::raw("CONCAT(COALESCE(first_name,''),' ',COALESCE(last_name,''))"), 'like', "%{$query}%")
                        ->orWhere('description', 'like', "%{$query}%");
                 });
             })
-            ->orderBy('name')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
             ->limit(50)
             ->get();
 
@@ -50,7 +54,8 @@ class DirectoryController extends Controller
     {
         try {
             $validated = $request->validate([
-                'name' => 'required|string|max:255',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
                 'title' => 'nullable|string|max:500',
                 'degree' => 'nullable|string|max:255',
                 'email' => 'required|email',
@@ -72,7 +77,7 @@ class DirectoryController extends Controller
                 ->with('error', 'Please check the form for errors.');
         }
 
-                if ($request->filled('tmp_folder')) {
+        if ($request->filled('tmp_folder')) {
             // The tmp_folder now contains the unique temporary filename
             $tmpFilename = $request->input('tmp_folder');
             $temp_path = public_path('storage/images/people/temp/' . $tmpFilename);
@@ -87,7 +92,8 @@ class DirectoryController extends Controller
                 }
 
                 // Generate a clean filename from the person's name
-                $permanent_filename = str_replace(' ', '_', $validated['name']) . '.jpg';
+                $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+                $permanent_filename = str_replace(' ', '_', $fullName !== '' ? $fullName : 'profile') . '.jpg';
                 $destination_path = public_path('storage/images/people/' . $permanent_filename);
                 
                 // Ensure the directory exists
@@ -118,7 +124,6 @@ class DirectoryController extends Controller
             ->with('success', 'Directory entry updated successfully!');
     }
 
-
     public function create()
     {
         return Inertia::render('Directory/Create');
@@ -128,7 +133,8 @@ class DirectoryController extends Controller
     {
         try {
             $validated = $request->validate([
-                'name' => 'required|string|max:255',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
                 'title' => 'nullable|string|max:500',
                 'degree' => 'nullable|string|max:255',
                 'email' => 'required|email|unique:directory_team,email',
@@ -155,7 +161,8 @@ class DirectoryController extends Controller
             $temp_path = public_path('storage/images/people/temp/' . $tmpFilename);
             
             if (file_exists($temp_path)) {
-                $permanent_filename = str_replace(' ', '_', $validated['name']) . '.jpg';
+                $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+                $permanent_filename = str_replace(' ', '_', $fullName !== '' ? $fullName : 'profile') . '.jpg';
                 $destination_path = public_path('storage/images/people/' . $permanent_filename);
                 
                 // Ensure the directory exists

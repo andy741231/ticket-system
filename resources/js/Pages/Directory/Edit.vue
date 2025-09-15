@@ -20,7 +20,8 @@ const props = defineProps({
 
 const form = useForm({
     // Columns 2–13 from uhph_team
-    name: props.team.name,
+    first_name: props.team.first_name,
+    last_name: props.team.last_name,
     email: props.team.email,
     degree: props.team.degree,
     title: props.team.title,
@@ -114,16 +115,22 @@ const showMessageEditor = ref(false);
                             </div>
                             <div class="mt-4 w-full flex flex-col items-center">
                                 <!-- Reuse uploader without its own button; control via ref -->
-                                <AvatarUploader ref="avatarUploader" v-model="form.img" :team-name="team.name" :team-id="team.id" @on-upload="onImageUploaded" :render-button="false" />
+                                <AvatarUploader ref="avatarUploader" v-model="form.img" :team-name="`${form.first_name} ${form.last_name}`.trim()" :team-id="team.id" @on-upload="onImageUploaded" :render-button="false" />
                                 <InputError class="mt-2" :message="form.errors.img" />
                             </div>
                         </div>
                         <div class="md:col-span-2 space-y-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <InputLabel for="name" value="Name" />
-                                <TextInput id="name" type="text" class="dark:bg-gray-700d dark:text-gray-100 mt-1 block w-full" v-model="form.name" autofocus />
-                                <InputError class="mt-2" :message="form.errors.name" />
+                                <InputLabel for="first_name" value="First Name" />
+                                <TextInput id="first_name" type="text" class="dark:bg-gray-700d dark:text-gray-100 mt-1 block w-full" v-model="form.first_name" autofocus />
+                                <InputError class="mt-2" :message="form.errors.first_name" />
+                            </div>
+
+                            <div>
+                                <InputLabel for="last_name" value="Last Name" />
+                                <TextInput id="last_name" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.last_name" />
+                                <InputError class="mt-2" :message="form.errors.last_name" />
                             </div>
 
                             <div>
