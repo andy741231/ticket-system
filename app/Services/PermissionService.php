@@ -159,7 +159,19 @@ class PermissionService
      */
     public function flushUserCache(int $userId): void
     {
-        $this->cache->increment($this->versionKey($userId));
+        $key = $this->versionKey($userId);
+        try {
+            // Some cache stores (e.g., file) on certain PHP builds can throw when writing
+            // a "forever" TTL during increment due to epoch integer limits.
+            $this->cache->increment($key);
+        } catch (\Throwable $e) {
+            // Fallback: manually bump the version and persist with a safe TTL
+            // Keep TTL modest (e.g., 30 days) to avoid 32-bit epoch overflow
+            $current = (int) ($this->cache->get($key) ?: 0);
+            $next = $current + 1;
+            // 30 days is sufficient to keep versioning stable between regular cache refreshes
+            $this->cache->put($key, $next, now()->addDays(30));
+        }
     }
 
     private function versionKey(int $userId): string
