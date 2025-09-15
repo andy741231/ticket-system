@@ -34,6 +34,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'name', // legacy full name column kept for compatibility/constraints
         'first_name',
         'last_name',
         'username',

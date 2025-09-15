@@ -23,7 +23,8 @@ const props = defineProps({
 });
 
 const form = useForm({
-    name: props.user.name,
+    first_name: props.user.first_name || '',
+    last_name: props.user.last_name || '',
     email: props.user.email,
     password: '',
     password_confirmation: '',
@@ -78,18 +79,32 @@ const submit = () => {
                     <div class="p-6">
                         <form @submit.prevent="submit" class="space-y-6">
                             <!-- Name -->
-                            <div>
-                                <InputLabel for="name" value="Name" />
-                                <TextInput
-                                    id="name"
-                                    type="text"
-                                    class="mt-1 block w-full"
-                                    v-model="form.name"
-                                    required
-                                    autofocus
-                                    autocomplete="name"
-                                />
-                                <InputError class="mt-2" :message="form.errors.name" />
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel for="first_name" value="First name" />
+                                    <TextInput
+                                        id="first_name"
+                                        type="text"
+                                        class="mt-1 block w-full"
+                                        v-model="form.first_name"
+                                        required
+                                        autofocus
+                                        autocomplete="given-name"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.first_name" />
+                                </div>
+                                <div>
+                                    <InputLabel for="last_name" value="Last name" />
+                                    <TextInput
+                                        id="last_name"
+                                        type="text"
+                                        class="mt-1 block w-full"
+                                        v-model="form.last_name"
+                                        required
+                                        autocomplete="family-name"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.last_name" />
+                                </div>
                             </div>
 
                             <!-- Username (read-only) -->

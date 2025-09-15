@@ -154,9 +154,15 @@ class GroupController extends Controller
             })
             ->count();
 
-        return response()->json([
-            'unique_subscribers_count' => $count,
-        ]);
+        // Only return JSON for non-Inertia API clients
+        if (!$request->header('X-Inertia') && $request->acceptsJson()) {
+            return response()->json([
+                'unique_subscribers_count' => $count,
+            ]);
+        }
+
+        // For Inertia requests, redirect back with flash data to avoid plain JSON response
+        return back()->with('unique_subscribers_count', $count);
     }
 
     public function destroy(Group $group)

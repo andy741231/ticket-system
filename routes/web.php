@@ -319,8 +319,33 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         })->name('overrides.create');
         
         Route::get('/roles/create', function () {
-            return Inertia::render('Admin/Rbac/Roles/Create');
+            $apps = \Illuminate\Support\Facades\Schema::hasTable('apps')
+                ? \App\Models\App::query()->orderBy('name')->get(['id', 'slug', 'name'])
+                : collect();
+            return Inertia::render('Admin/Rbac/Roles/Create', [
+                'apps' => $apps,
+            ]);
         })->name('roles.create');
+        Route::post('/roles', function () {
+            $data = request()->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'guard_name' => ['nullable', 'string', 'max:255'],
+                'team_id' => ['nullable', 'integer', 'exists:apps,id'],
+                'slug' => ['nullable', 'string', 'max:255'],
+                'description' => ['nullable', 'string'],
+                'is_mutable' => ['sometimes', 'boolean'],
+            ]);
+            $payload = [
+                'name' => $data['name'],
+                'guard_name' => $data['guard_name'] ?? 'web',
+                'team_id' => $data['team_id'] ?? null,
+                'slug' => $data['slug'] ?? null,
+                'description' => $data['description'] ?? null,
+                'is_mutable' => (bool)($data['is_mutable'] ?? true),
+            ];
+            $role = \App\Models\Role::create($payload);
+            return redirect()->route('admin.rbac.roles.edit', $role)->with('success', 'Role created successfully.');
+        })->name('roles.store');
         Route::get('/roles/{role}/edit', function (\Spatie\Permission\Models\Role $role) {
             // Apps list (optional)
             $apps = \Illuminate\Support\Facades\Schema::hasTable('apps')
@@ -379,6 +404,13 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
             $role->save();
             return redirect()->route('admin.rbac.roles.index')->with('success', 'Role updated.');
         })->name('roles.update');
+        Route::delete('/roles/{role}', function (\Spatie\Permission\Models\Role $role) {
+            if (isset($role->is_mutable) && !$role->is_mutable) {
+                return redirect()->back()->with('error', 'This role is immutable.');
+            }
+            $role->delete();
+            return redirect()->route('admin.rbac.roles.index')->with('success', 'Role deleted.');
+        })->name('roles.destroy');
         Route::post('/roles/{role}/permissions/{permission}', function (\Spatie\Permission\Models\Role $role, \Spatie\Permission\Models\Permission $permission) {
             if (isset($role->is_mutable) && !$role->is_mutable) {
                 return redirect()->back()->with('error', 'This role is immutable.');

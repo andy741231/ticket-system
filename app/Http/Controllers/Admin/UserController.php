@@ -11,6 +11,7 @@ use App\Models\Role;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\PermissionRegistrar;
+use Illuminate\Support\Facades\Schema;
 
 class UserController extends Controller
 {
@@ -40,14 +41,26 @@ class UserController extends Controller
         $this->authorize('create', User::class);
 
         // Show only team-scoped roles (exclude global/null team) for assignment
-        // Include app slug/name for grouping/sorting in the UI
-        $roles = Role::query()
-            ->leftJoin('apps as a', 'roles.team_id', '=', 'a.id')
-            ->whereNotNull('roles.team_id')
-            ->orderBy('a.slug')
-            ->orderBy('roles.name')
-            ->select(['roles.id','roles.name','roles.slug','roles.team_id','a.slug as app_slug','a.name as app_name'])
-            ->get();
+        // Include app slug/name for grouping/sorting in the UI (if apps table exists)
+        if (Schema::hasTable('apps')) {
+            $roles = Role::query()
+                ->leftJoin('apps as a', 'roles.team_id', '=', 'a.id')
+                ->whereNotNull('roles.team_id')
+                ->orderBy('a.slug')
+                ->orderBy('roles.name')
+                ->select(['roles.id','roles.name','roles.slug','roles.team_id','a.slug as app_slug','a.name as app_name'])
+                ->get();
+        } else {
+            $roles = Role::query()
+                ->whereNotNull('roles.team_id')
+                ->orderBy('roles.name')
+                ->get(['roles.id','roles.name','roles.slug','roles.team_id'])
+                ->map(function ($r) {
+                    $r->app_slug = 'other';
+                    $r->app_name = 'Other';
+                    return $r;
+                });
+        }
         
         return Inertia::render('Admin/Users/Create', [
             'roles' => $roles,
@@ -82,9 +95,11 @@ class UserController extends Controller
                 ->with('error', 'Please check the form for errors.');
         }
 
+        $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
         $user = User::create([
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
+            'name' => $fullName !== '' ? $fullName : ($validated['username'] ?? ''), // keep legacy column satisfied
             'username' => $validated['username'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
@@ -148,14 +163,26 @@ class UserController extends Controller
         $this->authorize('update', $user);
 
         // Show only team-scoped roles (exclude global/null team) for assignment
-        // Include app slug/name for grouping/sorting in the UI
-        $roles = Role::query()
-            ->leftJoin('apps as a', 'roles.team_id', '=', 'a.id')
-            ->whereNotNull('roles.team_id')
-            ->orderBy('a.slug')
-            ->orderBy('roles.name')
-            ->select(['roles.id','roles.name','roles.slug','roles.team_id','a.slug as app_slug','a.name as app_name'])
-            ->get();
+        // Include app slug/name for grouping/sorting in the UI (if apps table exists)
+        if (Schema::hasTable('apps')) {
+            $roles = Role::query()
+                ->leftJoin('apps as a', 'roles.team_id', '=', 'a.id')
+                ->whereNotNull('roles.team_id')
+                ->orderBy('a.slug')
+                ->orderBy('roles.name')
+                ->select(['roles.id','roles.name','roles.slug','roles.team_id','a.slug as app_slug','a.name as app_name'])
+                ->get();
+        } else {
+            $roles = Role::query()
+                ->whereNotNull('roles.team_id')
+                ->orderBy('roles.name')
+                ->get(['roles.id','roles.name','roles.slug','roles.team_id'])
+                ->map(function ($r) {
+                    $r->app_slug = 'other';
+                    $r->app_name = 'Other';
+                    return $r;
+                });
+        }
 
         // Preselect all assigned role IDs across all teams (ignore registrar team context)
         $assignedRoleIds = DB::table('model_has_roles')
@@ -188,17 +215,22 @@ class UserController extends Controller
         $this->authorize('update', $user);
 
         try {
-            $validated = $request->validate([
+            // Require roles only when editing someone else. Allow omitting roles when editing self.
+            $rules = [
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
                 'password' => 'nullable|string|min:8|confirmed',
-                'roles' => 'required|array',
-                'roles.*' => [
+            ];
+            if (auth()->id() !== $user->id) {
+                $rules['roles'] = 'required|array';
+                $rules['roles.*'] = [
                     'integer',
                     Rule::exists('roles', 'id')->whereNotNull('team_id'),
-                ],
-            ]);
+                ];
+            }
+
+            $validated = $request->validate($rules);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()
                 ->back()
@@ -212,6 +244,8 @@ class UserController extends Controller
             'last_name' => $validated['last_name'],
             'email' => $validated['email'],
         ];
+        // Keep legacy `name` column in sync to avoid NOT NULL constraints causing issues
+        $updateData['name'] = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
 
         // Only update password if provided
         if (!empty($validated['password'])) {
