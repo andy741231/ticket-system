@@ -87,6 +87,17 @@ onUnmounted(() => {
 const showBioEditor = ref(true);
 const showDescriptionEditor = ref(false);
 const showMessageEditor = ref(false);
+// Delete confirmation modal + form
+const deleteForm = useForm({});
+const confirmingDeletion = ref(false);
+const confirmDeletion = () => { confirmingDeletion.value = true; };
+const closeDeleteModal = () => { confirmingDeletion.value = false; };
+const deleteTeam = () => {
+  deleteForm.delete(route('directory.destroy', props.team.id), {
+    preserveScroll: true,
+    onFinish: () => { confirmingDeletion.value = false; },
+  });
+};
 </script>
 
 <template>
@@ -94,7 +105,6 @@ const showMessageEditor = ref(false);
 
   <AuthenticatedLayout>
     <template #header>
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">Edit {{ team.name }}</h2>
     </template>
 
     <div class="py-12">
@@ -231,6 +241,7 @@ const showMessageEditor = ref(false);
 
                             <div class="flex items-center gap-4">
                                 <PrimaryButton type="submit" :disabled="form.processing">Save</PrimaryButton>
+                                <DangerButton type="button" @click="confirmDeletion" :disabled="deleteForm.processing">Delete</DangerButton>
 
                                 <Transition enter-active-class="transition ease-in-out" enter-from-class="opacity-0" leave-active-class="transition ease-in-out" leave-to-class="opacity-0">
                                     <p v-if="form.recentlySuccessful" class="text-sm text-gray-600 dark:text-gray-400">Saved.</p>
@@ -252,6 +263,26 @@ const showMessageEditor = ref(false);
           <PrimaryButton type="button" @click.prevent="triggerCropCurrent" :disabled="!form.img">Crop current</PrimaryButton>
           <DangerButton type="button" @click.prevent="triggerDeleteImage">Delete</DangerButton>
           <button type="button" @click="showImageActions = false" class="ml-2 inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-25 transition ease-in-out duration-150">Cancel</button>
+        </div>
+      </div>
+    </Modal>
+    <!-- Delete Confirmation Modal -->
+    <Modal :show="confirmingDeletion" @close="closeDeleteModal">
+      <div class="p-6 dark:bg-gray-800">
+        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Delete Entry</h2>
+        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          This action cannot be undone. Are you sure you want to delete this directory entry?
+        </p>
+        <div class="mt-6 flex justify-end gap-3">
+          <SecondaryButton type="button" @click="closeDeleteModal">Cancel</SecondaryButton>
+          <DangerButton
+            type="button"
+            @click="deleteTeam"
+            :class="{ 'opacity-25': deleteForm.processing }"
+            :disabled="deleteForm.processing"
+          >
+            Delete
+          </DangerButton>
         </div>
       </div>
     </Modal>

@@ -611,7 +611,7 @@ const navigate = (url) => {
                                 />
                             </button>
 
-                            <!-- User Management Submenu -->
+                            <!-- User Management Submenu end-->
                             <div
                                 v-show="userMgmtOpen"
                                 class="pl-5 space-y-1 mt-2"

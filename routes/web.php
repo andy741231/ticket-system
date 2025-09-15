@@ -596,7 +596,18 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 // Profile Routes
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', function () {
-        return Inertia::render('Profile/Edit');
+        $user = auth()->user();
+        $directoryEntry = null;
+        if ($user && $user->email) {
+            $directoryEntry = \App\Models\Team::query()
+                ->select(['id', 'first_name', 'last_name', 'email', 'img'])
+                ->where('email', $user->email)
+                ->first();
+        }
+
+        return Inertia::render('Profile/Edit', [
+            'directoryEntry' => $directoryEntry,
+        ]);
     })->name('profile.edit');
     // Add profile.update endpoint for Ziggy route used by the Vue form
     Route::patch('/profile', [\App\Http\Controllers\ProfileController::class, 'update'])

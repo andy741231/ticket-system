@@ -1,17 +1,19 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { watch, computed } from 'vue';
+import { watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { useHasAny } from '@/Extensions/useAuthz';
 
 const props = defineProps({
   teams: Array,
   query: String,
+  group: String,
 });
 
 const searchForm = useForm({
   query: props.query,
+  group: props.group ?? 'default',
 });
 
 // Permission: Hub user managers or Directory admins (via permission) can add staff
@@ -22,13 +24,6 @@ const canAddStaff = useHasAny([
   'directory.profile.manage',     // Dev seeder / legacy
   'directory.app.access',         // Explicit access flag if provided
 ]);
-
-// Filter out external advisory board and sort by id
-const filteredTeams = computed(() => {
-  return props.teams
-    .filter(team => team.group_1 !== 'external advisory board')
-    .sort((a, b) => a.id - b.id);
-});
 
 const search = () => {
     searchForm.get(route('directory.index'), {
@@ -41,6 +36,11 @@ let debounceTimer = null;
 watch(() => searchForm.query, () => {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(search, 300);
+});
+
+// Trigger search when group changes
+watch(() => searchForm.group, () => {
+  search();
 });
 </script>
 
@@ -68,10 +68,18 @@ watch(() => searchForm.query, () => {
             class="w-full rounded-md border-gray-300 focus:border-uh-teal focus:ring-uh-teal
                    dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           />
+          <select
+            v-model="searchForm.group"
+            class="rounded-md border-gray-300 focus:border-uh-teal focus:ring-uh-teal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            title="Filter by Group"
+          >
+            <option value="default">Team</option>
+            <option value="external advisory board">External Advisory Board</option>
+          </select>
         </div>
         <div class="mt-6">
-          <div v-if="filteredTeams.length" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-fr">
-            <div v-for="team in filteredTeams" :key="team.id" class="flex">
+          <div v-if="teams.length" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-fr">
+            <div v-for="team in teams" :key="team.id" class="flex">
               <div class="block bg-white dark:bg-gray-700 rounded-lg shadow overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col w-full">
                 <div class="text-center flex-1 flex flex-col">
                   <div class="h-48 bg-white dark:bg-gray-700 flex items-center justify-center flex-shrink-0">

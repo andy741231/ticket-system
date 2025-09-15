@@ -46,8 +46,7 @@ class DirectoryPublicController extends Controller
                       ->orWhere('description', 'like', "%{$q}%");
                 });
             })
-            ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->orderBy('id');
 
         $records = $query->get()->map(function (Team $t) {
             return [

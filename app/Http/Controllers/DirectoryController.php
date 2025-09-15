@@ -7,15 +7,23 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class DirectoryController extends Controller
 {
     public function index(Request $request)
     {
         $query = $request->input('query');
+        $group = $request->input('group', 'default');
 
         $teams = Team::query()
             ->select(['id', 'first_name', 'last_name', 'description', 'img', 'title', 'degree', 'email', 'bio', 'group_1', 'program', 'team'])
+            ->when($group === 'default', function ($q) {
+                $q->whereIn('group_1', ['leadership', 'team']);
+            })
+            ->when($group && $group !== 'default', function ($q) use ($group) {
+                $q->where('group_1', $group);
+            })
             ->when($query, function ($q, $query) {
                 // Search across first/last name and description with proper grouping
                 $q->where(function ($qq) use ($query) {
@@ -25,6 +33,7 @@ class DirectoryController extends Controller
                        ->orWhere('description', 'like', "%{$query}%");
                 });
             })
+            ->orderByRaw("FIELD(group_1, 'leadership', 'team', 'external advisory board')")
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->limit(50)
@@ -33,6 +42,7 @@ class DirectoryController extends Controller
         return Inertia::render('Directory/Index', [
             'teams' => $teams,
             'query' => $query,
+            'group' => $group,
         ]);
     }
 
@@ -91,9 +101,11 @@ class DirectoryController extends Controller
                     }
                 }
 
-                // Generate a clean filename from the person's name
+                // Generate a clean filename from the person's name and append a short token to avoid cache issues
                 $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
-                $permanent_filename = str_replace(' ', '_', $fullName !== '' ? $fullName : 'profile') . '.jpg';
+                $baseName = str_replace(' ', '_', $fullName !== '' ? $fullName : 'profile');
+                $token = Str::lower(Str::random(6));
+                $permanent_filename = $baseName . '-' . $token . '.jpg';
                 $destination_path = public_path('storage/images/people/' . $permanent_filename);
                 
                 // Ensure the directory exists
@@ -162,7 +174,9 @@ class DirectoryController extends Controller
             
             if (file_exists($temp_path)) {
                 $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
-                $permanent_filename = str_replace(' ', '_', $fullName !== '' ? $fullName : 'profile') . '.jpg';
+                $baseName = str_replace(' ', '_', $fullName !== '' ? $fullName : 'profile');
+                $token = Str::lower(Str::random(6));
+                $permanent_filename = $baseName . '-' . $token . '.jpg';
                 $destination_path = public_path('storage/images/people/' . $permanent_filename);
                 
                 // Ensure the directory exists
