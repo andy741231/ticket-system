@@ -6,6 +6,7 @@ use App\Http\Controllers\Newsletter\PublicController as NewsletterPublicControll
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\ImageUploadController;
 use App\Http\Controllers\Newsletter\LogoController;
+use App\Http\Controllers\Api\DirectoryPublicController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -51,3 +52,8 @@ Route::put('/subscriber/{token}', [NewsletterPublicController::class, 'updatePre
 
 // Image upload endpoint (used by newsletter builder)
 Route::post('/image-upload', [ImageUploadController::class, 'store'])->name('image.upload');
+
+// Public Directory API (no auth) with CORS support
+Route::options('/directory/team', [DirectoryPublicController::class, 'options']);
+Route::get('/directory/team', [DirectoryPublicController::class, 'index']);
+

@@ -7,6 +7,8 @@ const props = defineProps({
   initialHtml: { type: String, default: '' },
   title: { type: String, default: 'Email Content' },
   subtitle: { type: String, default: 'Design your email using the visual editor below' },
+  campaignId: { type: [Number, String], default: null },
+  tempKey: { type: String, default: null },
 });
 
 const emit = defineEmits(['update:modelValue', 'update:html-content', 'template-selected']);
@@ -23,6 +25,8 @@ const emit = defineEmits(['update:modelValue', 'update:html-content', 'template-
         :model-value="modelValue"
         :templates="templates"
         :initial-html="initialHtml"
+        :campaign-id="campaignId"
+        :temp-key="tempKey"
         @update:modelValue="$emit('update:modelValue', $event)"
         @update:html-content="$emit('update:html-content', $event)"
         @template-selected="$emit('template-selected', $event)"

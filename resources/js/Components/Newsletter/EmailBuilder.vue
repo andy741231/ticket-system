@@ -78,6 +78,14 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  campaignId: {
+    type: [Number, String],
+    default: null,
+  },
+  tempKey: {
+    type: String,
+    default: null,
+  },
 });
 
 // Helpers to load initial modelValue (v-model) into builder
@@ -102,7 +110,7 @@ function safeParseJson(val) {
     if (!file) return;
     try {
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('file', file);
       formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
       formData.append('folder', 'images/newsletters/logos');
 
@@ -1541,30 +1549,29 @@ async function cropAndSaveImage() {
       }
     });
 
-    // Build folder: images/newsletters/YYYY-MM-DD-{slug(campaignName)}
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
+    // Upload to campaign-specific or temp folder via controller routing
     const slug = (props.campaignName || 'newsletter')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'newsletter';
-    const folder = `images/newsletters/${dateStr}-${slug}`;
     const uniqueName = `${slug}-${Date.now()}`;
 
     const formData = new FormData();
-    formData.append('image', blob, 'image.jpg');
+    formData.append('file', blob, 'image.jpg');
     formData.append('name', uniqueName);
-    formData.append('folder', folder);
+    formData.append('folder', 'images/newsletters');
+    if (props.campaignId) {
+      formData.append('campaign_id', props.campaignId);
+    } else if (props.tempKey) {
+      formData.append('temp_key', props.tempKey);
+    }
 
     const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
     const uploadUrl = (typeof route === 'function')
       ? route('image.upload')
       : (typeof window !== 'undefined' && typeof window.route === 'function')
         ? window.route('image.upload')
-        : '/upload-image';
+        : '/api/image-upload';
     const resp = await axios.post(uploadUrl, formData, {
       headers: {
         ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
@@ -1624,7 +1631,7 @@ async function cropAndSaveImage() {
 
   try {
     const formData = new FormData();
-    formData.append('image', file);
+    formData.append('file', file);
     formData.append('name', `header-logo-${Date.now()}`);
     formData.append('folder', 'images/newsletters/logos');
 
@@ -1633,7 +1640,7 @@ async function cropAndSaveImage() {
       ? route('image.upload')
       : (typeof window !== 'undefined' && typeof window.route === 'function')
         ? window.route('image.upload')
-        : '/upload-image';
+        : '/api/image-upload';
     
     const resp = await axios.post(uploadUrl, formData, {
       headers: {
@@ -2764,7 +2771,7 @@ function insertTokenIntoEditor(token) {
           </div>
         </div>
         <div class="border border-gray-300 rounded p-2 bg-white min-h-[200px] max-h-[400px] overflow-y-auto">
-          <EmailEditor v-model="textModalContent" label="" />
+          <EmailEditor v-model="textModalContent" label="" :campaign-id="campaignId" :temp-key="tempKey" />
         </div>
         <div class="flex gap-2 mt-4 justify-end">
           <button type="button"

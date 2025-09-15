@@ -15,10 +15,11 @@ import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import ParagraphWithClass from '@/Extensions/ParagraphWithClass';
-import { ref, onBeforeUnmount, watch, nextTick } from 'vue';
+import { ref, onBeforeUnmount, watch, nextTick, onMounted } from 'vue';
 import ColorPicker from '@/Components/Newsletter/ColorPicker.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
+import axios from 'axios';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import {
@@ -40,6 +41,8 @@ import {
   faFont,
   faHighlighter,
   faTextHeight,
+  faArrowLeft,
+  faArrowRight,
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
@@ -61,8 +64,39 @@ library.add(
   faImage,
   faFont,
   faHighlighter,
-  faTextHeight
+  faTextHeight,
+  faArrowLeft,
+  faArrowRight
 );
+
+// Extend Image to support dynamic width/height/class/style attributes
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      class: {
+        default: null,
+      },
+      width: {
+        default: null,
+        renderHTML: attributes => {
+          if (!attributes.width) return {};
+          return { width: attributes.width };
+        },
+      },
+      height: {
+        default: null,
+        renderHTML: attributes => {
+          if (!attributes.height) return {};
+          return { height: attributes.height };
+        },
+      },
+      style: {
+        default: null,
+      },
+    };
+  },
+});
 
 const props = defineProps({
   modelValue: {
@@ -76,6 +110,14 @@ const props = defineProps({
   error: {
     type: String,
     default: '',
+  },
+  campaignId: {
+    type: [Number, String],
+    default: null,
+  },
+  tempKey: {
+    type: String,
+    default: null,
   },
 });
 
@@ -135,8 +177,8 @@ const editor = useEditor({
         class: 'text-blue-600 hover:underline',
       },
     }),
-    // Remove Image extension to prevent image pasting
-    // Image,
+    // Enable Image extension with resizable attributes; paste of images is still prevented via handlePaste below
+    ResizableImage,
     Table.configure({
       resizable: true,
       HTMLAttributes: {
@@ -242,6 +284,23 @@ const linkText = ref('');
 const openInNewTab = ref(true);
 let isEditingLink = false;
 
+// Image upload state for Link Dialog
+const isUploading = ref(false);
+const uploadError = ref('');
+const uploadedUrls = ref([]); // { name, url }
+
+// Image upload modal state
+const showImageDialog = ref(false);
+const imageUploadError = ref('');
+const isImageUploading = ref(false);
+const imageUploadedUrls = ref([]);
+const selectedImagePosition = ref('none'); // none, float-left, float-right, center, full-width
+// Image size controls in dialog
+const sizePreset = ref('original'); // original, small, medium, large, custom
+const customImageWidth = ref(''); // in px
+const customImageHeight = ref(''); // in px
+const imageLockRatio = ref(true);
+
 const openLinkDialog = (url = '') => {
   if (!editor?.value) return;
 
@@ -284,16 +343,42 @@ const confirmLink = () => {
   if (formattedUrl === '') {
     editor.value.chain().focus().extendMarkRange('link').unsetLink().run();
   } else {
-    editor.value
-      .chain()
-      .focus()
-      .extendMarkRange('link')
-      .setLink({
-        href: formattedUrl,
-        target: openInNewTab.value ? '_blank' : null,
-        rel: 'noopener noreferrer', // Security best practice
-      })
-      .run();
+    const { state } = editor.value;
+    const { empty } = state.selection;
+
+    if (empty) {
+      // No text selected: insert the URL as text and apply link mark to it
+      editor.value
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'text',
+          text: formattedUrl,
+          marks: [
+            {
+              type: 'link',
+              attrs: {
+                href: formattedUrl,
+                target: openInNewTab.value ? '_blank' : null,
+                rel: 'noopener noreferrer',
+              },
+            },
+          ],
+        })
+        .run();
+    } else {
+      // Text selected: apply link to the selection
+      editor.value
+        .chain()
+        .focus()
+        .extendMarkRange('link')
+        .setLink({
+          href: formattedUrl,
+          target: openInNewTab.value ? '_blank' : null,
+          rel: 'noopener noreferrer', // Security best practice
+        })
+        .run();
+    }
   }
 
   resetLinkDialog();
@@ -305,6 +390,183 @@ const resetLinkDialog = () => {
   linkText.value = '';
   openInNewTab.value = true;
   isEditingLink = false;
+  isUploading.value = false;
+  uploadError.value = '';
+  uploadedUrls.value = [];
+};
+
+const resetImageDialog = () => {
+  showImageDialog.value = false;
+  imageUploadError.value = '';
+  isImageUploading.value = false;
+  imageUploadedUrls.value = [];
+  selectedImagePosition.value = 'none';
+  // Reset size controls
+  sizePreset.value = 'original';
+  customImageWidth.value = '';
+  customImageHeight.value = '';
+  imageLockRatio.value = true;
+};
+
+// Upload selected files to images/newsletters via /api/image-upload
+const handleFileSelection = async (event) => {
+  const files = Array.from(event.target.files || []);
+  uploadError.value = '';
+  if (!files.length) return;
+  
+  // Validate file size (15MB = 15 * 1024 * 1024 bytes)
+  const maxSize = 15 * 1024 * 1024;
+  for (const file of files) {
+    if (file.size > maxSize) {
+      uploadError.value = `File "${file.name}" exceeds 15MB limit`;
+      return;
+    }
+  }
+  
+  isUploading.value = true;
+  try {
+    for (const file of files) {
+      const form = new FormData();
+      // Laravel controller expects: file, name, folder, campaign_id
+      form.append('file', file);
+      const baseName = (file.name || 'file')
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[^A-Za-z0-9-_]+/g, '-');
+      form.append('name', baseName);
+      form.append('folder', 'images/newsletters');
+      if (props.campaignId) {
+        form.append('campaign_id', props.campaignId);
+      } else if (props.tempKey) {
+        form.append('temp_key', props.tempKey);
+      }
+
+      const { data } = await axios.post('/api/image-upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (data?.url) {
+        uploadedUrls.value.unshift({ name: file.name, url: data.url });
+        // If URL field is empty, auto-populate with the first uploaded URL
+        if (!linkUrl.value) linkUrl.value = data.url;
+      }
+    }
+  } catch (e) {
+    uploadError.value = e?.response?.data?.message || e.message || 'Upload failed';
+  } finally {
+    isUploading.value = false;
+    // Clear the input so the same file can be re-selected if needed
+    if (event?.target) event.target.value = '';
+  }
+};
+
+const useUploadedUrl = (url) => {
+  linkUrl.value = url || '';
+};
+
+// Image upload functions
+const openImageDialog = () => {
+  showImageDialog.value = true;
+};
+
+const handleImageFileSelection = async (event) => {
+  const files = Array.from(event.target.files || []);
+  imageUploadError.value = '';
+  if (!files.length) return;
+  
+  // Validate file size and type
+  const maxSize = 15 * 1024 * 1024;
+  for (const file of files) {
+    if (file.size > maxSize) {
+      imageUploadError.value = `File "${file.name}" exceeds 15MB limit`;
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      imageUploadError.value = `File "${file.name}" is not an image`;
+      return;
+    }
+  }
+  
+  isImageUploading.value = true;
+  try {
+    for (const file of files) {
+      const form = new FormData();
+      form.append('file', file);
+      const baseName = (file.name || 'image')
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[^A-Za-z0-9-_]+/g, '-');
+      form.append('name', baseName);
+      form.append('folder', 'images/newsletters');
+      if (props.campaignId) {
+        form.append('campaign_id', props.campaignId);
+      } else if (props.tempKey) {
+        form.append('temp_key', props.tempKey);
+      }
+
+      const { data } = await axios.post('/api/image-upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (data?.url) {
+        imageUploadedUrls.value.unshift({ name: file.name, url: data.url });
+      }
+    }
+  } catch (e) {
+    imageUploadError.value = e?.response?.data?.message || e.message || 'Upload failed';
+  } finally {
+    isImageUploading.value = false;
+    if (event?.target) event.target.value = '';
+  }
+};
+
+const insertImage = (imageUrl) => {
+  if (!editor?.value || !imageUrl) return;
+  
+  let className = '';
+  switch (selectedImagePosition.value) {
+    case 'float-left':
+      className = 'float-left mr-4 mb-2';
+      break;
+    case 'float-right':
+      className = 'float-right ml-4 mb-2';
+      break;
+    case 'center':
+      className = 'mx-auto block';
+      break;
+    case 'full-width':
+      className = 'w-full';
+      break;
+    default:
+      className = '';
+  }
+  
+  // Determine width/height from dialog controls
+  let widthAttr = null;
+  let heightAttr = null;
+
+  if (sizePreset.value === 'small') {
+    widthAttr = 200;
+  } else if (sizePreset.value === 'medium') {
+    widthAttr = 400;
+  } else if (sizePreset.value === 'large') {
+    widthAttr = 600;
+  } else if (sizePreset.value === 'custom') {
+    widthAttr = customImageWidth.value ? parseInt(customImageWidth.value, 10) : null;
+    if (!imageLockRatio.value) {
+      heightAttr = customImageHeight.value ? parseInt(customImageHeight.value, 10) : null;
+    }
+  }
+
+  // If full-width, ignore explicit width/height so CSS class can handle sizing
+  if (selectedImagePosition.value === 'full-width') {
+    widthAttr = null;
+    heightAttr = null;
+  }
+
+  const attrs = { src: imageUrl, class: className };
+  if (widthAttr) attrs.width = widthAttr;
+  if (!imageLockRatio.value && heightAttr) attrs.height = heightAttr;
+
+  editor.value.chain().focus().setImage(attrs).run();
+  
+  resetImageDialog();
 };
 
 const handleKeydown = (event) => {
@@ -456,8 +718,51 @@ const toggleDropCap = () => {
 
 onBeforeUnmount(() => {
   if (editor?.value) {
+    try { editor.value.off('selectionUpdate', updateImageResizeControl); } catch (e) {}
+    try { editor.value.off('transaction', updateImageResizeControl); } catch (e) {}
     editor.value.destroy();
   }
+});
+
+// In-editor image resize control
+const showImageResizeControl = ref(false);
+const resizeWidth = ref(300);
+
+const updateImageResizeControl = () => {
+  if (!editor?.value) return;
+  const isImageActive = editor.value.isActive('image');
+  showImageResizeControl.value = !!isImageActive;
+  if (isImageActive) {
+    const attrs = editor.value.getAttributes('image') || {};
+    if (attrs.width) {
+      resizeWidth.value = parseInt(attrs.width, 10) || resizeWidth.value;
+    } else {
+      // Try to infer from DOM
+      const el = document.querySelector('.ProseMirror img.ProseMirror-selectednode');
+      if (el) resizeWidth.value = Math.round(el.clientWidth);
+    }
+  }
+};
+
+const applyResizeWidth = () => {
+  if (!editor?.value) return;
+  const widthVal = parseInt(resizeWidth.value, 10);
+  if (!widthVal || widthVal < 10) return;
+  editor.value.chain().focus().updateAttributes('image', { width: widthVal, height: null }).run();
+};
+
+const onResizeWidthInput = () => {
+  applyResizeWidth();
+};
+
+const hideResizeControls = () => {
+  showImageResizeControl.value = false;
+};
+
+onMounted(() => {
+  if (!editor?.value) return;
+  editor.value.on('selectionUpdate', updateImageResizeControl);
+  editor.value.on('transaction', updateImageResizeControl);
 });
 </script>
 
@@ -592,9 +897,17 @@ onBeforeUnmount(() => {
             <button type="button" @click="setLink" :class="{ 'bg-gray-200': editor.isActive('link') }" class="p-2 rounded hover:bg-gray-200" title="Add Link">
               <font-awesome-icon :icon="['fas', 'link']" class="w-5 h-5" />
             </button>
-            <!-- <button type="button" @click="addImage" class="p-2 rounded hover:bg-gray-200" title="Insert Image">
+            <button type="button" @click="openImageDialog" class="p-2 rounded hover:bg-gray-200" title="Insert Image">
               <font-awesome-icon :icon="['fas', 'image']" class="w-5 h-5" />
-            </button> -->
+            </button>
+          </div>
+
+          <!-- Image Resize Controls (visible when an image is selected) -->
+          <div v-if="showImageResizeControl" class="flex items-center gap-2 ml-auto">
+            <span class="text-xs text-gray-600">Image width</span>
+            <input type="range" min="50" max="1200" step="10" v-model.number="resizeWidth" @input="onResizeWidthInput" class="w-40">
+            <input type="number" min="10" max="2000" step="1" v-model.number="resizeWidth" @change="applyResizeWidth" class="w-20 rounded border-gray-300 text-sm">
+            <button type="button" class="px-2 py-1 text-xs text-gray-600 hover:text-gray-900" @click="hideResizeControls">Hide</button>
           </div>
         </div>
 
@@ -626,6 +939,34 @@ onBeforeUnmount(() => {
               @keydown.enter.prevent="confirmLink"
               autofocus
             >
+          </div>
+
+          <!-- Uploader -->
+          <div class="mt-4">
+            <div class="flex items-center justify-between">
+              <label for="link-upload" class="block text-sm font-medium text-gray-700">Upload file(s) to campaign folder</label>
+              <span class="text-xs text-gray-500">Max 15MB, stored at images/newsletters</span>
+            </div>
+            <input
+              id="link-upload"
+              type="file"
+              multiple
+              class="mt-1 block w-full text-sm text-gray-700"
+              @change="handleFileSelection"
+            />
+            <div v-if="isUploading" class="mt-2 text-sm text-gray-600">Uploading… please wait</div>
+            <div v-if="uploadError" class="mt-2 text-sm text-red-600">{{ uploadError }}</div>
+
+            <!-- Uploaded files list -->
+            <div v-if="uploadedUrls.length" class="mt-3 max-h-32 overflow-y-auto border rounded-md divide-y">
+              <div v-for="item in uploadedUrls" :key="item.url" class="flex items-center justify-between px-2 py-1 text-sm">
+                <div class="truncate mr-2" :title="item.url">{{ item.name }}</div>
+                <div class="flex items-center gap-2">
+                  <button type="button" class="text-indigo-600 hover:underline" @click="useUploadedUrl(item.url)">Use</button>
+                  <button type="button" class="text-gray-600 hover:underline" @click="navigator.clipboard.writeText(item.url)">Copy URL</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="flex items-center mt-3">
@@ -661,6 +1002,185 @@ onBeforeUnmount(() => {
             class="px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             {{ isEditingLink ? 'Update' : 'Insert' }} Link
+          </button>
+        </div>
+      </div>
+    </div>
+
+        <!-- Image Upload Dialog -->
+        <div v-if="showImageDialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="resetImageDialog">
+          <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 mx-4" @keydown.esc="resetImageDialog">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Insert Image</h3>
+
+        <!-- Image Position Presets -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Image Position</label>
+          <div class="grid grid-cols-5 gap-2">
+            
+            <!-- None/Default -->
+            <button
+              type="button"
+              @click="selectedImagePosition = 'none'"
+              :class="{
+                'bg-indigo-100 border-indigo-500': selectedImagePosition === 'none',
+                'bg-gray-50 border-gray-300': selectedImagePosition !== 'none'
+              }"
+              class="p-3 border-2 rounded-lg hover:bg-gray-100 flex flex-col items-center text-xs"
+              title="Default"
+            >
+              <div class="w-6 h-4 bg-gray-400 rounded mb-1"></div>
+              <span>Default</span>
+            </button>
+
+            <!-- Float Left -->
+            <button
+              type="button"
+              @click="selectedImagePosition = 'float-left'"
+              :class="{
+                'bg-indigo-100 border-indigo-500': selectedImagePosition === 'float-left',
+                'bg-gray-50 border-gray-300': selectedImagePosition !== 'float-left'
+              }"
+              class="p-3 border-2 rounded-lg hover:bg-gray-100 flex flex-col items-center text-xs"
+              title="Float Left"
+            >
+              <div class="flex items-start w-full">
+                <div class="w-3 h-3 bg-gray-400 rounded mr-1"></div>
+                <div class="flex-1 space-y-1">
+                  <div class="h-1 bg-gray-300 rounded"></div>
+                  <div class="h-1 bg-gray-300 rounded"></div>
+                </div>
+              </div>
+              <font-awesome-icon :icon="['fas', 'arrow-left']" class="mt-1 text-gray-600" />
+            </button>
+
+            <!-- Float Right -->
+            <button
+              type="button"
+              @click="selectedImagePosition = 'float-right'"
+              :class="{
+                'bg-indigo-100 border-indigo-500': selectedImagePosition === 'float-right',
+                'bg-gray-50 border-gray-300': selectedImagePosition !== 'float-right'
+              }"
+              class="p-3 border-2 rounded-lg hover:bg-gray-100 flex flex-col items-center text-xs"
+              title="Float Right"
+            >
+              <div class="flex items-start w-full">
+                <div class="flex-1 space-y-1 mr-1">
+                  <div class="h-1 bg-gray-300 rounded"></div>
+                  <div class="h-1 bg-gray-300 rounded"></div>
+                </div>
+                <div class="w-3 h-3 bg-gray-400 rounded"></div>
+              </div>
+              <font-awesome-icon :icon="['fas', 'arrow-right']" class="mt-1 text-gray-600" />
+            </button>
+
+            <!-- Center -->
+            <button
+              type="button"
+              @click="selectedImagePosition = 'center'"
+              :class="{
+                'bg-indigo-100 border-indigo-500': selectedImagePosition === 'center',
+                'bg-gray-50 border-gray-300': selectedImagePosition !== 'center'
+              }"
+              class="p-3 border-2 rounded-lg hover:bg-gray-100 flex flex-col items-center text-xs"
+              title="Center"
+            >
+              <div class="w-4 h-3 bg-gray-400 rounded mx-auto mb-1"></div>
+              <span>Center</span>
+            </button>
+
+            <!-- Full Width -->
+            <button
+              type="button"
+              @click="selectedImagePosition = 'full-width'"
+              :class="{
+                'bg-indigo-100 border-indigo-500': selectedImagePosition === 'full-width',
+                'bg-gray-50 border-gray-300': selectedImagePosition !== 'full-width'
+              }"
+              class="p-3 border-2 rounded-lg hover:bg-gray-100 flex flex-col items-center text-xs"
+              title="Full Width"
+            >
+              <div class="w-full h-3 bg-gray-400 rounded mb-1"></div>
+              <span>Full</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Image Size Controls -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Image Size</label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <select v-model="sizePreset" class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="original">Original</option>
+              <option value="small">Small (200px)</option>
+              <option value="medium">Medium (400px)</option>
+              <option value="large">Large (600px)</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <div v-if="sizePreset === 'custom'" class="flex items-center gap-2">
+              <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-600">W</span>
+                <input type="number" min="10" max="2000" step="1" v-model.number="customImageWidth" class="w-20 rounded border-gray-300 text-sm" placeholder="px" />
+              </div>
+              <label class="flex items-center gap-1 text-xs text-gray-700">
+                <input type="checkbox" v-model="imageLockRatio" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                Lock ratio
+              </label>
+              <div class="flex items-center gap-1" v-if="!imageLockRatio">
+                <span class="text-xs text-gray-600">H</span>
+                <input type="number" min="10" max="2000" step="1" v-model.number="customImageHeight" class="w-20 rounded border-gray-300 text-sm" placeholder="px" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- File Upload -->
+        <div class="mb-4">
+          <label for="image-upload" class="block text-sm font-medium text-gray-700 mb-1">
+            Upload Images <span class="text-red-500">*</span>
+          </label>
+          <input
+            id="image-upload"
+            type="file"
+            multiple
+            accept="image/*"
+            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            @change="handleImageFileSelection"
+          />
+          <p class="mt-1 text-xs text-gray-500">Max 15MB per file. Supports JPG, PNG, GIF, WebP, SVG</p>
+          
+          <div v-if="isImageUploading" class="mt-2 text-sm text-gray-600">Uploading… please wait</div>
+          <div v-if="imageUploadError" class="mt-2 text-sm text-red-600">{{ imageUploadError }}</div>
+        </div>
+
+        <!-- Uploaded Images List -->
+        <div v-if="imageUploadedUrls.length" class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Select Image to Insert</label>
+          <div class="max-h-32 overflow-y-auto border rounded-md divide-y">
+            <div v-for="item in imageUploadedUrls" :key="item.url" class="flex items-center justify-between px-3 py-2">
+              <div class="flex items-center">
+                <img :src="item.url" :alt="item.name" class="w-8 h-8 object-cover rounded mr-3" />
+                <span class="text-sm truncate">{{ item.name }}</span>
+              </div>
+              <button
+                type="button"
+                @click="insertImage(item.url)"
+                class="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              >
+                Insert
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dialog Actions -->
+        <div class="flex justify-end space-x-3">
+          <button
+            type="button"
+            @click="resetImageDialog"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Cancel
           </button>
         </div>
       </div>

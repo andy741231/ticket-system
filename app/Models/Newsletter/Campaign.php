@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Campaign extends Model
 {
@@ -210,6 +211,26 @@ class Campaign extends Model
 
         $bounces = $this->analyticsEvents()->where('event_type', 'bounced')->count();
         return round(($bounces / $totalSent) * 100, 2);
+    }
+
+    /**
+     * Model event hooks
+     */
+    protected static function booted(): void
+    {
+        static::deleted(function (Campaign $campaign) {
+            // Remove the campaign-specific folder from the public storage disk
+            // Path example: images/newsletters/campaign-149
+            $folder = "images/newsletters/campaign-{$campaign->id}";
+            try {
+                if (Storage::disk('public')->exists($folder)) {
+                    Storage::disk('public')->deleteDirectory($folder);
+                }
+            } catch (\Throwable $e) {
+                // Swallow errors but you can log if desired
+                // \Log::warning('Failed to delete campaign folder', ['campaign_id' => $campaign->id, 'folder' => $folder, 'error' => $e->getMessage()]);
+            }
+        });
     }
 
     public function canBeSent(): bool

@@ -38,6 +38,9 @@ const props = defineProps({
   groups: Array,
 });
 
+// Temporary upload key used before campaign ID exists
+const tempKey = ref(`nl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+
 // Reference to EmailBuilder component to access default structure
 const emailBuilderRef = ref(null);
 
@@ -583,6 +586,8 @@ const submit = (status = 'pending') => {
   }
 
   const payload = { ...form.data(), status };
+  // Include temp_key during creation so backend can move files
+  payload.temp_key = tempKey.value;
   // Ensure content is an object (backend expects array/object, not JSON string)
   if (typeof payload.content === 'string') {
     const parsed = safeParseJson(payload.content);
@@ -741,9 +746,11 @@ function safeParseJson(str) {
             :model-value="form.content"
             :templates="templates"
             :initial-html="form.html_content"
-            @template-selected="applyTemplateOverrides"
-            @update:modelValue="(v)=>form.content=v"
-            @update:html-content="updateHtmlContent"
+            :campaign-id="null"
+            :temp-key="tempKey"
+            @update:modelValue="form.content = $event"
+            @update:html-content="form.html_content = $event"
+            @template-selected="handleTemplateSelection"
           />
           <div class="px-6">
             <InputError class="mt-2" :message="form.errors.content || clientErrors.content" />

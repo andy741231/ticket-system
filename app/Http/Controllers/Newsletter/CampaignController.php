@@ -91,6 +91,8 @@ class CampaignController extends Controller
             'recurring_config.has_end_date' => 'boolean',
             'recurring_config.end_date' => 'required_if:recurring_config.has_end_date,true|date|after:today',
             'recurring_config.occurrences' => 'nullable|integer|min:1',
+            // Temporary upload key used before campaign ID exists
+            'temp_key' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -149,6 +151,70 @@ class CampaignController extends Controller
 
         // Create the campaign first to get an ID
         $campaign = Campaign::create($data);
+
+        // If a temp_key was provided, move any uploaded files from tmp to campaign folder and rewrite URLs
+        if ($request->filled('temp_key')) {
+            try {
+                $tempKey = preg_replace('/[^A-Za-z0-9_-]/', '-', (string) $request->string('temp_key'));
+                $disk = \Storage::disk('public');
+                $tmpDir = "images/newsletters/tmp/{$tempKey}";
+                $destDir = "images/newsletters/campaign-{$campaign->id}";
+
+                if ($disk->exists($tmpDir)) {
+                    // Ensure destination exists
+                    if (!$disk->exists($destDir)) {
+                        $disk->makeDirectory($destDir);
+                    }
+
+                    // Move all files
+                    $files = $disk->allFiles($tmpDir);
+                    foreach ($files as $file) {
+                        $relative = ltrim(str_replace($tmpDir, '', $file), '/');
+                        $destPath = rtrim($destDir, '/') . '/' . $relative;
+                        // Ensure subdirectories exist
+                        $destSubdir = dirname($destPath);
+                        if (!$disk->exists($destSubdir)) {
+                            $disk->makeDirectory($destSubdir);
+                        }
+                        $disk->move($file, $destPath);
+                    }
+
+                    // Attempt to remove the empty tmp directory
+                    try { $disk->deleteDirectory($tmpDir); } catch (\Throwable $e) { /* ignore */ }
+
+                    // Rewrite URLs in html_content and content
+                    $oldBase = url(\Storage::url($tmpDir . '/'));
+                    $newBase = url(\Storage::url($destDir . '/'));
+
+                    $updated = [];
+                    // html_content
+                    if (!empty($campaign->html_content)) {
+                        $updated['html_content'] = str_replace($oldBase, $newBase, $campaign->html_content);
+                    }
+                    // content (array) -> stringify, replace, decode
+                    if (!empty($campaign->content)) {
+                        $json = json_encode($campaign->content);
+                        if ($json !== false) {
+                            $json = str_replace($oldBase, $newBase, $json);
+                            $decoded = json_decode($json, true);
+                            if (json_last_error() === JSON_ERROR_NONE) {
+                                $updated['content'] = $decoded;
+                            }
+                        }
+                    }
+
+                    if (!empty($updated)) {
+                        $campaign->update($updated);
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Log::error('Failed to migrate temp newsletter assets', [
+                    'campaign_id' => $campaign->id,
+                    'temp_key' => $request->input('temp_key'),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
         
         // Calculate total recipients using the model's method
         $data['total_recipients'] = $campaign->getRecipientsQuery()->count();
@@ -407,6 +473,28 @@ class CampaignController extends Controller
 
     public function destroy(Campaign $campaign)
     {
+        // Allow permanent deletion if the campaign is in the Time Capsule, even if it's already sent
+        if ($campaign->time_capsule) {
+            try {
+                // Clean up related data
+                $campaign->scheduledSends()->delete();
+                $campaign->analyticsEvents()->delete();
+
+                $campaign->delete();
+
+                return redirect()
+                    ->route('newsletter.campaigns.timecapsule')
+                    ->with('success', 'Campaign permanently deleted.');
+            } catch (\Throwable $e) {
+                \Log::error('Failed to delete time capsule campaign', [
+                    'campaign_id' => $campaign->id,
+                    'error' => $e->getMessage(),
+                ]);
+                return back()->with('error', 'Failed to delete campaign.');
+            }
+        }
+
+        // For non-time-capsule campaigns, keep safety guard
         if (in_array($campaign->status, ['sending', 'sent'])) {
             return back()->with('error', 'Cannot delete a campaign that has been sent or is being sent.');
         }

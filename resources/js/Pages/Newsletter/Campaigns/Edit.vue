@@ -674,8 +674,10 @@ function safeParseJson(str) {
             :model-value="form.content"
             :templates="templates"
             :initial-html="form.html_content"
-            @update:modelValue="updateContent"
-            @update:html-content="updateHtmlContent"
+            :campaign-id="campaign?.id"
+            @update:modelValue="form.content = $event"
+            @update:html-content="form.html_content = $event"
+            @template-selected="handleTemplateSelection"
           />
           <div class="px-6">
             <InputError class="mt-2" :message="form.errors.content || clientErrors.content" />

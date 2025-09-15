@@ -11,19 +11,34 @@ class ImageUploadController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'image' => 'required|image|max:2048',
+            'file' => 'required|file|max:15360', // 15MB = 15360KB
             'name' => 'required|string|max:255',
             'folder' => 'nullable|string|max:255',
+            'campaign_id' => 'nullable|integer|exists:newsletter_campaigns,id',
+            'temp_key' => 'nullable|string|max:255',
         ]);
 
-        $file = $request->file('image');
+        $file = $request->file('file');
         $name = $request->input('name');
         $slug = Str::slug($name);
         $extension = $file->getClientOriginalExtension();
         $fileName = $slug . '.' . $extension;
 
-        // Determine and sanitize target folder (default kept for backward compatibility)
-        $folder = $request->input('folder', 'images/people');
+        // Determine and sanitize target folder
+        $baseFolder = $request->input('folder', 'images/people');
+        $campaignId = $request->input('campaign_id');
+        $tempKey = $request->input('temp_key');
+        
+        // If campaign_id is provided and folder is newsletters, create campaign-specific folder
+        if ($campaignId && str_contains($baseFolder, 'newsletters')) {
+            $folder = "images/newsletters/campaign-{$campaignId}";
+        } elseif ($tempKey && str_contains($baseFolder, 'newsletters')) {
+            // If we're in creation flow, use a temporary folder
+            $folder = "images/newsletters/tmp/" . trim(preg_replace('/[^A-Za-z0-9_-]/', '-', $tempKey), '-');
+        } else {
+            $folder = $baseFolder;
+        }
+        
         $folder = trim($folder, '/');
         // Only allow safe characters and limited separators
         $folder = preg_replace('/[^A-Za-z0-9_\/-]/', '', $folder) ?: 'images/people';
@@ -37,13 +52,13 @@ class ImageUploadController extends Controller
 
         // Ensure target directory exists on the public disk
         if (!Storage::disk('public')->exists($folder)) {
-            Storage::disk('public')->makeDirectory($folder);
+            Storage::disk('public')->makeDirectory($folder, 0755, true);
         }
 
         $path = $file->storeAs($folder, $fileName, 'public');
 
         $publicUrl = Storage::url($path);           // e.g., /storage/images/...
         $absoluteUrl = url($publicUrl);             // e.g., https://example.com/storage/images/...
-        return response()->json(['url' => $absoluteUrl]);
+        return response()->json(['url' => $absoluteUrl, 'path' => $path]);
     }
 }
