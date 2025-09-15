@@ -95,16 +95,15 @@ class UserController extends Controller
                 ->with('error', 'Please check the form for errors.');
         }
 
-        $fullName = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
-        $user = User::create([
+        $createData = [
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'],
-            'name' => $fullName !== '' ? $fullName : ($validated['username'] ?? ''), // keep legacy column satisfied
             'username' => $validated['username'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'email_verified_at' => now(),
-        ]);
+        ];
+        $user = User::create($createData);
 
         // Assign roles across teams: group selected roles by team_id and sync per team
         /** @var PermissionRegistrar $registrar */
@@ -244,8 +243,6 @@ class UserController extends Controller
             'last_name' => $validated['last_name'],
             'email' => $validated['email'],
         ];
-        // Keep legacy `name` column in sync to avoid NOT NULL constraints causing issues
-        $updateData['name'] = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
 
         // Only update password if provided
         if (!empty($validated['password'])) {

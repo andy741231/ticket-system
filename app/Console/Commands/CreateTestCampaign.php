@@ -29,7 +29,9 @@ class CreateTestCampaign extends Command
         $user = \App\Models\User::first();
         if (!$user) {
             $user = \App\Models\User::create([
-                'name' => 'Test Admin',
+                'first_name' => 'Test',
+                'last_name' => 'Admin',
+                'username' => 'test.admin',
                 'email' => 'admin@example.com',
                 'password' => bcrypt('password'),
                 'email_verified_at' => now(),
