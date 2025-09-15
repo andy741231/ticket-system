@@ -9,7 +9,8 @@ const props = defineProps({
 })
 
 const form = useForm({
-  name: props.prefill?.name || '',
+  first_name: props.prefill?.first_name || '',
+  last_name: props.prefill?.last_name || '',
   username: props.prefill?.username || '',
   password: '',
   password_confirmation: '',
@@ -36,11 +37,19 @@ function submit() {
       </div>
       <form class="mt-8 space-y-6" @submit.prevent="submit">
         <div class="rounded-md shadow-sm -space-y-px">
-          <div>
-            <label for="name" class="sr-only">Full name</label>
-            <input id="name" v-model="form.name" name="name" type="text" required
-                   class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                   placeholder="Full name" />
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label for="first_name" class="sr-only">First name</label>
+              <input id="first_name" v-model="form.first_name" name="first_name" type="text" required
+                     class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                     placeholder="First name" />
+            </div>
+            <div>
+              <label for="last_name" class="sr-only">Last name</label>
+              <input id="last_name" v-model="form.last_name" name="last_name" type="text" required
+                     class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                     placeholder="Last name" />
+            </div>
           </div>
           <div>
             <label for="username" class="sr-only">Username</label>

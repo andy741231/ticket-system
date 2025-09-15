@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -33,13 +34,23 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
         'username',
         'email',
         'password',
         'description',
         'invited_by_user_id',
         'invited_at',
+    ];
+
+    /**
+     * Append computed attributes when serializing to arrays/JSON.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'name',
     ];
 
     /**
@@ -152,5 +163,16 @@ class User extends Authenticatable
             ->where('model_type', static::class)
             ->where('model_id', $this->getKey())
             ->exists();
+    }
+
+    /**
+     * Accessor for a combined full name to preserve backwards compatibility.
+     */
+    public function getNameAttribute(): string
+    {
+        $first = $this->attributes['first_name'] ?? '';
+        $last = $this->attributes['last_name'] ?? '';
+        $full = trim($first . ' ' . $last);
+        return $full !== '' ? $full : ($this->attributes['username'] ?? '');
     }
 }

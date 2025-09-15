@@ -64,7 +64,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $user = User::firstOrCreate(
             ['email' => 'user@example.com'],
             [
-                'name' => 'Regular User',
+                'first_name' => 'Regular',
+                'last_name' => 'User',
                 'username' => 'user',
                 'password' => Hash::make('123'),
                 'email_verified_at' => now(),

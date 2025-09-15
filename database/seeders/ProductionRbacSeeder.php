@@ -132,14 +132,20 @@ class ProductionRbacSeeder extends Seeder
         if (filter_var(env('RBAC_SEED_CREATE_ADMIN', false), FILTER_VALIDATE_BOOL)) {
             $email = (string) env('RBAC_SEED_ADMIN_EMAIL', 'admin@example.com');
             $username = (string) env('RBAC_SEED_ADMIN_USERNAME', 'admin');
-            $name = (string) env('RBAC_SEED_ADMIN_NAME', 'Admin');
+            $name = (string) env('RBAC_SEED_ADMIN_NAME', 'Admin User');
             $password = (string) env('RBAC_SEED_ADMIN_PASSWORD', 'change-me');
 
             /** @var User $admin */
+            // Split provided name into first/last with a simple heuristic
+            $first = trim(strtok($name, ' '));
+            $rest = trim(substr($name, strlen($first)));
+            $last = $rest !== '' ? $rest : 'User';
+
             $admin = User::firstOrCreate(
                 ['email' => $email],
                 [
-                    'name' => $name,
+                    'first_name' => $first,
+                    'last_name' => $last,
                     'username' => $username,
                     'password' => Hash::make($password),
                     'email_verified_at' => now(),

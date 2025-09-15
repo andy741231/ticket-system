@@ -17,9 +17,9 @@ defineProps({
 const user = usePage().props.auth.user;
 
 const form = useForm({
-    name: user.name,
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
     email: user.email,
-    // Email is not included in the form since it's not editable
 });
 
 const submit = () => {
@@ -52,20 +52,32 @@ const submit = () => {
             @submit.prevent="submit"
             class="mt-6 space-y-6"
         >
-            <div>
-                <InputLabel for="name" value="Name" />
-
-                <TextInput
-                    id="name"
-                    type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.name"
-                    required
-                    autofocus
-                    autocomplete="name"
-                />
-
-                <InputError class="mt-2" :message="form.errors.name" />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <InputLabel for="first_name" value="First name" />
+                    <TextInput
+                        id="first_name"
+                        type="text"
+                        class="mt-1 block w-full"
+                        v-model="form.first_name"
+                        required
+                        autofocus
+                        autocomplete="given-name"
+                    />
+                    <InputError class="mt-2" :message="form.errors.first_name" />
+                </div>
+                <div>
+                    <InputLabel for="last_name" value="Last name" />
+                    <TextInput
+                        id="last_name"
+                        type="text"
+                        class="mt-1 block w-full"
+                        v-model="form.last_name"
+                        required
+                        autocomplete="family-name"
+                    />
+                    <InputError class="mt-2" :message="form.errors.last_name" />
+                </div>
             </div>
 
             <div>

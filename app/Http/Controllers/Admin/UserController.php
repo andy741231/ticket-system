@@ -63,7 +63,8 @@ class UserController extends Controller
 
         try {
             $validated = $request->validate([
-                'name' => 'required|string|max:255',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
                 'username' => 'required|string|max:255|unique:users',
                 'email' => 'required|string|email|max:255|unique:users',
                 'password' => 'required|string|min:8|confirmed',
@@ -82,7 +83,8 @@ class UserController extends Controller
         }
 
         $user = User::create([
-            'name' => $validated['name'],
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
             'username' => $validated['username'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
@@ -165,7 +167,9 @@ class UserController extends Controller
         return Inertia::render('Admin/Users/Edit', [
             'user' => [
                 'id' => $user->id,
-                'name' => $user->name,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'name' => $user->name, // computed accessor for backwards compatibility
                 'username' => $user->username,
                 'email' => $user->email,
                 'roles' => $assignedRoleIds,
@@ -185,7 +189,8 @@ class UserController extends Controller
 
         try {
             $validated = $request->validate([
-                'name' => 'required|string|max:255',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
                 'password' => 'nullable|string|min:8|confirmed',
                 'roles' => 'required|array',
@@ -203,7 +208,8 @@ class UserController extends Controller
         }
 
         $updateData = [
-            'name' => $validated['name'],
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
             'email' => $validated['email'],
         ];
 

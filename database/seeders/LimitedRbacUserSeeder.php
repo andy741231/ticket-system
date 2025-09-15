@@ -22,7 +22,8 @@ class LimitedRbacUserSeeder extends Seeder
         $user = User::query()->firstOrCreate(
             ['email' => 'limited@example.com'],
             [
-                'name' => 'Limited RBAC User',
+                'first_name' => 'Limited',
+                'last_name' => 'RBAC User',
                 'password' => Hash::make('123'),
             ]
         );

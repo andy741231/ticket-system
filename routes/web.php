@@ -299,8 +299,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         })->name('overrides.index');
         Route::get('/overrides/create', function () {
             $users = \App\Models\User::query()
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']);
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get(['id', 'first_name', 'last_name', 'email']);
                 
             $permissions = \Spatie\Permission\Models\Permission::query()
                 ->orderBy('key')
@@ -476,7 +477,8 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
                 'invited_by_user_id' => auth()->id(),
                 'metadata' => [
                     'roles' => $selectedRoles, // array of {id,name,team_id} or empty
-                    'name' => request('name'),
+                    'first_name' => request('first_name'),
+                    'last_name' => request('last_name'),
                     'username' => request('username'),
                 ],
             ]);
@@ -515,11 +517,13 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::prefix('superadmin')->name('superadmin.')->group(function () {
         Route::get('/', function () {
             $superAdmins = \App\Models\User::role('super_admin')
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']);
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get(['id', 'first_name', 'last_name', 'email']);
             $users = \App\Models\User::query()
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']);
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get(['id', 'first_name', 'last_name', 'email']);
 
             return Inertia::render('Admin/SuperAdmin/Index', [
                 'superAdmins' => $superAdmins,
@@ -562,6 +566,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile', function () {
         return Inertia::render('Profile/Edit');
     })->name('profile.edit');
+    // Add profile.update endpoint for Ziggy route used by the Vue form
+    Route::patch('/profile', [\App\Http\Controllers\ProfileController::class, 'update'])
+        ->name('profile.update');
 });
 
 // (Removed duplicate guest invite accept route; see routes/auth.php for invites.accept/process)

@@ -20,7 +20,8 @@ const props = defineProps({
 });
 
 const form = useForm({
-    name: '',
+    first_name: '',
+    last_name: '',
     username: '',
     email: '',
     roles: [],
@@ -78,18 +79,31 @@ const submit = () => {
                                 <h4 class="text-md font-medium text-uh-slate dark:text-uh-cream mb-4">User Information</h4>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <InputLabel for="name" value="Full Name" class="text-uh-slate dark:text-uh-cream" />
+                                        <InputLabel for="first_name" value="First name" class="text-uh-slate dark:text-uh-cream" />
                                         <TextInput
-                                            id="name"
+                                            id="first_name"
                                             type="text"
                                             class="mt-1 block w-full dark:bg-gray-700 border-uh-gray/30 focus:border-uh-red focus:ring-uh-red"
-                                            v-model="form.name"
+                                            v-model="form.first_name"
                                             autofocus
-                                            placeholder="Enter full name"
+                                            placeholder="Enter first name"
+                                            autocomplete="given-name"
                                         />
-                                        <InputError class="mt-2" :message="form.errors.name" />
+                                        <InputError class="mt-2" :message="form.errors.first_name" />
                                     </div>
-
+                                    <div>
+                                        <InputLabel for="last_name" value="Last name" class="text-uh-slate dark:text-uh-cream" />
+                                        <TextInput
+                                            id="last_name"
+                                            type="text"
+                                            class="mt-1 block w-full dark:bg-gray-700 border-uh-gray/30 focus:border-uh-red focus:ring-uh-red"
+                                            v-model="form.last_name"
+                                            placeholder="Enter last name"
+                                            autocomplete="family-name"
+                                        />
+                                        <InputError class="mt-2" :message="form.errors.last_name" />
+                                    </div>
+                                    
                                     <div>
                                         <InputLabel for="username" value="Username" class="text-uh-slate dark:text-uh-cream" />
                                         <TextInput

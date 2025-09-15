@@ -20,13 +20,21 @@ class OverridesController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $overrides = UserPermissionOverride::query()
-            ->with(['user:id,name', 'permission:id,key,name', 'app:id,slug,name'])
+            ->with([
+                'user:id,first_name,last_name,username',
+                'permission:id,key,name',
+                'app:id,slug,name'
+            ])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($w) use ($q) {
                     $w->where('reason', 'like', "%{$q}%")
                       ->orWhere('effect', 'like', "%{$q}%")
                       ->orWhereHas('user', function ($u) use ($q) {
-                          $u->where('name', 'like', "%{$q}%");
+                          $u->where(function ($sub) use ($q) {
+                              $sub->where('first_name', 'like', "%{$q}%")
+                                  ->orWhere('last_name', 'like', "%{$q}%")
+                                  ->orWhereRaw("concat(first_name, ' ', last_name) like ?", ["%{$q}%"]);
+                          });
                       })
                       ->orWhereHas('permission', function ($p) use ($q) {
                           $p->where('key', 'like', "%{$q}%")
@@ -53,7 +61,12 @@ class OverridesController extends Controller
 
     public function create()
     {
-        $users = User::query()->select(['id', 'name'])->orderBy('name')->limit(50)->get();
+        $users = User::query()
+            ->select(['id', 'first_name', 'last_name'])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->limit(50)
+            ->get();
         $permissions = Permission::query()->select(['id', 'key', 'name'])->orderBy('key')->get();
         $apps = AppModel::query()->select(['id', 'slug', 'name'])->orderBy('slug')->get();
         return Inertia::render('Admin/Rbac/Overrides/Create', [
@@ -75,8 +88,13 @@ class OverridesController extends Controller
 
     public function edit(UserPermissionOverride $override)
     {
-        $override->load(['user:id,name', 'permission:id,key,name', 'app:id,slug,name']);
-        $users = User::query()->select(['id', 'name'])->orderBy('name')->limit(50)->get();
+        $override->load(['user:id,first_name,last_name,username', 'permission:id,key,name', 'app:id,slug,name']);
+        $users = User::query()
+            ->select(['id', 'first_name', 'last_name'])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->limit(50)
+            ->get();
         $permissions = Permission::query()->select(['id', 'key', 'name'])->orderBy('key')->get();
         $apps = AppModel::query()->select(['id', 'slug', 'name'])->orderBy('slug')->get();
         return Inertia::render('Admin/Rbac/Overrides/Edit', [

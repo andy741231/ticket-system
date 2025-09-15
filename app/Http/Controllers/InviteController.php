@@ -29,7 +29,8 @@ class InviteController extends Controller
             'email' => $invite->email,
             'token' => $token,
             'prefill' => [
-                'name' => $invite->metadata['name'] ?? null,
+                'first_name' => $invite->metadata['first_name'] ?? null,
+                'last_name' => $invite->metadata['last_name'] ?? null,
                 'username' => $invite->metadata['username'] ?? null,
                 'roles' => $invite->metadata['roles'] ?? [],
             ],
@@ -47,7 +48,8 @@ class InviteController extends Controller
         }
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
             'username' => ['nullable', 'string', 'max:255', 'unique:users,username'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
@@ -56,7 +58,8 @@ class InviteController extends Controller
         $user = User::firstOrCreate(
             ['email' => $invite->email],
             [
-                'name' => $data['name'],
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
                 'username' => $data['username'] ?? null,
                 'password' => Hash::make($data['password']),
             ]

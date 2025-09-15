@@ -91,27 +91,28 @@
     <div class="container">
         <div class="header">
             <div class="logo">{{ $appName }}</div>
-            <h1 class="title">You're Invited!</h1>
+            <!-- <h1 class="title">You're Invited!</h1> -->
         </div>
 
         <div class="content">
-            <p>Hello {{ $invite->first_name ?? 'there' }}!</p>
+            <p>Hello {{ data_get($invite->metadata, 'first_name') ?? data_get($invite->metadata, 'name') ?? 'there' }}!</p>
             
             <p>You've been invited to join <strong>{{ $appName }}</strong>. We're excited to have you on board!</p>
 
             <div class="invite-details">
-                <p><strong>Email:</strong> {{ $invite->email }}</p>
-                <p><strong>Role:</strong> {{ ucfirst($invite->role) }}</p>
-                <p><strong>Invited by:</strong> {{ $invitedBy }}</p>
+                <!-- <p><strong>Email:</strong> {{ $invite->email }}</p> -->
+                <!-- <p><strong>Role:</strong> {{ ucfirst($invite->role) }}</p> -->
+                <!-- <p><strong>Invited by:</strong> {{ $invitedBy }}</p> -->
+                <div style="text-align: center;">
+                    <a href="{{ $acceptUrl }}" class="cta-button">Accept Invitation</a>
+                </div>
             </div>
 
             <div class="expiry-notice">
                 <strong>⏰ Important:</strong> This invitation expires on {{ $invite->expires_at->format('F j, Y \a\t g:i A') }}
             </div>
 
-            <div style="text-align: center;">
-                <a href="{{ $acceptUrl }}" class="cta-button">Accept Invitation</a>
-            </div>
+            
 
             <p>If the button above doesn't work, you can copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #4f46e5;">{{ $acceptUrl }}</p>
@@ -121,7 +122,7 @@
 
         <div class="footer">
             <p>This invitation was sent by {{ $appName }}.</p>
-            <p>If you have any questions, please contact your administrator.</p>
+            <!-- <p>If you have any questions, please contact your administrator.</p> -->
         </div>
     </div>
 </body>
