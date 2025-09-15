@@ -17,7 +17,6 @@ const props = defineProps({
         Profile Information
       </h2>
       <p class="mt-1 text-sm text-gray-600 dark:text-uh-cream">
-        This is your Directory profile. Use the button below to edit it.
       </p>
     </header>
 

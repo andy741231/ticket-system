@@ -16,13 +16,10 @@ const searchForm = useForm({
   group: props.group ?? 'default',
 });
 
-// Permission: Hub user managers or Directory admins (via permission) can add staff
-// Cover both seed variants and explicit cross-app access flags
-const canAddStaff = useHasAny([
-  'hub.user.manage',
-  'directory.profile.update',     // Production seeder
-  'directory.profile.manage',     // Dev seeder / legacy
-  'directory.app.access',         // Explicit access flag if provided
+// Only Directory admins can add staff
+// Require the explicit admin-level permission
+const isDirectoryAdmin = useHasAny([
+  'directory.profile.manage',
 ]);
 
 const search = () => {
@@ -52,7 +49,7 @@ watch(() => searchForm.group, () => {
       <div class="flex justify-between items-center mb-4">
           <div>
           </div>
-          <Link v-if="canAddStaff" :href="route('directory.create')" as="button">
+          <Link v-if="isDirectoryAdmin" :href="route('directory.create')" as="button">
               <PrimaryButton>
                   <font-awesome-icon icon="plus" class="h-5 w-5 mr-1" />
                   Add Team Member

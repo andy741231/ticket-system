@@ -40,7 +40,8 @@ const matchingTeam = computed(() => {
 
 // Determine avatar image or initials
 const avatarImage = computed(() => {
-  return matchingTeam.value?.img || null;
+  // Prefer direct user avatar or img if available, then fall back to matching team image
+  return props.user?.avatar || props.user?.img || matchingTeam.value?.img || null;
 });
 
 const initials = computed(() => {

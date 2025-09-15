@@ -75,13 +75,23 @@ class HandleInertiaRequests extends Middleware
 
         // Get teams data for avatar matching
         $teams = [];
+        $userAvatar = null;
         try {
             if (Schema::connection('directory')->hasTable('directory_team')) {
-                $teams = Team::select(['id', 'name', 'email', 'img'])->get()->toArray();
+                $teams = Team::select(['id', 'first_name', 'last_name', 'email', 'img'])->get()->toArray();
+                // Derive a per-user avatar URL by matching on email
+                if ($user && $user->email) {
+                    $userEmail = strtolower($user->email);
+                    $matched = collect($teams)->first(function ($t) use ($userEmail) {
+                        return isset($t['email']) && strtolower($t['email']) === $userEmail;
+                    });
+                    $userAvatar = $matched['img'] ?? null;
+                }
             }
         } catch (\Throwable $e) {
             // Silently handle if directory connection or table doesn't exist
             $teams = [];
+            $userAvatar = null;
         }
 
         return [
@@ -90,6 +100,8 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user ? [
                     ...$user->toArray(),
                     'roles' => $user->getRoleNames(),
+                    // Avatar derived from directory profile (if present)
+                    'avatar' => $userAvatar,
                     // Effective, team-scoped permissions with overrides applied
                     'permissions' => $user ? $perm->permissionsFor($user, $teamId) : [],
                     'isSuperAdmin' => $user ? $user->isSuperAdmin() : false,
