@@ -12,9 +12,9 @@ class Team extends Model
     /**
      * The connection name for the model.
      *
-     * @var string|null
+     * @var string
      */
-    protected $connection = 'directory';
+    protected $connection = 'mysql_directory';
 
     /**
      * The table associated with the model.

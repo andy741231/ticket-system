@@ -5,6 +5,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
+import FlashMessages from '@/Components/FlashMessages.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { toast } from 'vue3-toastify';
 import 'vue3-toastify/dist/index.css';
@@ -855,5 +856,8 @@ const navigate = (url) => {
                 </div>
             </main>
         </div>
+        
+        <!-- Flash Messages Component -->
+        <FlashMessages />
     </div>
 </template>
