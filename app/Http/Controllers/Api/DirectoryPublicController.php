@@ -36,6 +36,8 @@ class DirectoryPublicController extends Controller
                 'img',
                 'group_1',
                 'team',
+                'program',
+                'department',
             ])
             ->when($group, fn ($qq) => $qq->where('group_1', $group))
             ->when($team, fn ($qq) => $qq->where('team', $team))
@@ -61,6 +63,8 @@ class DirectoryPublicController extends Controller
                 'img' => $this->absoluteImageUrl($t->img),
                 'group' => $t->group_1,
                 'team' => $t->team,
+                'program' => $t->program,
+                'department' => $t->department,
             ];
         });
 
