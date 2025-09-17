@@ -76,9 +76,27 @@ const form = useForm({
   html_content: props.campaign?.html_content || '',
   template_id: props.campaign?.template_id || '',
   send_type: props.campaign?.send_type || 'immediate',
-  scheduled_date: props.campaign?.scheduled_at ? new Date(props.campaign.scheduled_at).toISOString().split('T')[0] : '',
-  scheduled_time: props.campaign?.scheduled_at ? new Date(props.campaign.scheduled_at).toTimeString().slice(0, 5) : '12:00',
-  scheduled_at: props.campaign?.scheduled_at || null,
+  // Normalize scheduled_at for consistent local display in edit form
+  ...(function() {
+    const out = { scheduled_date: '', scheduled_time: '12:00', scheduled_at: null };
+    const sa = props.campaign?.scheduled_at;
+    if (!sa) return out;
+    let input = String(sa);
+    const noTzRegex = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+    const hasTzRegex = /([Zz]|[+-]\d{2}:?\d{2})$/;
+    if (noTzRegex.test(input) && !hasTzRegex.test(input)) {
+      input = input.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(input);
+    if (!isNaN(d.getTime())) {
+      out.scheduled_date = new Date(d).toISOString().split('T')[0];
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      out.scheduled_time = `${hh}:${mm}`;
+      out.scheduled_at = sa; // keep original value; form submit will recompute ISO
+    }
+    return out;
+  })(),
   recurring_config: props.campaign?.recurring_config || null,
   // target_groups is stored as an array of group IDs in the DB
   target_groups: Array.isArray(props.campaign?.target_groups) ? props.campaign.target_groups : [],
@@ -220,6 +238,8 @@ watch(() => form.scheduled_date, () => validateField('scheduled_date'));
 watch(() => form.scheduled_time, () => validateField('scheduled_time'));
 watch(() => form.target_groups, () => validateField('target_groups'), { deep: true });
 watch(() => form.send_to_all, () => validateField('target_groups'));
+watch(() => form.from_name, () => validateField('from_name'));
+watch(() => form.preview_text, () => validateField('preview_text'));
 
 function updateContent(content) {
   try {
@@ -320,18 +340,38 @@ const validateField = (fieldName) => {
       }
       break;
       
+    // Validate scheduled date allowing same-day, using local string comparison
     case 'scheduled_date':
       if (form.send_type === 'scheduled') {
         if (!form.scheduled_date) {
           errors.scheduled_date = 'Please select a date for your scheduled campaign';
         } else {
-          const selectedDate = new Date(form.scheduled_date);
+          const pad2 = (n) => String(n).padStart(2, '0');
           const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (selectedDate < today) {
+          const todayLocalStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+          const selectedStr = String(form.scheduled_date);
+
+          if (selectedStr < todayLocalStr) {
             errors.scheduled_date = 'Scheduled date cannot be in the past';
           } else {
             delete errors.scheduled_date;
+            // If scheduling for today, proactively require a valid time in the future
+            if (selectedStr === todayLocalStr) {
+              const bufferMinutes = 2;
+              const nowWithBuffer = new Date(Date.now() + bufferMinutes * 60000);
+              if (!form.scheduled_time) {
+                errors.scheduled_time = 'Please select a time for today';
+              } else {
+                const [y, m, d] = selectedStr.split('-').map(Number);
+                const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+                const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+                if (scheduledDateTime <= nowWithBuffer) {
+                  errors.scheduled_time = 'Scheduled time must be at least 2 minutes in the future';
+                } else {
+                  delete errors.scheduled_time;
+                }
+              }
+            }
           }
         }
       } else {
@@ -344,16 +384,42 @@ const validateField = (fieldName) => {
         if (!form.scheduled_time) {
           errors.scheduled_time = 'Please select a time for your scheduled campaign';
         } else {
-          const scheduledDateTime = new Date(`${form.scheduled_date}T${form.scheduled_time}`);
+          // Construct datetime using local components to avoid timezone pitfalls
+          const [y, m, d] = String(form.scheduled_date).split('-').map(Number);
+          const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+          const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
           const now = new Date();
-          if (scheduledDateTime <= now) {
-            errors.scheduled_time = 'Scheduled time must be in the future';
+          
+          // Add a 2-minute buffer to account for any timezone or processing delays
+          const bufferMinutes = 2;
+          const nowWithBuffer = new Date(now.getTime() + bufferMinutes * 60000);
+          
+          if (scheduledDateTime <= nowWithBuffer) {
+            errors.scheduled_time = 'Scheduled time must be at least 2 minutes in the future';
           } else {
             delete errors.scheduled_time;
           }
         }
       } else {
         delete errors.scheduled_time;
+      }
+      break;
+      
+    case 'from_name':
+      if (!form.from_name?.trim()) {
+        errors.from_name = 'From name is required';
+      } else if (form.from_name.length < 2) {
+        errors.from_name = 'From name must be at least 2 characters';
+      } else {
+        delete errors.from_name;
+      }
+      break;
+      
+    case 'preview_text':
+      if (form.preview_text && form.preview_text.length > 150) {
+        errors.preview_text = 'Preview text should be 150 characters or less';
+      } else {
+        delete errors.preview_text;
       }
       break;
       
@@ -372,7 +438,7 @@ const validateField = (fieldName) => {
 const validateAllFields = () => {
   isValidating.value = true;
   
-  ['name', 'subject', 'from_email', 'reply_to', 'scheduled_date', 'scheduled_time', 'target_groups'].forEach(field => {
+  ['name', 'subject', 'from_name', 'from_email', 'reply_to', 'preview_text', 'scheduled_date', 'scheduled_time', 'target_groups'].forEach(field => {
     validateField(field);
   });
   
@@ -438,8 +504,14 @@ const submit = (status = 'pending') => {
   
   // Combine date and time for scheduled sends
   if (form.send_type === 'scheduled' && form.scheduled_date && form.scheduled_time) {
-    const scheduledDateTime = new Date(`${form.scheduled_date}T${form.scheduled_time}`);
-    form.scheduled_at = scheduledDateTime.toISOString();
+    const [y, m, d] = String(form.scheduled_date).split('-').map(Number);
+    const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+    const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+    
+    // Send the local datetime in a format that the backend can interpret correctly
+    // Format: YYYY-MM-DD HH:MM:SS (without timezone info, so backend treats it as local)
+    const pad2 = (n) => String(n).padStart(2, '0');
+    form.scheduled_at = `${y}-${pad2(m)}-${pad2(d)} ${pad2(hh)}:${pad2(mm)}:00`;
   } else {
     form.scheduled_at = null;
   }
@@ -514,8 +586,13 @@ const saveDraft = async () => {
     // Combine date and time for scheduled sends
     let scheduled_at = null;
     if (form.send_type === 'scheduled' && form.scheduled_date && form.scheduled_time) {
-      const scheduledDateTime = new Date(`${form.scheduled_date}T${form.scheduled_time}`);
-      scheduled_at = scheduledDateTime.toISOString();
+      const [y, m, d] = String(form.scheduled_date).split('-').map(Number);
+      const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+      const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+      
+      // Send the local datetime in a format that the backend can interpret correctly
+      const pad2 = (n) => String(n).padStart(2, '0');
+      scheduled_at = `${y}-${pad2(m)}-${pad2(d)} ${pad2(hh)}:${pad2(mm)}:00`;
     }
 
     // Prepare content object
@@ -655,6 +732,7 @@ function safeParseJson(str) {
               :estimated-count="recipientCount"
               :loading-estimated="isLoadingRecipients"
               :show-estimate="true"
+              :error="form.errors.target_groups || clientErrors.target_groups"
               @update:sendToAll="(v)=>form.send_to_all=v"
               @update:selectedGroupIds="(v)=>form.target_groups=v"
             />
@@ -664,6 +742,10 @@ function safeParseJson(str) {
               v-model="form.send_type"
               :scheduled-date="form.scheduled_date"
               :scheduled-time="form.scheduled_time"
+              :errors="{
+                scheduled_date: form.errors.scheduled_date || clientErrors.scheduled_date,
+                scheduled_time: form.errors.scheduled_time || clientErrors.scheduled_time
+              }"
               @update:scheduledDate="(v)=>form.scheduled_date=v"
               @update:scheduledTime="(v)=>form.scheduled_time=v"
             />

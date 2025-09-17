@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\ProcessScheduledSends::class,
         \App\Console\Commands\ProcessRecurringCampaigns::class,
         \App\Console\Commands\PurgeNewsletterTempUploads::class,
+        \App\Console\Commands\PurgeTempFiles::class,
     ];
 
     /**
@@ -42,6 +43,11 @@ class Kernel extends ConsoleKernel
         // Purge temporary newsletter uploads daily at 2am
         $schedule->command('newsletters:purge-temp-uploads --days=3')
             ->dailyAt('02:00')
+            ->runInBackground();
+            
+        // Clean up other temp files daily at 3am
+        $schedule->command('cleanup:temp-files --days=3')
+            ->dailyAt('03:00')
             ->runInBackground();
     }
 

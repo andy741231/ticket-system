@@ -13,6 +13,7 @@ import TextInput from '@/Components/TextInput.vue';
 import { Head, useForm, Link } from '@inertiajs/vue3';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
+
 import { 
   Dialog, 
   DialogPanel, 
@@ -220,7 +221,15 @@ const sendStatus = ref({ type: null, message: '' });
 const sendError = ref(null);
 const recipientCount = ref(0);
 const isLoadingRecipients = ref(false);
-const clientErrors = ref({});
+
+// Client-side validation errors
+const clientErrors = ref({
+  scheduled_date: null,
+  scheduled_time: null,
+  target_groups: null
+});
+
+// Track if we're currently validating
 const isValidating = ref(false);
 
 // Get unique subscribers across all selected groups
@@ -477,18 +486,41 @@ const validateField = (fieldName) => {
       }
       break;
       
+    // Validate scheduled date allowing same-day, using local string comparison
     case 'scheduled_date':
       if (form.send_type === 'scheduled') {
         if (!form.scheduled_date) {
           errors.scheduled_date = 'Please select a date for your scheduled campaign';
         } else {
-          const selectedDate = new Date(form.scheduled_date);
+          const pad2 = (n) => String(n).padStart(2, '0');
           const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (selectedDate < today) {
+          const todayLocalStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+          const selectedStr = String(form.scheduled_date);
+
+          console.log('Selected date (string):', selectedStr);
+          console.log('Today (string local):', todayLocalStr);
+
+          if (selectedStr < todayLocalStr) {
             errors.scheduled_date = 'Scheduled date cannot be in the past';
           } else {
             delete errors.scheduled_date;
+            // If scheduling for today, proactively require a valid time in the future
+            if (selectedStr === todayLocalStr) {
+              const bufferMinutes = 2;
+              const nowWithBuffer = new Date(Date.now() + bufferMinutes * 60000);
+              if (!form.scheduled_time) {
+                errors.scheduled_time = 'Please select a time for today';
+              } else {
+                const [y, m, d] = selectedStr.split('-').map(Number);
+                const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+                const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+                if (scheduledDateTime <= nowWithBuffer) {
+                  errors.scheduled_time = 'Scheduled time must be at least 2 minutes in the future';
+                } else {
+                  delete errors.scheduled_time;
+                }
+              }
+            }
           }
         }
       } else {
@@ -501,10 +533,21 @@ const validateField = (fieldName) => {
         if (!form.scheduled_time) {
           errors.scheduled_time = 'Please select a time for your scheduled campaign';
         } else {
-          const scheduledDateTime = new Date(`${form.scheduled_date}T${form.scheduled_time}`);
+          // Construct datetime using local components to avoid timezone pitfalls
+          const [y, m, d] = String(form.scheduled_date).split('-').map(Number);
+          const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+          const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
           const now = new Date();
-          if (scheduledDateTime <= now) {
-            errors.scheduled_time = 'Scheduled time must be in the future';
+          
+          console.log('Scheduled datetime (local):', scheduledDateTime);
+          console.log('Current datetime (local):', now);
+          
+          // Add a 2-minute buffer to account for any timezone or processing delays
+          const bufferMinutes = 2;
+          const nowWithBuffer = new Date(now.getTime() + bufferMinutes * 60000);
+          
+          if (scheduledDateTime <= nowWithBuffer) {
+            errors.scheduled_time = 'Scheduled time must be at least 2 minutes in the future';
           } else {
             delete errors.scheduled_time;
           }
@@ -556,26 +599,69 @@ const validateAllFields = () => {
   return Object.keys(errors).length === 0;
 };
 
+// Smoothly scroll to a field by name or id, and focus it
+const scrollToField = (fieldName) => {
+  const el = document.querySelector(`[name="${fieldName}"], #${fieldName}`);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Small timeout helps some browsers focus after scroll
+    setTimeout(() => el.focus?.(), 50);
+  }
+};
+
+// On blur, validate subject and scroll into view when too short
+const handleSubjectBlur = () => {
+  validateField('subject');
+  const hasClientError = !!clientErrors.value?.subject;
+  const hasServerError = !!form.errors?.subject;
+  if (hasClientError || hasServerError) {
+    scrollToField('subject');
+  }
+};
+
 const submit = (status = 'pending') => {
+  console.log('Form submission started with status:', status);
+  console.log('Form data:', JSON.parse(JSON.stringify(form.data())));
+  
   // Clear any existing form errors
   form.clearErrors();
   
   // Validate all fields first
   if (!validateAllFields()) {
+    console.log('Validation failed with errors:', clientErrors.value);
     // Scroll to first error
     const firstErrorField = Object.keys(clientErrors.value)[0];
+    console.log('First error field:', firstErrorField);
+    
     const errorElement = document.querySelector(`[name="${firstErrorField}"], #${firstErrorField}`);
     if (errorElement) {
+      console.log('Scrolling to error element:', errorElement);
       errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       errorElement.focus();
+    } else {
+      console.log('Could not find error element for field:', firstErrorField);
     }
     return;
   }
   
-  // Combine date and time for scheduled sends
-  if (form.send_type === 'scheduled' && form.scheduled_date && form.scheduled_time) {
-    const scheduledDateTime = new Date(`${form.scheduled_date}T${form.scheduled_time}`);
-    form.scheduled_at = scheduledDateTime.toISOString();
+  // Combine date and time for scheduled sends (construct using local components)
+  if (form.send_type === 'scheduled') {
+    console.log('Processing scheduled campaign with date:', form.scheduled_date, 'time:', form.scheduled_time);
+    if (form.scheduled_date && form.scheduled_time) {
+      const [y, m, d] = String(form.scheduled_date).split('-').map(Number);
+      const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+      const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+      console.log('Scheduled datetime (local):', scheduledDateTime);
+      
+      // Send the local datetime in a format that the backend can interpret correctly
+      // Format: YYYY-MM-DD HH:MM:SS (without timezone info, so backend treats it as local)
+      const pad2 = (n) => String(n).padStart(2, '0');
+      form.scheduled_at = `${y}-${pad2(m)}-${pad2(d)} ${pad2(hh)}:${pad2(mm)}:00`;
+      console.log('Local scheduled_at:', form.scheduled_at);
+    } else {
+      console.error('Missing scheduled date or time');
+      form.scheduled_at = null;
+    }
   } else {
     form.scheduled_at = null;
   }
@@ -613,7 +699,9 @@ const submit = (status = 'pending') => {
     delete payload.recurring_config;
   }
   // Only include scheduled_at when scheduled
-  if (payload.send_type !== 'scheduled') {
+  if (payload.send_type === 'scheduled') {
+    console.log('Including scheduled_at in payload:', payload.scheduled_at);
+  } else {
     delete payload.scheduled_at;
   }
   
@@ -696,6 +784,7 @@ function safeParseJson(str) {
                     v-model="form.subject" 
                     type="text" 
                     name="subject"
+                    @blur="handleSubjectBlur"
                     class="mt-1 block w-full" 
                     :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.subject || clientErrors.subject }"
                     required 
@@ -710,24 +799,45 @@ function safeParseJson(str) {
           <!-- Settings Row -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <!-- Recipients Section (shared) -->
-            <RecipientsSelector
-              :groups="groups"
-              :send-to-all="form.send_to_all"
-              :selected-group-ids="form.target_groups"
-              :estimated-count="recipientCount"
-              :loading-estimated="isLoadingRecipients"
-              :show-estimate="true"
-              @update:sendToAll="(v)=>form.send_to_all=v"
-              @update:selectedGroupIds="(v)=>form.target_groups=v"
-            />
+              <RecipientsSelector
+                :groups="groups"
+                :send-to-all="form.send_to_all"
+                :selected-group-ids="form.target_groups"
+                :estimated-count="recipientCount"
+                :loading-estimate="isLoadingRecipients"
+                :show-estimate="true"
+                :error="form.errors.target_groups || clientErrors.target_groups"
+                @update:sendToAll="(v) => {
+                  form.clearErrors('target_groups');
+                  clientErrors.target_groups = null;
+                  form.send_to_all = v;
+                }"
+                @update:selectedGroupIds="(v) => {
+                  form.clearErrors('target_groups');
+                  clientErrors.target_groups = null;
+                  form.target_groups = v;
+                }"
+              />
 
             <!-- Send Options Section (shared) -->
             <SendOptions
               v-model="form.send_type"
               :scheduled-date="form.scheduled_date"
               :scheduled-time="form.scheduled_time"
-              @update:scheduledDate="(v)=>form.scheduled_date=v"
-              @update:scheduledTime="(v)=>form.scheduled_time=v"
+              :errors="{
+                scheduled_date: form.errors.scheduled_date || clientErrors.scheduled_date,
+                scheduled_time: form.errors.scheduled_time || clientErrors.scheduled_time
+              }"
+              @update:scheduledDate="(v) => {
+                form.clearErrors('scheduled_date');
+                clientErrors.scheduled_date = null;
+                form.scheduled_date = v;
+              }"
+              @update:scheduledTime="(v) => {
+                form.clearErrors('scheduled_time');
+                clientErrors.scheduled_time = null;
+                form.scheduled_time = v;
+              }"
             />
             
             <!-- Tracking Toggle -->
@@ -773,6 +883,7 @@ function safeParseJson(str) {
               
               <PrimaryButton 
               type="submit"
+                @click="submit('pending')"
                 :class="{ 'opacity-25': form.processing || isValidating }" 
                 :disabled="form.processing || isValidating"
                 class="inline-flex items-center justify-center bg-uh-red hover:bg-uh-brick focus:ring-uh-red"

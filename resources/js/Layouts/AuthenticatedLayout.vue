@@ -5,7 +5,6 @@ import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
-import FlashMessages from '@/Components/FlashMessages.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { toast } from 'vue3-toastify';
 import 'vue3-toastify/dist/index.css';
@@ -70,30 +69,35 @@ const toggleDarkMode = () => {
 // ----- Global Flash Messages (Toastify) -----
 const page = usePage();
 
-const extractFlash = (flash) => {
-    if (!flash) return null;
-    // Support multiple conventions
-    if (flash.success) return { text: flash.success, style: 'success' };
-    if (flash.error) return { text: flash.error, style: 'error' };
-    if (flash.warning) return { text: flash.warning, style: 'warning' };
-    if (flash.info) return { text: flash.info, style: 'info' };
-    if (flash.status && flash.message) return { text: flash.message, style: flash.status };
-    if (flash.message) return { text: flash.message, style: 'info' };
-    return null;
+// Build a list of flash messages to display
+const extractFlashList = (flash) => {
+    const list = [];
+    if (!flash) return list;
+    // Support common keys (can show multiple at once)
+    ['success', 'error', 'warning', 'info'].forEach((k) => {
+        if (flash[k]) list.push({ text: flash[k], style: k });
+    });
+    // Support message + status convention
+    if (flash.status && flash.message) list.push({ text: flash.message, style: flash.status });
+    else if (flash.message) list.push({ text: flash.message, style: 'info' });
+    return list;
 };
 
-// Trigger toast when flash props change
+// Trigger toasts when flash props change
 watch(
     () => page.props.flash,
     (val) => {
-        const f = extractFlash(val);
-        if (!f || !f.text) return;
+        const items = extractFlashList(val);
+        if (!items.length) return;
         const theme = darkMode.value ? 'dark' : 'light';
         const opts = { autoClose: 4000, theme };
-        if (f.style === 'success') return toast.success(f.text, opts);
-        if (f.style === 'error') return toast.error(f.text, opts);
-        if (f.style === 'warning') return toast.warn(f.text, opts);
-        return toast.info(f.text, opts);
+        items.forEach((f) => {
+            if (!f || !f.text) return;
+            if (f.style === 'success') toast.success(f.text, opts);
+            else if (f.style === 'error') toast.error(f.text, opts);
+            else if (f.style === 'warning') toast.warn(f.text, opts);
+            else toast.info(f.text, opts);
+        });
     },
     { immediate: true }
 );
@@ -461,22 +465,21 @@ const navigate = (url) => {
                             <NavLink 
                                 v-if="isSuperAdmin || hasAny(['newsletter.manage'])"
                                 :href="route('newsletter.campaigns.index')" 
-                                :active="route().current('newsletter.campaigns.*')"
+                                :active="route().current('newsletter.campaigns.index')"
                                 class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
                                 :class="[
-                                    route().current('newsletter.campaigns.*')
+                                    route().current('newsletter.campaigns.index')
                                         ? 'bg-uh-red text-white shadow-md'
-                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest dark:hover:text-gray-200'
                                 ]"
-                                @click="navigate(route('newsletter.campaigns.index'))"
                             >
                                 <font-awesome-icon 
                                     :icon="['fas', 'newspaper']" 
                                     class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
                                     :class="[
-                                        route().current('newsletter.campaigns.*')
+                                        route().current('newsletter.campaigns.index')
                                             ? 'text-white'
-                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                            : 'text-gray-400 group-hover:text-uh-forest dark:group-hover:text-gray-200'
                                     ]"
                                 />
                                 <span class="ml-3 font-medium">Campaigns</span>
@@ -562,9 +565,8 @@ const navigate = (url) => {
                                 :class="[
                                     route().current('newsletter.campaigns.timecapsule')
                                         ? 'bg-uh-red text-white shadow-md'
-                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest dark:hover:text-gray-200'
                                 ]"
-                                @click="navigate(route('newsletter.campaigns.timecapsule'))"
                             >
                                 <font-awesome-icon 
                                     :icon="['fas', 'archive']" 
@@ -572,7 +574,7 @@ const navigate = (url) => {
                                     :class="[
                                         route().current('newsletter.campaigns.timecapsule')
                                             ? 'text-white'
-                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                            : 'text-gray-400 group-hover:text-uh-forest dark:group-hover:text-gray-200'
                                     ]"
                                 />
                                 <span class="ml-3 font-medium">Time Capsule</span>
@@ -857,7 +859,5 @@ const navigate = (url) => {
             </main>
         </div>
         
-        <!-- Flash Messages Component -->
-        <FlashMessages />
     </div>
 </template>

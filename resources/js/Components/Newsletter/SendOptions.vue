@@ -1,10 +1,55 @@
 <script setup>
+import { ref, watch, computed } from 'vue';
+import InputError from '@/Components/InputError.vue';
+
 const props = defineProps({
   modelValue: { type: String, default: 'immediate' },
   scheduledDate: { type: String, default: '' },
   scheduledTime: { type: String, default: '12:00' },
+  errors: {
+    type: Object,
+    default: () => ({
+      scheduled_date: null,
+      scheduled_time: null
+    })
+  }
 });
+
 const emit = defineEmits(['update:modelValue', 'update:scheduledDate', 'update:scheduledTime']);
+
+// Local error state
+const localErrors = ref({
+  scheduled_date: null,
+  scheduled_time: null
+});
+
+// Watch for external error updates
+watch(() => props.errors, (newErrors) => {
+  localErrors.value = { ...localErrors.value, ...newErrors };
+}, { deep: true });
+
+// Clear error when user interacts with the field
+const handleDateChange = (e) => {
+  localErrors.value.scheduled_date = null;
+  emit('update:scheduledDate', e.target.value);
+};
+
+const handleTimeChange = (e) => {
+  localErrors.value.scheduled_time = null;
+  emit('update:scheduledTime', e.target.value);
+};
+
+// Helpers to format local date/time strings
+const pad2 = (n) => String(n).padStart(2, '0');
+const todayLocal = computed(() => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+});
+const nowWithBuffer = computed(() => {
+  const bufferMinutes = 5;
+  const d = new Date(Date.now() + bufferMinutes * 60000);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+});
 </script>
 
 <template>
@@ -51,27 +96,43 @@ const emit = defineEmits(['update:modelValue', 'update:scheduledDate', 'update:s
       <div v-if="modelValue === 'scheduled'" class="space-y-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="text-sm font-medium">Date</label>
+            <label for="scheduled_date" class="text-sm font-medium">Date</label>
             <div class="mt-1 relative">
               <input 
+                id="scheduled_date"
                 :value="scheduledDate"
-                @input="$emit('update:scheduledDate', $event.target.value)"
+                @input="handleDateChange"
                 type="date" 
-                :min="new Date().toISOString().split('T')[0]" 
-                class="block w-full pl-3 pr-3 py-2 border rounded-lg focus:ring-uh-red focus:border-uh-red" 
+                :min="todayLocal" 
+                :class="{
+                  'block w-full pl-3 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-offset-2': true,
+                  'border-red-500 focus:ring-red-500 focus:border-red-500': localErrors.scheduled_date,
+                  'border-gray-300 focus:ring-uh-red focus:border-uh-red': !localErrors.scheduled_date
+                }"
               />
+              <InputError :message="localErrors.scheduled_date" class="mt-1" />
             </div>
           </div>
           
           <div>
-            <label class="text-sm font-medium">Time</label>
+            <label for="scheduled_time" class="text-sm font-medium">Time</label>
             <div class="mt-1 relative">
               <input 
+                id="scheduled_time"
                 :value="scheduledTime"
-                @input="$emit('update:scheduledTime', $event.target.value)"
+                @input="handleTimeChange"
                 type="time" 
-                class="block w-full pl-3 pr-3 py-2 border rounded-lg focus:ring-uh-red focus:border-uh-red" 
+                :min="scheduledDate === todayLocal ? nowWithBuffer : null"
+                :class="{
+                  'block w-full pl-3 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-offset-2': true,
+                  'border-red-500 focus:ring-red-500 focus:border-red-500': localErrors.scheduled_time,
+                  'border-gray-300 focus:ring-uh-red focus:border-uh-red': !localErrors.scheduled_time
+                }"
               />
+              <InputError :message="localErrors.scheduled_time" class="mt-1" />
+              <p v-if="scheduledDate && scheduledTime" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Scheduled for: {{ new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString() }}
+              </p>
             </div>
           </div>
         </div>

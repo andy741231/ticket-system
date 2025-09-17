@@ -55,6 +55,31 @@ class Campaign extends Model
         'failed_count' => 'integer',
     ];
 
+    /**
+     * Set the scheduled_at attribute, ensuring it's stored as UTC in the database
+     */
+    public function setScheduledAtAttribute($value)
+    {
+        if ($value) {
+            // Parse the incoming value as being in the app's timezone, then convert to UTC for storage
+            $this->attributes['scheduled_at'] = \Carbon\Carbon::parse($value, config('app.timezone'))->utc()->format('Y-m-d H:i:s');
+        } else {
+            $this->attributes['scheduled_at'] = null;
+        }
+    }
+
+    /**
+     * Get the scheduled_at attribute, returning it as UTC for consistent frontend handling
+     */
+    public function getScheduledAtAttribute($value)
+    {
+        if ($value) {
+            // Return as UTC Carbon instance so frontend can handle timezone conversion
+            return \Carbon\Carbon::createFromFormat('Y-m-d H:i:s', $value, 'UTC');
+        }
+        return null;
+    }
+
 /**
      * Get a query builder for the campaign's recipients.
      *

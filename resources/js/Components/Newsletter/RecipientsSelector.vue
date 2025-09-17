@@ -6,6 +6,7 @@ const props = defineProps({
   estimatedCount: { type: Number, default: null },
   loadingEstimated: { type: Boolean, default: false },
   showEstimate: { type: Boolean, default: true },
+  error: { type: String, default: '' }
 });
 
 const emit = defineEmits(['update:sendToAll', 'update:selectedGroupIds']);
@@ -50,8 +51,19 @@ function onToggleGroup(id, ev) {
       </div>
       
       <div v-if="!sendToAll">
-        <label class="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">Select Groups</label>
-        <div class="space-y-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+        <div class="flex justify-between items-center mb-1">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Select Groups</label>
+          <span v-if="error" class="text-sm text-red-600 dark:text-red-400">{{ error }}</span>
+        </div>
+        <div 
+          id="target_groups"
+          role="group"
+          class="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3"
+          :class="{
+            'border-red-500': error,
+            'border-gray-200 dark:border-gray-600': !error
+          }"
+        >
           <label 
             v-for="group in groups" 
             :key="group.id" 
@@ -84,6 +96,11 @@ function onToggleGroup(id, ev) {
             </p>
           </div>
         </div>
+      </div>
+
+      <!-- Error Display -->
+      <div v-if="error" class="text-sm text-red-600 dark:text-red-400 mt-2">
+        {{ error }}
       </div>
     </div>
   </div>

@@ -59,7 +59,15 @@ function deleteCampaign(campaign) {
 }
 
 function formatDate(dateString) {
-  return dateString ? new Date(dateString).toLocaleDateString() : '-';
+  if (!dateString) return '-';
+  let input = String(dateString);
+  const sqlNoTz = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+  if (sqlNoTz.test(input)) {
+    input = input.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return dateString;
+  return d.toLocaleString();
 }
 
 function getProgressPercentage(campaign) {

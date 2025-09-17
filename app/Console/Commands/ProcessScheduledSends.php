@@ -33,7 +33,7 @@ class ProcessScheduledSends extends Command
         $this->info("Processing up to {$limit} scheduled sends...");
 
         $processed = 0;
-        $now = now();
+        $now = now()->utc();
 
         // Process scheduled sends in batches to avoid memory issues
         ScheduledSend::with(['campaign', 'subscriber'])
@@ -91,12 +91,10 @@ class ProcessScheduledSends extends Command
                 $campaign = $this->createRecurringCampaignInstance($campaign, $scheduledSend->scheduled_at);
             }
 
-            // Dispatch the send job
-            dispatch(new \App\Jobs\SendCampaign($campaign, $scheduledSend->subscriber));
+            // Dispatch the send job for individual subscriber
+            dispatch(new \App\Jobs\SendEmailToSubscriber($scheduledSend));
             
-            // Mark as sent
-            $scheduledSend->markAsSent();
-            $this->info("Processed scheduled send #{$scheduledSend->id} for campaign #{$campaign->id}");
+            $this->info("Dispatched email job for scheduled send #{$scheduledSend->id} for campaign #{$campaign->id}");
             
         } catch (\Exception $e) {
             $scheduledSend->markAsFailed($e->getMessage());

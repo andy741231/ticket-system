@@ -141,7 +141,26 @@ function duplicateCampaign() {
 }
 
 function formatDate(dateString) {
-  return dateString ? new Date(dateString).toLocaleString() : '-';
+  if (!dateString) return '-';
+  let input = String(dateString);
+  // If timestamp has no timezone offset, assume UTC and convert to local for display
+  // Matches:
+  //  - 'YYYY-MM-DD HH:MM:SS'
+  //  - 'YYYY-MM-DD HH:MM:SS.ssssss'
+  //  - 'YYYY-MM-DDTHH:MM:SS'
+  //  - 'YYYY-MM-DDTHH:MM:SS.ssssss'
+  const noTzRegex = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+  // If there is an explicit timezone like 'Z' or +/-HH:MM, leave as-is
+  const hasTzRegex = /([Zz]|[+-]\d{2}:?\d{2})$/;
+  if (noTzRegex.test(input) && !hasTzRegex.test(input)) {
+    input = input.replace(' ', 'T') + 'Z';
+  }
+  // Normalize fractional seconds to milliseconds precision for broader browser support
+  // e.g., 2025-09-16T23:36:00.000000Z -> 2025-09-16T23:36:00.000Z
+  input = input.replace(/(\.\d{3})\d+(?=(Z|[+-]\d{2}:?\d{2})?$)/, '$1');
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return dateString;
+  return d.toLocaleString();
 }
 
 function getEventIcon(eventType) {
