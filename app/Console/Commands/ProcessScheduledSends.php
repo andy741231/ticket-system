@@ -32,8 +32,25 @@ class ProcessScheduledSends extends Command
         $limit = (int) $this->option('limit');
         $this->info("Processing up to {$limit} scheduled sends...");
 
-        $processed = 0;
+        // Timezone debugging information
         $now = now()->utc();
+        $localNow = now();
+        
+        $this->info("Timezone Debug Info:");
+        $this->info("  PHP timezone: " . date_default_timezone_get());
+        $this->info("  Laravel app timezone: " . config('app.timezone'));
+        $this->info("  Current local time: {$localNow}");
+        $this->info("  Current UTC time: {$now}");
+        $this->info("  Time difference: " . $localNow->diffInHours($now) . " hours");
+
+        $processed = 0;
+
+        // Check for pending sends that should be processed
+        $pendingSends = ScheduledSend::where('status', ScheduledSend::STATUS_PENDING)
+            ->where('scheduled_at', '<=', $now)
+            ->count();
+            
+        $this->info("Found {$pendingSends} pending sends due for processing");
 
         // Process scheduled sends in batches to avoid memory issues
         ScheduledSend::with(['campaign', 'subscriber'])
@@ -71,6 +88,11 @@ class ProcessScheduledSends extends Command
     protected function processScheduledSend(ScheduledSend $scheduledSend, Carbon $now)
     {
         $campaign = $scheduledSend->campaign;
+        
+        $this->info("Processing scheduled send #{$scheduledSend->id} for campaign #{$campaign->id}");
+        $this->info("  Scheduled at: {$scheduledSend->scheduled_at} UTC");
+        $this->info("  Current time: {$now} UTC");
+        $this->info("  Campaign status: {$campaign->status}");
         
         // Skip if campaign is not in a sendable state
         if (!$campaign->canBeSent()) {
