@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -19,6 +20,28 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withSchedule(function (Schedule $schedule): void {
+        // Process scheduled sends every minute
+        $schedule->command('campaigns:process-scheduled-sends', ['--limit' => 100])
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+        // Process recurring campaigns every 15 minutes
+        $schedule->command('campaigns:process-recurring')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // Heartbeat to verify the scheduler loop is alive
+        $schedule->call(function () {
+            \Log::info('[Scheduler] heartbeat');
+        })
+            ->name('scheduler:heartbeat')
+            ->everyMinute()
+            ->withoutOverlapping();
+    })
     ->withMiddleware(function (Middleware $middleware): void {
         // Trust proxy/load balancer headers (including X-Forwarded-Proto) so HTTPS is respected
         $middleware->trustProxies(

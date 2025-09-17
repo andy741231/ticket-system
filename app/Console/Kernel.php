@@ -31,15 +31,24 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // Process scheduled sends every minute
-        $schedule->command(ProcessScheduledSends::class, ['--limit' => 100])
+        $schedule->command('campaigns:process-scheduled-sends', ['--limit' => 100])
             ->everyMinute()
             ->withoutOverlapping()
             ->runInBackground()
             ->appendOutputTo(storage_path('logs/scheduler.log'));
-            
+
         // Process recurring campaigns every 15 minutes
-        $schedule->command(ProcessRecurringCampaigns::class)
+        $schedule->command('campaigns:process-recurring')
             ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // Heartbeat to verify the scheduler loop is alive
+        $schedule->call(function () {
+            \Log::info('[Scheduler] heartbeat');
+        })
+            ->name('scheduler:heartbeat')
+            ->everyMinute()
             ->withoutOverlapping()
             ->runInBackground();
 
