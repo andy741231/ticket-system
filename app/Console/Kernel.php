@@ -2,6 +2,11 @@
 
 namespace App\Console;
 
+use App\Console\Commands\AssignAdminRole;
+use App\Console\Commands\ProcessScheduledSends;
+use App\Console\Commands\ProcessRecurringCampaigns;
+use App\Console\Commands\PurgeNewsletterTempUploads;
+use App\Console\Commands\PurgeTempFiles;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -13,11 +18,11 @@ class Kernel extends ConsoleKernel
      * @var array
      */
     protected $commands = [
-        \App\Console\Commands\AssignAdminRole::class,
-        \App\Console\Commands\ProcessScheduledSends::class,
-        \App\Console\Commands\ProcessRecurringCampaigns::class,
-        \App\Console\Commands\PurgeNewsletterTempUploads::class,
-        \App\Console\Commands\PurgeTempFiles::class,
+        AssignAdminRole::class,
+        ProcessScheduledSends::class,
+        ProcessRecurringCampaigns::class,
+        PurgeNewsletterTempUploads::class,
+        PurgeTempFiles::class,
     ];
 
     /**
@@ -25,30 +30,10 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Prune expired user permission overrides hourly
-        $schedule->command('rbac:prune-overrides')->hourly();
-        
         // Process scheduled sends every minute
-        $schedule->command('campaigns:process-scheduled-sends --limit=100')
+        $schedule->command(ProcessScheduledSends::class, ['--limit' => 100])
             ->everyMinute()
-            ->withoutOverlapping()
-            ->runInBackground();
-            
-        // Process recurring campaigns every 15 minutes
-        $schedule->command('campaigns:process-recurring')
-            ->everyFifteenMinutes()
-            ->withoutOverlapping()
-            ->runInBackground();
-
-        // Purge temporary newsletter uploads daily at 2am
-        $schedule->command('newsletters:purge-temp-uploads --days=3')
-            ->dailyAt('02:00')
-            ->runInBackground();
-            
-        // Clean up other temp files daily at 3am
-        $schedule->command('cleanup:temp-files --days=3')
-            ->dailyAt('03:00')
-            ->runInBackground();
+            ->withoutOverlapping();
     }
 
     /**
