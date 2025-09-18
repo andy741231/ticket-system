@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Newsletter;
 use App\Http\Controllers\Controller;
 use App\Models\Newsletter\Group;
 use App\Models\Newsletter\Subscriber;
+use App\Models\Team;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -140,19 +141,40 @@ class GroupController extends Controller
     {
         $validated = $request->validate([
             'group_ids' => 'required|array',
-            'group_ids.*' => 'exists:newsletter_groups,id',
+            // Allow a special virtual group id in addition to real group IDs
+            'group_ids.*' => 'string',
         ]);
 
         // De-duplicate incoming group IDs to avoid redundant work
-        $groupIds = array_values(array_unique($validated['group_ids']));
+        $incoming = collect($validated['group_ids'])->filter()->unique();
+        $hasProtected = $incoming->contains('protected_dir_team');
+        $normalIds = $incoming->reject(fn($v) => $v === 'protected_dir_team')
+            ->map(fn($v) => is_numeric($v) ? (int) $v : $v)
+            ->values();
 
-        // Use EXISTS via whereHas on the base subscribers table to avoid join + DISTINCT overhead
-        $count = Subscriber::query()
-            ->where('status', 'active')
-            ->whereHas('groups', function ($q) use ($groupIds) {
-                $q->whereIn('newsletter_subscriber_groups.group_id', $groupIds);
-            })
-            ->count();
+        // Build unique email set
+        $emails = collect();
+        if ($normalIds->isNotEmpty()) {
+            $emails = $emails->merge(
+                Subscriber::query()
+                    ->where('status', 'active')
+                    ->whereHas('groups', function ($qq) use ($normalIds) {
+                        $qq->whereIn('newsletter_subscriber_groups.group_id', $normalIds->all());
+                    })
+                    ->pluck('email')
+            );
+        }
+
+        if ($hasProtected) {
+            $dirEmails = Team::query()
+                ->whereIn('group_1', ['team', 'leadership'])
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter();
+            $emails = $emails->merge($dirEmails);
+        }
+
+        $count = $emails->filter()->map(fn($e) => strtolower($e))->unique()->count();
 
         // Only return JSON for non-Inertia API clients
         if (!$request->header('X-Inertia') && $request->acceptsJson()) {

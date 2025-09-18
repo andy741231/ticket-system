@@ -1616,49 +1616,69 @@ async function cropAndSaveImage() {
 
 // Handle header logo upload
   async function handleHeaderLogoUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-  // Check file size (100KB limit)
-  const maxSize = 100 * 1024; // 100KB in bytes
-  if (file.size > maxSize) {
-    // File exceeds size limit, show warning to user
-    console.warn(`Logo file size (${(file.size / 1024).toFixed(1)}KB) exceeds 100KB limit. Auto-optimizing...`);
-    
-    // For now, we'll still upload the file but could implement client-side resizing in the future
-    // This would require additional image processing libraries
-  }
-
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('name', `header-logo-${Date.now()}`);
-    formData.append('folder', 'images/newsletters/logos');
-
-    const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
-    const uploadUrl = (typeof route === 'function')
-      ? route('image.upload')
-      : (typeof window !== 'undefined' && typeof window.route === 'function')
-        ? window.route('image.upload')
-        : '/api/image-upload';
-    
-    const resp = await axios.post(uploadUrl, formData, {
-      headers: {
-        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-        Accept: 'application/json',
-      },
-    });
-
-    let url = resp.data.url;
-    if (typeof url === 'string' && url.startsWith('/')) {
-      url = `${window.location.origin}${url}`;
+    // Check file size (100KB limit)
+    const maxSize = 100 * 1024; // 100KB in bytes
+    if (file.size > maxSize) {
+      // File exceeds size limit, show warning to user
+      console.warn(`Logo file size (${(file.size / 1024).toFixed(1)}KB) exceeds 100KB limit. Auto-optimizing...`);
+      
+      // For now, we'll still upload the file but could implement client-side resizing in the future
+      // This would require additional image processing libraries
     }
-    headerLogo.value = url;
-    
-    // Set default alt text to filename if not already set
-    if (!headerLogoAlt.value) {
-      headerLogoAlt.value = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
-    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', `header-logo-${Date.now()}`);
+      formData.append('folder', 'images/newsletters/logos');
+
+      const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
+      const uploadUrl = (typeof route === 'function')
+        ? route('image.upload')
+        : (typeof window !== 'undefined' && typeof window.route === 'function')
+          ? window.route('image.upload')
+          : '/api/image-upload';
+      
+      const resp = await axios.post(uploadUrl, formData, {
+        headers: {
+          ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+          'Accept': 'application/json',
+        },
+      });
+
+      let url = resp.data.url;
+      if (typeof url === 'string' && url.startsWith('/')) {
+        url = `${window.location.origin}${url}`;
+      }
+      
+      // Update the header logo in the UI
+      headerLogo.value = url;
+      
+      // Set default alt text to filename if not already set
+      if (!headerLogoAlt.value) {
+        headerLogoAlt.value = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      }
+      
+      // Find and update the header block in the email content
+      const headerBlock = emailBlocks.value.find(block => block.type === 'header');
+      if (headerBlock) {
+        // Update the header block with the new logo URL and alt text
+        headerBlock.data = {
+          ...headerBlock.data,
+          logo: url,
+          logoAlt: headerLogoAlt.value,
+          logoUrl: headerLogoUrl.value,
+          logoAlignment: headerLogoAlignment.value,
+          logoSize: headerLogoSize.value,
+          logoPadding: headerLogoPadding.value
+        };
+        
+        // Trigger content update to save the changes
+        updateContent();
+      }
   } catch (e) {
     console.error('Logo upload failed:', e);
   }

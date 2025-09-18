@@ -23,12 +23,49 @@ const props = defineProps({
 
 const searchForm = useForm({
   search: props.filters.search || '',
-  status: props.filters.status || '',
+  status: props.filters.status || 'sent',
+  per_page: Number(props.filters.per_page) || 25,
 });
 
-// Time Capsule functionality
-const selectedCampaigns = ref([]);
-const showTimeCapsuleButton = computed(() => selectedCampaigns.value.length > 0);
+// Per-page options
+const perPageOptions = [25, 50, 100, 150, 200, 250];
+
+// Selection state
+const selectedCampaigns = ref([]); // array of campaign IDs
+const lastSelectedIndex = ref(null); // index within current page for shift-range selection
+
+// Helpers derived from current page data
+const idsOnPage = computed(() => props.campaigns?.data?.map(c => c.id) ?? []);
+const statusById = computed(() => {
+  const map = new Map();
+  (props.campaigns?.data ?? []).forEach(c => map.set(c.id, c.status));
+  return map;
+});
+const isSent = (id) => statusById.value.get(id) === 'sent';
+const isDeletable = (id) => {
+  const s = statusById.value.get(id);
+  return s !== 'sent' && s !== 'sending';
+};
+
+// Current view helpers
+const isSentView = computed(() => (searchForm.status || 'sent') === 'sent');
+const isInProgressView = computed(() => (searchForm.status || 'sent') === 'in_progress');
+// Subset for deletable items in current selection
+const selectedDeletableIds = computed(() => selectedCampaigns.value.filter(id => isDeletable(id)));
+
+// Select All (this page)
+const allOnPageSelected = computed(() => idsOnPage.value.length > 0 && idsOnPage.value.every(id => selectedCampaigns.value.includes(id)));
+function toggleSelectAllPage() {
+  const pageIds = idsOnPage.value;
+  if (pageIds.length === 0) return;
+  if (allOnPageSelected.value) {
+    selectedCampaigns.value = selectedCampaigns.value.filter(id => !pageIds.includes(id));
+  } else {
+    const set = new Set(selectedCampaigns.value);
+    pageIds.forEach(id => set.add(id));
+    selectedCampaigns.value = Array.from(set);
+  }
+}
 
 const statusColors = {
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
@@ -47,7 +84,17 @@ function search() {
 }
 
 function clearFilters() {
-  searchForm.reset();
+  searchForm.search = '';
+  search();
+}
+
+function setView(view) {
+  const current = searchForm.status || 'sent';
+  if (current === view) return;
+  // Clear selection on view change
+  selectedCampaigns.value = [];
+  lastSelectedIndex.value = null;
+  searchForm.status = view;
   search();
 }
 
@@ -102,18 +149,50 @@ function getProgressPercentage(campaign) {
   return Math.round((campaign.sent_count / campaign.total_recipients) * 100);
 }
 
-function toggleCampaignSelection(campaignId) {
-  const index = selectedCampaigns.value.indexOf(campaignId);
-  if (index > -1) {
-    selectedCampaigns.value.splice(index, 1);
+function toggleCampaignSelection(campaignId, options = { replace: false }) {
+  const idx = selectedCampaigns.value.indexOf(campaignId);
+  if (options.replace) {
+    selectedCampaigns.value = idx > -1 ? [campaignId] : [campaignId];
+  } else if (idx > -1) {
+    selectedCampaigns.value.splice(idx, 1);
   } else {
     selectedCampaigns.value.push(campaignId);
   }
 }
 
+function onRowSelect(campaignId, event, rowIndex) {
+  const { shiftKey, metaKey, ctrlKey } = event;
+  const useMeta = metaKey || ctrlKey;
+  if (shiftKey && lastSelectedIndex.value !== null) {
+    // range selection
+    const start = Math.min(lastSelectedIndex.value, rowIndex);
+    const end = Math.max(lastSelectedIndex.value, rowIndex);
+    const rangeIds = idsOnPage.value.slice(start, end + 1);
+    const current = new Set(selectedCampaigns.value);
+    // If meta also held, union; otherwise replace selection with range
+    if (useMeta) {
+      rangeIds.forEach(id => current.add(id));
+      selectedCampaigns.value = Array.from(current);
+    } else {
+      selectedCampaigns.value = Array.from(rangeIds);
+    }
+  } else if (useMeta) {
+    toggleCampaignSelection(campaignId);
+    lastSelectedIndex.value = rowIndex;
+  } else {
+    // regular click: select only this row
+    toggleCampaignSelection(campaignId, { replace: true });
+    lastSelectedIndex.value = rowIndex;
+  }
+}
+
+function clearSelection() {
+  selectedCampaigns.value = [];
+  lastSelectedIndex.value = null;
+}
+
 function sendToTimeCapsule() {
-  if (selectedCampaigns.value.length === 0) return;
-  
+  if (!isSentView.value || selectedCampaigns.value.length === 0) return;
   const campaignCount = selectedCampaigns.value.length;
   const message = campaignCount === 1 
     ? 'Are you sure you want to send this campaign to the Time Capsule?' 
@@ -129,6 +208,34 @@ function sendToTimeCapsule() {
     });
   }
 }
+
+function deleteSelected() {
+  if (!isInProgressView.value || selectedDeletableIds.value.length === 0) return;
+  const count = selectedDeletableIds.value.length;
+  const message = count === 1
+    ? 'Are you sure you want to delete the selected campaign? This action cannot be undone.'
+    : `Are you sure you want to delete ${count} selected campaigns? This action cannot be undone.`;
+  if (!confirm(message)) return;
+
+  // Fire deletes sequentially to avoid overwhelming server; ignore failures per item
+  const ids = [...selectedDeletableIds.value];
+  let processed = 0;
+  const next = () => {
+    const id = ids.shift();
+    if (id === undefined) {
+      selectedCampaigns.value = [];
+      return;
+    }
+    router.delete(route('newsletter.campaigns.destroy', id), {
+      preserveScroll: true,
+      onFinish: () => {
+        processed++;
+        next();
+      }
+    });
+  };
+  next();
+}
 </script>
 
 <template>
@@ -141,14 +248,32 @@ function sendToTimeCapsule() {
     <div class="">
       <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
         <div class="flex justify-between items-center">
-        <div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <!-- Bulk actions -->
           <button
-            v-if="showTimeCapsuleButton"
+            v-if="isSentView && selectedCampaigns.length > 0"
             @click="sendToTimeCapsule"
-            class="inline-flex items-center px-4 py-2 mb-2 bg-orange-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-orange-700 focus:bg-orange-700 active:bg-orange-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition ease-in-out duration-150"
+            class="inline-flex items-center px-3 py-2 mb-2 bg-orange-600 border border-transparent rounded-md font-medium text-xs text-white uppercase tracking-widest hover:bg-orange-700 focus:bg-orange-700 active:bg-orange-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition ease-in-out duration-150"
           >
             <TrashIcon class="w-4 h-4 mr-2" />
             Send to Time Capsule ({{ selectedCampaigns.length }})
+          </button>
+
+          <button
+            v-if="isInProgressView && selectedDeletableIds.length > 0"
+            @click="deleteSelected"
+            class="inline-flex items-center px-3 py-2 mb-2 bg-red-600 border border-transparent rounded-md font-medium text-xs text-white uppercase tracking-widest hover:bg-red-700 focus:bg-red-700 active:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150"
+          >
+            <TrashIcon class="w-4 h-4 mr-2" />
+            Delete ({{ selectedDeletableIds.length }})
+          </button>
+
+          <button
+            v-if="selectedCampaigns.length > 0"
+            @click="clearSelection"
+            class="inline-flex items-center px-3 py-2 mb-2 bg-gray-200 dark:bg-gray-700 border border-transparent rounded-md font-medium text-xs text-gray-800 dark:text-gray-200 uppercase tracking-widest hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none transition"
+          >
+            Clear selection
           </button>
         </div>
         <Link
@@ -177,19 +302,32 @@ function sendToTimeCapsule() {
                 </div>
               </div>
               
-              <div class="flex gap-2">
+              <div class="flex gap-2 items-center">
+                <!-- View toggle -->
+                <div class="inline-flex rounded-md shadow-sm" role="group" aria-label="View toggle">
+                  <button type="button"
+                          :class="isSentView
+                            ? 'px-3 py-2 text-xs font-medium text-white bg-blue-600 border border-blue-600 rounded-l-md'
+                            : 'px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-l-md hover:bg-gray-50 dark:hover:bg-gray-700'"
+                          @click="setView('sent')">
+                    Sent
+                  </button>
+                  <button type="button"
+                          :class="isInProgressView
+                            ? 'px-3 py-2 text-xs font-medium text-white bg-blue-600 border border-blue-600 rounded-r-md -ml-px'
+                            : 'px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-r-md -ml-px hover:bg-gray-50 dark:hover:bg-gray-700'"
+                          @click="setView('in_progress')">
+                    In Progress
+                  </button>
+                </div>
+
+                <!-- Per-page selector -->
                 <select
-                  v-model="searchForm.status"
+                  v-model.number="searchForm.per_page"
                   @change="search"
                   class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-blue-500 dark:focus:border-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 rounded-md shadow-sm"
                 >
-                  <option value="">All Status</option>
-                  <option value="draft">Draft</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="sending">Sending</option>
-                  <option value="sent">Sent</option>
-                  <option value="paused">Paused</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option v-for="n in perPageOptions" :key="n" :value="n">{{ n }} / page</option>
                 </select>
 
                 <button
@@ -209,6 +347,9 @@ function sendToTimeCapsule() {
                 <tr>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
                     <span class="sr-only">Select</span>
+                    <label class="inline-flex items-center text-sm text-gray-700 dark:text-gray-300 select-none">
+                      <input type="checkbox" :checked="allOnPageSelected" @change="toggleSelectAllPage" class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mr-2">
+                    </label>
                   </th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Campaign
@@ -231,13 +372,17 @@ function sendToTimeCapsule() {
                 </tr>
               </thead>
               <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <tr v-for="campaign in campaigns.data" :key="campaign.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td class="px-6 py-4">
+                <tr
+                  v-for="(campaign, rowIndex) in campaigns.data"
+                  :key="campaign.id"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  @click="onRowSelect(campaign.id, $event, rowIndex)"
+                >
+                  <td class="px-6 py-4" @click.stop>
                     <input
-                      v-if="campaign.status === 'sent'"
                       type="checkbox"
                       :checked="selectedCampaigns.includes(campaign.id)"
-                      @change="toggleCampaignSelection(campaign.id)"
+                      @change="onRowSelect(campaign.id, $event, rowIndex)"
                       class="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
                     />
                   </td>
@@ -302,7 +447,7 @@ function sendToTimeCapsule() {
                       Created: {{ formatDate(campaign.created_at) }}
                     </div>
                   </td>
-                  <td class="px-6 py-4 text-right text-sm font-medium">
+                  <td class="px-6 py-4 text-right text-sm font-medium" @click.stop>
                     <div class="flex justify-end gap-2">
                       <!-- View/Analytics -->
                       <Link
@@ -372,7 +517,7 @@ function sendToTimeCapsule() {
                         <DocumentDuplicateIcon class="w-4 h-4" />
                       </button>
 
-                      <!-- Delete (only for draft/cancelled) -->
+                      <!-- Delete (only for draft/cancelled) - kept for quick per-item action -->
                       <button
                         v-if="['draft', 'cancelled'].includes(campaign.status)"
                         @click="deleteCampaign(campaign)"

@@ -19,11 +19,28 @@ const props = defineProps({
 const searchForm = useForm({
   search: props.filters.search || '',
   status: props.filters.status || '',
+  per_page: Number(props.filters.per_page) || 25,
 });
 
-// Time Capsule functionality
-const selectedCampaigns = ref([]);
-const showRestoreButton = computed(() => selectedCampaigns.value.length > 0);
+// Per-page options
+const perPageOptions = [25, 50, 100, 150, 200, 250];
+
+// Selection state & helpers
+const selectedCampaigns = ref([]); // array of campaign IDs
+const lastSelectedIndex = ref(null);
+const idsOnPage = computed(() => props.campaigns?.data?.map(c => c.id) ?? []);
+const allOnPageSelected = computed(() => idsOnPage.value.length > 0 && idsOnPage.value.every(id => selectedCampaigns.value.includes(id)));
+function toggleSelectAllPage() {
+  const pageIds = idsOnPage.value;
+  if (pageIds.length === 0) return;
+  if (allOnPageSelected.value) {
+    selectedCampaigns.value = selectedCampaigns.value.filter(id => !pageIds.includes(id));
+  } else {
+    const set = new Set(selectedCampaigns.value);
+    pageIds.forEach(id => set.add(id));
+    selectedCampaigns.value = Array.from(set);
+  }
+}
 
 const statusColors = {
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
@@ -42,7 +59,7 @@ function search() {
 }
 
 function clearFilters() {
-  searchForm.reset();
+  searchForm.search = '';
   search();
 }
 
@@ -75,33 +92,89 @@ function getProgressPercentage(campaign) {
   return Math.round((campaign.sent_count / campaign.total_recipients) * 100);
 }
 
-function toggleCampaignSelection(campaignId) {
-  const index = selectedCampaigns.value.indexOf(campaignId);
-  if (index > -1) {
-    selectedCampaigns.value.splice(index, 1);
+function toggleCampaignSelection(campaignId, options = { replace: false }) {
+  const idx = selectedCampaigns.value.indexOf(campaignId);
+  if (options.replace) {
+    selectedCampaigns.value = idx > -1 ? [campaignId] : [campaignId];
+  } else if (idx > -1) {
+    selectedCampaigns.value.splice(idx, 1);
   } else {
     selectedCampaigns.value.push(campaignId);
   }
 }
 
+function onRowSelect(campaignId, event, rowIndex) {
+  const { shiftKey, metaKey, ctrlKey } = event;
+  const useMeta = metaKey || ctrlKey;
+  if (shiftKey && lastSelectedIndex.value !== null) {
+    const start = Math.min(lastSelectedIndex.value, rowIndex);
+    const end = Math.max(lastSelectedIndex.value, rowIndex);
+    const rangeIds = idsOnPage.value.slice(start, end + 1);
+    const current = new Set(selectedCampaigns.value);
+    if (useMeta) {
+      rangeIds.forEach(id => current.add(id));
+      selectedCampaigns.value = Array.from(current);
+    } else {
+      selectedCampaigns.value = Array.from(rangeIds);
+    }
+  } else if (useMeta) {
+    toggleCampaignSelection(campaignId);
+    lastSelectedIndex.value = rowIndex;
+  } else {
+    toggleCampaignSelection(campaignId, { replace: true });
+    lastSelectedIndex.value = rowIndex;
+  }
+}
+
+function clearSelection() {
+  selectedCampaigns.value = [];
+  lastSelectedIndex.value = null;
+}
+
 function restoreSelectedCampaigns() {
   if (selectedCampaigns.value.length === 0) return;
-  
   const campaignCount = selectedCampaigns.value.length;
   const message = campaignCount === 1 
     ? 'Are you sure you want to restore this campaign from the Time Capsule?' 
     : `Are you sure you want to restore ${campaignCount} campaigns from the Time Capsule?`;
-    
-  if (confirm(message)) {
-    selectedCampaigns.value.forEach(campaignId => {
-      router.post(route('newsletter.campaigns.timecapsule.restore', campaignId), {}, {
-        preserveState: true,
-        onSuccess: () => {
-          selectedCampaigns.value = [];
-        }
-      });
+  if (!confirm(message)) return;
+
+  const ids = [...selectedCampaigns.value];
+  const next = () => {
+    const id = ids.shift();
+    if (id === undefined) {
+      selectedCampaigns.value = [];
+      return;
+    }
+    router.post(route('newsletter.campaigns.timecapsule.restore', id), {}, {
+      preserveScroll: true,
+      onFinish: () => next(),
     });
-  }
+  };
+  next();
+}
+
+function deleteSelected() {
+  if (selectedCampaigns.value.length === 0) return;
+  const count = selectedCampaigns.value.length;
+  const message = count === 1
+    ? 'Are you sure you want to permanently delete the selected campaign? This action cannot be undone.'
+    : `Are you sure you want to permanently delete ${count} selected campaigns? This action cannot be undone.`;
+  if (!confirm(message)) return;
+
+  const ids = [...selectedCampaigns.value];
+  const next = () => {
+    const id = ids.shift();
+    if (id === undefined) {
+      selectedCampaigns.value = [];
+      return;
+    }
+    router.delete(route('newsletter.campaigns.destroy', id), {
+      preserveScroll: true,
+      onFinish: () => next(),
+    });
+  };
+  next();
 }
 </script>
 
@@ -121,14 +194,31 @@ function restoreSelectedCampaigns() {
               Archived campaigns that are hidden from regular views and public archive
             </p>
           </div>
-          <div>
+          <div class="flex flex-wrap items-center gap-2">
             <button
-              v-if="showRestoreButton"
+              v-if="selectedCampaigns.length > 0"
               @click="restoreSelectedCampaigns"
-              class="inline-flex items-center px-4 py-2 mb-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 focus:bg-green-700 active:bg-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150"
+              class="inline-flex items-center px-3 py-2 mb-2 bg-green-600 border border-transparent rounded-md font-medium text-xs text-white uppercase tracking-widest hover:bg-green-700 focus:bg-green-700 active:bg-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150"
             >
               <ArrowUturnLeftIcon class="w-4 h-4 mr-2" />
               Restore ({{ selectedCampaigns.length }})
+            </button>
+
+            <button
+              v-if="selectedCampaigns.length > 0"
+              @click="deleteSelected"
+              class="inline-flex items-center px-3 py-2 mb-2 bg-red-600 border border-transparent rounded-md font-medium text-xs text-white uppercase tracking-widest hover:bg-red-700 focus:bg-red-700 active:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150"
+            >
+              <TrashIcon class="w-4 h-4 mr-2" />
+              Delete ({{ selectedCampaigns.length }})
+            </button>
+
+            <button
+              v-if="selectedCampaigns.length > 0"
+              @click="clearSelection"
+              class="inline-flex items-center px-3 py-2 mb-2 bg-gray-200 dark:bg-gray-700 border border-transparent rounded-md font-medium text-xs text-gray-800 dark:text-gray-200 uppercase tracking-widest hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none transition"
+            >
+              Clear selection
             </button>
           </div>
         </div>
@@ -151,19 +241,14 @@ function restoreSelectedCampaigns() {
                 </div>
               </div>
               
-              <div class="flex gap-2">
+              <div class="flex gap-2 items-center">
+                <!-- Per-page selector -->
                 <select
-                  v-model="searchForm.status"
+                  v-model.number="searchForm.per_page"
                   @change="search"
                   class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-blue-500 dark:focus:border-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 rounded-md shadow-sm"
                 >
-                  <option value="">All Status</option>
-                  <option value="draft">Draft</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="sending">Sending</option>
-                  <option value="sent">Sent</option>
-                  <option value="paused">Paused</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option v-for="n in perPageOptions" :key="n" :value="n">{{ n }} / page</option>
                 </select>
 
                 <button
@@ -183,6 +268,9 @@ function restoreSelectedCampaigns() {
                 <tr>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
                     <span class="sr-only">Select</span>
+                    <label class="inline-flex items-center text-sm text-gray-700 dark:text-gray-300 select-none">
+              <input type="checkbox" :checked="allOnPageSelected" @change="toggleSelectAllPage" class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded mr-2">
+            </label>
                   </th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Campaign
@@ -205,12 +293,17 @@ function restoreSelectedCampaigns() {
                 </tr>
               </thead>
               <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <tr v-for="campaign in campaigns.data" :key="campaign.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td class="px-6 py-4">
+                <tr
+                  v-for="(campaign, rowIndex) in campaigns.data"
+                  :key="campaign.id"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  @click="onRowSelect(campaign.id, $event, rowIndex)"
+                >
+                  <td class="px-6 py-4" @click.stop>
                     <input
                       type="checkbox"
                       :checked="selectedCampaigns.includes(campaign.id)"
-                      @change="toggleCampaignSelection(campaign.id)"
+                      @change="onRowSelect(campaign.id, $event, rowIndex)"
                       class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                     />
                   </td>
@@ -275,7 +368,7 @@ function restoreSelectedCampaigns() {
                       Created: {{ formatDate(campaign.created_at) }}
                     </div>
                   </td>
-                  <td class="px-6 py-4 text-right text-sm font-medium">
+                  <td class="px-6 py-4 text-right text-sm font-medium" @click.stop>
                     <div class="flex justify-end gap-2">
                       <!-- View/Analytics -->
                       <Link

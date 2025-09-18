@@ -10,7 +10,9 @@ use App\Models\Newsletter\Campaign;
 use App\Models\Newsletter\Group;
 use App\Models\Newsletter\Subscriber;
 use App\Models\Newsletter\Template;
+use App\Models\Team;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -22,9 +24,18 @@ class CampaignController extends Controller
         $query = Campaign::with(['creator', 'template'])
             ->where('time_capsule', false); // Exclude time capsule campaigns
 
-        // Status filter
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        // View/Status filter: default to 'sent'; support composite 'in_progress'
+        $view = $request->input('status');
+        if ($view === null || $view === '') {
+            $view = 'sent';
+        }
+        if ($view === 'in_progress') {
+            $query->whereIn('status', ['draft', 'scheduled', 'sending', 'paused', 'cancelled']);
+        } elseif ($view === 'sent') {
+            $query->where('status', 'sent');
+        } else {
+            // Back-compat: allow filtering by a specific status value
+            $query->where('status', $view);
         }
 
         // Search functionality
@@ -36,11 +47,18 @@ class CampaignController extends Controller
             });
         }
 
-        $campaigns = $query->orderBy('created_at', 'desc')->paginate(25);
+        // Per-page pagination support with sensible bounds
+        $perPage = (int) $request->input('per_page', 25);
+        $allowed = [25, 50, 100, 150, 200, 250];
+        if (!in_array($perPage, $allowed, true)) {
+            $perPage = 25;
+        }
+
+        $campaigns = $query->orderBy('created_at', 'desc')->paginate($perPage)->withQueryString();
 
         return Inertia::render('Newsletter/Campaigns/Index', [
             'campaigns' => $campaigns,
-            'filters' => $request->only(['search', 'status']),
+            'filters' => $request->only(['search', 'status', 'per_page']),
         ]);
     }
 
@@ -61,6 +79,31 @@ class CampaignController extends Controller
                 ];
             });
 
+        // Append protected virtual group (UHPH Directory)
+        try {
+            $dirEmails = Team::query()
+                ->whereIn('group_1', ['team', 'leadership'])
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->unique()
+                ->values();
+
+            // Count ALL directory members that match criteria, regardless of newsletter subscription status
+            $protectedCount = $dirEmails->count();
+
+            $groups->push([
+                'id' => 'protected_dir_team',
+                'name' => 'UHPH Directory',
+                'description' => 'Auto-managed group of directory members (team, leadership).',
+                'color' => '#334155',
+                'is_active' => true,
+                'active_subscriber_count' => $protectedCount,
+            ]);
+        } catch (\Throwable $e) {
+            // Fail-safe: still render without protected group if directory connection missing
+        }
+
         return Inertia::render('Newsletter/Campaigns/Create', [
             'templates' => $templates,
             'groups' => $groups,
@@ -80,7 +123,17 @@ class CampaignController extends Controller
             'send_type' => 'required|in:immediate,scheduled,recurring',
             'scheduled_at' => 'required_if:send_type,scheduled|date|after:now',
             'target_groups' => 'required_without:send_to_all|array',
-            'target_groups.*' => 'exists:newsletter_groups,id',
+            'target_groups.*' => [
+                function ($attribute, $value, $fail) {
+                    if ($value === 'protected_dir_team') {
+                        return; // allow special virtual group id
+                    }
+                    $exists = \Illuminate\Support\Facades\DB::table('newsletter_groups')->where('id', $value)->exists();
+                    if (!$exists) {
+                        $fail('The selected group is invalid.');
+                    }
+                }
+            ],
             'send_to_all' => 'boolean',
             'enable_tracking' => 'sometimes|boolean',
             'recurring_config' => 'required_if:send_type,recurring|array',
@@ -216,8 +269,12 @@ class CampaignController extends Controller
             }
         }
         
-        // Calculate total recipients using the model's method
-        $data['total_recipients'] = $campaign->getRecipientsQuery()->count();
+        // Calculate total recipients using email-based logic (includes directory members even if not subscribers)
+        if (method_exists($campaign, 'getRecipientEmails')) {
+            $data['total_recipients'] = $campaign->getRecipientEmails()->count();
+        } else {
+            $data['total_recipients'] = $campaign->getRecipientsQuery()->count();
+        }
         
         // Update the campaign with the recipient count
         $campaign->update(['total_recipients' => $data['total_recipients']]);
@@ -264,9 +321,24 @@ class CampaignController extends Controller
      */
     protected function scheduleCampaignSends(Campaign $campaign, $scheduledAt)
     {
-        $subscribers = $campaign->getRecipientsQuery()->get();
-        
-        foreach ($subscribers as $subscriber) {
+        // Use email-based resolution so directory-only members are included
+        $emails = method_exists($campaign, 'getRecipientEmails')
+            ? $campaign->getRecipientEmails()
+            : $campaign->getRecipientsQuery()->pluck('email')->unique();
+
+        // Ensure Subscriber records exist for each email
+        $existing = Subscriber::query()->whereIn('email', $emails)->get()->keyBy(fn($s) => strtolower($s->email));
+        foreach ($emails as $email) {
+            $key = strtolower($email);
+            $subscriber = $existing->get($key);
+            if (!$subscriber) {
+                $subscriber = Subscriber::create([
+                    'email' => $email,
+                    'status' => 'active',
+                ]);
+                $existing->put($key, $subscriber);
+            }
+
             $campaign->scheduledSends()->create([
                 'subscriber_id' => $subscriber->id,
                 'scheduled_at' => $scheduledAt,
@@ -326,6 +398,31 @@ class CampaignController extends Controller
                 ];
             });
 
+        // Append protected virtual group (UHPH Directory)
+        try {
+            $dirEmails = Team::query()
+                ->whereIn('group_1', ['team', 'leadership'])
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->unique()
+                ->values();
+
+            // Count ALL directory members that match criteria, regardless of newsletter subscription status
+            $protectedCount = $dirEmails->count();
+
+            $groups->push([
+                'id' => 'protected_dir_team',
+                'name' => 'UHPH Directory',
+                'description' => 'Auto-managed group of directory members (team, leadership).',
+                'color' => '#334155',
+                'is_active' => true,
+                'active_subscriber_count' => $protectedCount,
+            ]);
+        } catch (\Throwable $e) {
+            // Fail-safe: continue without virtual group if directory connection not available
+        }
+
         return Inertia::render('Newsletter/Campaigns/Edit', [
             'campaign' => $campaign,
             'templates' => $templates,
@@ -363,7 +460,17 @@ class CampaignController extends Controller
             'recurring_config.occurrences' => ['nullable', 'integer', 'min:1'],
             // Require target_groups unless sending to all
             'target_groups' => ['required_without:send_to_all', 'array'],
-            'target_groups.*' => ['exists:newsletter_groups,id'],
+            'target_groups.*' => [
+                function ($attribute, $value, $fail) {
+                    if ($value === 'protected_dir_team') {
+                        return; // allow special virtual group id
+                    }
+                    $exists = DB::table('newsletter_groups')->where('id', $value)->exists();
+                    if (!$exists) {
+                        $fail('The selected group is invalid.');
+                    }
+                }
+            ],
             'send_to_all' => ['boolean'],
             'enable_tracking' => ['sometimes', 'boolean'],
         ]);
@@ -410,14 +517,44 @@ class CampaignController extends Controller
                 }
             }
 
-            // Recalculate total recipients
-            $recipientQuery = Subscriber::active();
-            if (!$data['send_to_all'] && !empty($data['target_groups'])) {
-                $recipientQuery->whereHas('groups', function ($q) use ($data) {
-                    $q->whereIn('newsletter_groups.id', $data['target_groups']);
-                });
+            // Recalculate total recipients using email-based logic (union of subscribers and directory emails)
+            if (method_exists($campaign, 'getRecipientEmails')) {
+                // Temporarily apply request data to campaign clone for accurate resolution
+                $tmp = clone $campaign;
+                $tmp->send_to_all = (bool)$data['send_to_all'];
+                $tmp->target_groups = $data['target_groups'] ?? [];
+                $data['total_recipients'] = $tmp->getRecipientEmails()->count();
+            } else {
+                $recipientQuery = Subscriber::active();
+                if (!$data['send_to_all'] && !empty($data['target_groups'])) {
+                    $selected = collect($data['target_groups']);
+                    $hasProtected = $selected->contains('protected_dir_team');
+                    $normalIds = $selected->filter(fn($v) => $v !== 'protected_dir_team')->values()->all();
+
+                    $recipientQuery->where(function ($q) use ($normalIds, $hasProtected) {
+                        if (!empty($normalIds)) {
+                            $q->whereHas('groups', function ($qq) use ($normalIds) {
+                                $qq->whereIn('newsletter_groups.id', $normalIds);
+                            });
+                        }
+                        if ($hasProtected) {
+                            $dirEmails = Team::query()
+                                ->whereIn('group_1', ['team', 'leadership'])
+                                ->whereNotNull('email')
+                                ->pluck('email')
+                                ->filter()
+                                ->unique()
+                                ->values();
+                            if (!empty($normalIds)) {
+                                $q->orWhereIn('email', $dirEmails);
+                            } else {
+                                $q->whereIn('email', $dirEmails);
+                            }
+                        }
+                    });
+                }
+                $data['total_recipients'] = $recipientQuery->count();
             }
-            $data['total_recipients'] = $recipientQuery->count();
 
             // Persist campaign
             $campaign->update($data);
@@ -786,11 +923,18 @@ class CampaignController extends Controller
             });
         }
 
-        $campaigns = $query->orderBy('updated_at', 'desc')->paginate(25);
+        // Per-page pagination support with sensible bounds
+        $perPage = (int) $request->input('per_page', 25);
+        $allowed = [25, 50, 100, 150, 200, 250];
+        if (!in_array($perPage, $allowed, true)) {
+            $perPage = 25;
+        }
+
+        $campaigns = $query->orderBy('updated_at', 'desc')->paginate($perPage)->withQueryString();
 
         return Inertia::render('Newsletter/Campaigns/TimeCapsule', [
             'campaigns' => $campaigns,
-            'filters' => $request->only(['search', 'status']),
+            'filters' => $request->only(['search', 'status', 'per_page']),
         ]);
     }
 

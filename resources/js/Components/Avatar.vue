@@ -32,10 +32,14 @@ const sizeClasses = {
   xl: 'h-24 w-24 text-2xl'
 };
 
+// Helper to normalize emails for case-insensitive comparisons
+const normalizeEmail = (email) => (email ?? '').toString().trim().toLowerCase();
+
 // Find matching team by email
 const matchingTeam = computed(() => {
   if (!teams.value?.length || !props.user?.email) return null;
-  return teams.value.find(team => team.email === props.user.email);
+  const userEmail = normalizeEmail(props.user.email);
+  return teams.value.find(team => normalizeEmail(team.email) === userEmail) || null;
 });
 
 // Determine avatar image or initials
@@ -58,7 +62,7 @@ const linkDestination = computed(() => {
   if (!props.showLink) return null;
   
   // If current user and email matches a team, link to directory edit
-  if (currentUser.value?.email === props.user?.email && matchingTeam.value) {
+  if (normalizeEmail(currentUser.value?.email) === normalizeEmail(props.user?.email) && matchingTeam.value) {
     return { type: 'route', name: 'directory.edit', params: matchingTeam.value.id };
   }
   
@@ -76,7 +80,7 @@ const linkDestination = computed(() => {
 });
 
 const isCurrentUser = computed(() => {
-  return currentUser.value?.email === props.user?.email;
+  return normalizeEmail(currentUser.value?.email) === normalizeEmail(props.user?.email);
 });
 </script>
 

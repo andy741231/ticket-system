@@ -76,8 +76,23 @@ function onToggleGroup(id, ev) {
               class="rounded border-gray-300 text-uh-red shadow-sm focus:ring-uh-red focus:ring-offset-0" 
             />
             <div class="ml-3 flex-1">
-              <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ group.name }}</div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">{{ group.active_subscriber_count || 0 }} subscribers</div>
+              <div class="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <span>{{ group.name }}</span>
+                <span v-if="String(group.id) === 'protected_dir_team'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200" title="This group is auto-managed from the campus directory and cannot be edited on the public page.">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-3.5 h-3.5">
+                    <path fill-rule="evenodd" d="M12 1.5A5.25 5.25 0 006.75 6.75V9H6a2.25 2.25 0 00-2.25 2.25v9A2.25 2.25 0 006 22.5h12a2.25 2.25 0 002.25-2.25v-9A2.25 2.25 0 0018 9h-.75V6.75A5.25 5.25 0 0012 1.5zm3.75 7.5V6.75a3.75 3.75 0 10-7.5 0V9h7.5z" clip-rule="evenodd" />
+                  </svg>
+                  <span>Auto-managed</span>
+                </span>
+              </div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                <template v-if="String(group.id) === 'protected_dir_team'">
+                  {{ group.active_subscriber_count || 0 }} members
+                </template>
+                <template v-else>
+                  {{ group.active_subscriber_count || 0 }} subscribers
+                </template>
+              </div>
             </div>
           </label>
         </div>

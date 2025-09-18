@@ -4,10 +4,12 @@ namespace App\Models\Newsletter;
 
 use App\Models\User;
 use App\Models\Newsletter\Subscriber;
+use App\Models\Team;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 class Campaign extends Model
@@ -87,17 +89,112 @@ class Campaign extends Model
      */
     public function getRecipientsQuery()
     {
-        $query = Subscriber::query()
-            ->where('status', 'active');
+        $query = Subscriber::query()->where('status', 'active');
 
-        // If not sending to all, filter by target groups
+        // If not sending to all, filter by selected groups, including virtual directory-based group
         if (!$this->send_to_all && !empty($this->target_groups)) {
-            $query->whereHas('groups', function($q) {
-                $q->whereIn('newsletter_subscriber_groups.group_id', $this->target_groups);
+            $selected = collect($this->target_groups);
+            $hasProtected = $selected->contains('protected_dir_team');
+            $normalIds = $selected->filter(fn($v) => $v !== 'protected_dir_team')->values()->all();
+
+            $query->where(function ($q) use ($normalIds, $hasProtected) {
+                if (!empty($normalIds)) {
+                    $q->whereHas('groups', function ($qq) use ($normalIds) {
+                        $qq->whereIn('newsletter_subscriber_groups.group_id', $normalIds);
+                    });
+                }
+                if ($hasProtected) {
+                    $dirEmails = Team::query()
+                        ->whereIn('group_1', ['team', 'leadership'])
+                        ->whereNotNull('email')
+                        ->pluck('email')
+                        ->filter()
+                        ->unique()
+                        ->values();
+                    if (!empty($normalIds)) {
+                        $q->orWhereIn('email', $dirEmails);
+                    } else {
+                        $q->whereIn('email', $dirEmails);
+                    }
+                }
             });
         }
 
         return $query;
+    }
+
+    /**
+     * Compute the list of recipient emails for this campaign.
+     * This includes directory members for the protected virtual group
+     * regardless of newsletter subscription status.
+     *
+     * - If send_to_all is true: all active subscriber emails
+     * - Else: union of active subscriber emails in selected real groups
+     *   and directory emails when protected group selected
+     *
+     * @return Collection<string>
+     */
+    public function getRecipientEmails(): Collection
+    {
+        // Send to all: all active subscribers
+        if ($this->send_to_all) {
+            return Subscriber::query()
+                ->where('status', 'active')
+                ->pluck('email')
+                ->filter()
+                ->unique()
+                ->values();
+        }
+
+        $selected = collect($this->target_groups ?? []);
+        if ($selected->isEmpty()) {
+            return collect();
+        }
+
+        $hasProtected = $selected->contains('protected_dir_team');
+        $normalIds = $selected->filter(fn ($v) => $v !== 'protected_dir_team')
+            ->map(fn ($v) => is_numeric($v) ? (int) $v : $v)
+            ->values();
+
+        $emails = collect();
+
+        // Active subscriber emails from selected real groups
+        if ($normalIds->isNotEmpty()) {
+            $groupEmails = Subscriber::query()
+                ->where('status', 'active')
+                ->whereHas('groups', function ($q) use ($normalIds) {
+                    $q->whereIn('newsletter_subscriber_groups.group_id', $normalIds->all());
+                })
+                ->pluck('email');
+            $emails = $emails->merge($groupEmails);
+        }
+
+        // Directory emails from protected group
+        if ($hasProtected) {
+            $emails = $emails->merge($this->getDirectoryProtectedEmails());
+        }
+
+        return $emails->filter()->map(fn ($e) => strtolower($e))->unique()->values();
+    }
+
+    /**
+     * Get the directory emails for the protected virtual group.
+     * @return Collection<string>
+     */
+    protected function getDirectoryProtectedEmails(): Collection
+    {
+        try {
+            return Team::query()
+                ->whereIn('group_1', ['team', 'leadership'])
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->map(fn ($e) => strtolower($e))
+                ->unique()
+                ->values();
+        } catch (\Throwable $e) {
+            return collect();
+        }
     }
 
     protected $appends = [

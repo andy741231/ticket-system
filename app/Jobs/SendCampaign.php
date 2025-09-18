@@ -28,16 +28,28 @@ class SendCampaign implements ShouldQueue
             return;
         }
 
-        // Get recipients based on campaign settings
-        $recipientQuery = Subscriber::active();
-        
-        if (!$this->campaign->send_to_all && !empty($this->campaign->target_groups)) {
-            $recipientQuery->whereHas('groups', function ($query) {
-                $query->whereIn('newsletter_groups.id', $this->campaign->target_groups);
-            });
-        }
+        // Build recipient emails (includes directory-only emails when protected group selected)
+        $emails = method_exists($this->campaign, 'getRecipientEmails')
+            ? $this->campaign->getRecipientEmails()
+            : $this->campaign->getRecipientsQuery()->pluck('email')->unique();
 
-        $recipients = $recipientQuery->get();
+        // Ensure we have Subscriber records for all emails
+        $existing = Subscriber::query()->whereIn('email', $emails)->get()->keyBy(fn($s) => strtolower($s->email));
+        $recipients = collect();
+        foreach ($emails as $email) {
+            $key = strtolower($email);
+            $subscriber = $existing->get($key);
+            if (!$subscriber) {
+                // Create a minimal active subscriber record so the mailer pipeline works
+                $subscriber = Subscriber::create([
+                    'email' => $key,
+                    'status' => 'active',
+                    'metadata' => ['source' => 'directory']
+                ]);
+                $existing->put($key, $subscriber);
+            }
+            $recipients->push($subscriber);
+        }
 
         // Create scheduled sends for each recipient
         $scheduledSends = [];
