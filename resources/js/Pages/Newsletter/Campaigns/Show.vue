@@ -415,7 +415,7 @@ watch(deliveryFilters, () => {
           <!-- All failed notice with error details -->
           <div
             v-if="campaign.status === 'sent' && campaign.sent_count === 0 && campaign.failed_count > 0"
-            class="mt-4 p-3 rounded-md bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm"
+            class="mt-4 p-3 rounded-md bg-red-50 dark:bg-gray-900 text-red-700 dark:text-red-300 text-sm"
           >
             <div class="font-semibold mb-2">All delivery attempts failed. No emails were delivered.</div>
             <div v-if="campaign.last_error" class="mt-2 p-2 bg-white dark:bg-gray-800 rounded border border-red-200 dark:border-red-800 overflow-auto max-h-40">

@@ -1,5 +1,5 @@
 <template>
-  <div class="comment-item group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
+  <div :id="`comment-${comment.id}`" class="comment-item group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
     <!-- Main Comment -->
     <div class="flex space-x-3">
       <!-- Avatar -->
@@ -120,8 +120,7 @@
         <!-- Comment Body / Edit Form Container -->
         <div>
           <!-- Comment Body -->
-          <div v-if="!isEditing" class="text-gray-800 dark:text-gray-200 text-sm mb-3 whitespace-pre-wrap break-words">
-            {{ comment.body }}
+          <div v-if="!isEditing" class="text-gray-800 dark:text-gray-200 text-sm mb-3 whitespace-pre-wrap break-words" v-html="renderWithLinks(comment.body)">
           </div>
 
           <!-- Edit Form -->
@@ -259,14 +258,15 @@
           <div class="flex space-x-3">
             <Avatar :user="currentUser" size="sm" :show-link="false" />
             <div class="flex-1">
-              <textarea
+              <MentionAutocomplete
                 ref="replyTextarea"
                 v-model="replyBody"
-                placeholder="Write a reply..."
+                :ticket-id="ticketId"
+                placeholder="Write a reply... Use @username to mention someone"
                 class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 rows="2"
                 @keydown.ctrl.enter="submitReply"
-              ></textarea>
+              />
               
               <!-- Reply File Errors -->
               <div
@@ -354,6 +354,7 @@
             :key="reply.id"
             :comment="reply"
             :current-user="currentUser"
+            :ticket-id="ticketId"
             :can-delete="canDeleteReply(reply)"
             :can-edit="canEditReply(reply)"
             :is-reply="true"
@@ -372,6 +373,8 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import Avatar from '@/Components/Avatar.vue';
+import { renderWithLinks } from '@/Utils/textUtils';
+import MentionAutocomplete from '@/Components/MentionAutocomplete.vue';
 
 const props = defineProps({
   comment: {
@@ -397,7 +400,11 @@ const props = defineProps({
   canPin: {
     type: Boolean,
     default: false
-  }
+  },
+  ticketId: {
+    type: [String, Number],
+    required: true
+  },
 })
 
 // Additional state for UI toggles

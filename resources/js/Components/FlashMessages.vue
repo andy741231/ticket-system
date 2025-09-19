@@ -19,7 +19,7 @@
     </div>
 
     <!-- Error Message -->
-    <div v-if="flash.error" class="max-w-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-lg">
+    <div v-if="flash.error" class="max-w-md bg-red-50 dark:bg-gray-900 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-lg">
       <div class="flex items-start">
         <div class="flex-shrink-0">
           <font-awesome-icon 

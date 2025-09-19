@@ -1,6 +1,6 @@
 <template>
   <div v-if="show" class="fixed top-4 right-4 z-50 max-w-md">
-    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-lg">
+    <div class="bg-red-50 dark:bg-gray-900 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-lg">
       <div class="flex items-start">
         <div class="flex-shrink-0">
           <font-awesome-icon 

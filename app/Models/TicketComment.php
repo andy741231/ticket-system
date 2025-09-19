@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class TicketComment extends Model
 {
@@ -17,10 +18,12 @@ class TicketComment extends Model
         'body',
         'parent_id',
         'pinned',
+        'mentions',
     ];
 
     protected $casts = [
         'pinned' => 'boolean',
+        'mentions' => 'array',
     ];
 
     public function ticket(): BelongsTo
@@ -51,5 +54,13 @@ class TicketComment extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(TicketCommentAttachment::class, 'comment_id');
+    }
+
+    public function mentionedUsers()
+    {
+        if (empty($this->mentions)) {
+            return collect();
+        }
+        return User::whereIn('id', $this->mentions)->get();
     }
 }

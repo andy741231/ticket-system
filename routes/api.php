@@ -34,6 +34,9 @@ Route::middleware(['web', 'auth'])->group(function () {
         
         // Delete a file from a ticket
         Route::delete('/files/{file}', [TicketFileController::class, 'destroy'])->middleware('perm:tickets.file.upload');
+        
+        // Get mentionable users for a ticket
+        Route::get('/mentionable-users', [\App\Http\Controllers\TicketCommentController::class, 'mentionableUsers']);
     });
 
     // Dashboard stats

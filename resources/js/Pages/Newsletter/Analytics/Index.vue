@@ -55,7 +55,7 @@ const overviewStats = computed(() => [
     value: props.overview.total_unsubscribes.toLocaleString(),
     icon: UserMinusIcon,
     color: 'text-red-600',
-    bgColor: 'bg-red-100 dark:bg-red-900/20',
+    bgColor: 'bg-red-100 dark:bg-gray-900',
     change: props.overview.unsubscribes_change,
   },
 ]);
@@ -374,7 +374,7 @@ function changePeriod(period) {
                 <div v-else-if="activity.event_type === 'click'" class="w-8 h-8 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center">
                   <CursorArrowRaysIcon class="w-4 h-4 text-purple-600" />
                 </div>
-                <div v-else-if="activity.event_type === 'unsubscribe'" class="w-8 h-8 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                <div v-else-if="activity.event_type === 'unsubscribe'" class="w-8 h-8 bg-red-100 dark:bg-gray-900 rounded-full flex items-center justify-center">
                   <UserMinusIcon class="w-4 h-4 text-red-600" />
                 </div>
                 <div v-else class="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center">

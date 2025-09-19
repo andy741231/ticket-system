@@ -1,13 +1,14 @@
 <script setup>
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { ref, computed, onMounted } from 'vue';
 import Avatar from '@/Components/Avatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import { renderWithLinks } from '@/Utils/textUtils';
 import DangerButton from '@/Components/DangerButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import FileUploader from '@/Components/FileUploader.vue';
 import FileIcon from '@/Components/FileIcon.vue';
-import { ref, computed } from 'vue';
 import { useHasAny } from '@/Extensions/useAuthz';
 import CommentList from '@/Components/Comments/CommentList.vue';
 
@@ -203,7 +204,7 @@ const copyTicketUrl = async () => {
 };
 
 // Local UI state for status changes from the description header toolbar
-const selectedStatus = ref('');
+const selectedStatus = ref(props.ticket.status === 'Received' ? 'Approved' : props.ticket.status);
 const applyStatus = () => {
     if (selectedStatus.value) {
         pendingStatus.value = selectedStatus.value;
@@ -319,6 +320,71 @@ const handleReplyPosted = (data) => {
     });
 };
 
+// Process description content to make URLs clickable
+const descriptionContent = ref(null);
+
+// Process description after component is mounted
+onMounted(() => {
+    if (descriptionContent.value) {
+        descriptionContent.value.innerHTML = renderWithLinks(descriptionContent.value.innerHTML);
+    }
+    
+    // Highlight comment if accessed via direct link
+    const urlParams = new URLSearchParams(window.location.search);
+    const commentId = urlParams.get('comment');
+    if (commentId) {
+        // Try multiple times to find the comment (in case it takes time to render)
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        const highlightComment = () => {
+            console.log(`Attempting to highlight comment ${commentId}, attempt ${attempts + 1}`);
+            const commentElement = document.getElementById(`comment-${commentId}`);
+            
+            if (commentElement) {
+                console.log('Comment element found, highlighting...');
+                
+                // Scroll to comment
+                commentElement.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center',
+                    inline: 'nearest'
+                });
+                
+                // Add highlight class
+                commentElement.classList.add('highlight-comment');
+                
+                // Add a subtle border and background
+                commentElement.style.transition = 'all 0.3s ease';
+                
+                console.log('Comment highlighted successfully');
+                
+                // Remove highlight after 5 seconds
+                setTimeout(() => {
+                    commentElement.classList.remove('highlight-comment');
+                    console.log('Highlight removed');
+                }, 5000);
+                
+                // Clear URL parameter after highlighting
+                const newUrl = window.location.pathname + window.location.search.replace(/[?&]comment=\d+/, '').replace(/^&/, '?');
+                window.history.replaceState({}, document.title, newUrl);
+                
+                return true;
+            } else {
+                console.log(`Comment element not found, attempt ${attempts + 1}/${maxAttempts}`);
+                attempts++;
+                if (attempts < maxAttempts) {
+                    setTimeout(highlightComment, 200);
+                }
+                return false;
+            }
+        };
+        
+        // Start highlighting attempt after a short delay
+        setTimeout(highlightComment, 300);
+    }
+});
+
 // Current user data for comments
 const currentUser = computed(() => ({
     id: props.authUserId,
@@ -369,41 +435,29 @@ const currentUser = computed(() => ({
                                 <div class="relative">
                                     <!-- Description Card Header Toolbar -->
                                     <div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-600/60 backdrop-blur px-3 py-2">
-                                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Actions</h3>
+                                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Change Status</h3>
                                         <div class="flex items-center gap-2">
                                             <div v-if="can.changeStatus" class="flex items-center gap-2">
-                                                <label for="status-select" class="sr-only">Change status</label>
+                                                <label for="status-select" class="sr-only">Select Status</label>
                                                 <select
                                                     id="status-select"
                                                     v-model="selectedStatus"
-                                                    class="text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-2 py- focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
+                                                    class="font-bold pl-3 rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py- focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
                                                 >
-                                                    <option value="" disabled>Select action</option>
+                                                    <option value="" disabled>Select Status</option>
                                                     <option v-for="(label, status) in filteredStatusOptions" :key="status" :value="status">{{ label }}</option>
                                                 </select>
                                                 <button
                                                     type="button"
                                                     @click="applyStatus"
                                                     :disabled="!selectedStatus"
-                                                    class="px-3 py-2 font-medium rounded-md text-white bg-uh-teal hover:bg-uh-green disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    class="px-3 py-2 font-medium rounded-md text-white bg-uh-red hover:bg-uh-green disabled:opacity-50 disabled:cursor-not-allowed"
                                                     title="Apply selected status"
                                                     aria-label="Apply status"
                                                 >
                                                     Apply
                                                 </button>
                                             </div>
-                                            <Link
-                                                v-if="can.update"
-                                                :href="route('tickets.edit', ticket.id)"
-                                                class=""
-                                                :aria-label="'Edit description'"
-                                                title="Edit description"
-                                            >
-                                                <div class="flex items-center gap-2 p-2 px-3 text-gray-100 dark:text-gray-100 rounded-md bg-gray-500 dark:bg-gray-600/60 backdrop-blur hover:bg-gray-600 dark:hover:bg-gray-600">
-                                                    <font-awesome-icon icon="edit" class="w-5 h-5" />
-                                                    <span>Edit</span>
-                                                </div>
-                                            </Link>
                                             <div
                                                 v-else-if="ticket.status !== 'Received' && authUserId && ticket.user && authUserId === ticket.user.id"
                                                 class="flex items-center gap-2 p-2 px-3 text-gray-700 dark:text-gray-200 rounded-md bg-gray-100 dark:bg-gray-600/40"
@@ -413,7 +467,22 @@ const currentUser = computed(() => ({
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-[500px] prose dark:prose-invert max-w-none break-words" v-html="ticket.description"></div>
+                                    <div class="relative p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-[500px] prose dark:prose-invert max-w-none break-words">
+                                        <div v-if="can.update" class="absolute mr-1 top-2 right-2 z-10">
+                                            <Link
+                                                :href="route('tickets.edit', ticket.id)"
+                                                class=""
+                                                :aria-label="'Edit description'"
+                                                title="Edit description"
+                                            >
+                                                <div class="flex items-center gap-2 p-2 px-3 text-gray-100 dark:text-gray-100 rounded-md bg-gray-500/80 dark:bg-gray-600/80 backdrop-blur hover:bg-gray-600/90 dark:hover:bg-gray-500/90 transition-colors">
+                                                    <font-awesome-icon icon="edit" class="w-4 h-4" />
+                                                    <span class="text-sm">Edit</span>
+                                                </div>
+                                            </Link>
+                                        </div>
+                                        <div v-html="renderWithLinks(ticket.description)" ref="descriptionContent"></div>
+                                    </div>
                                 </div>
                                 <!-- Status Change Confirmation Modal -->
                                 <Modal :show="showStatusModal" @close="cancelStatusChange">
@@ -675,7 +744,6 @@ const currentUser = computed(() => ({
 }
 
 .prose :deep(a) {
-    text-decoration: underline;
     color: #1e40af; /* Slightly darker blue for better contrast */
     transition: color 0.2s ease-in-out;
 }
@@ -759,6 +827,11 @@ const currentUser = computed(() => ({
     margin: 0.5em 0;
 }
 
+.prose :deep(table) {
+    border-collapse: collapse;
+    width: 100%;
+}
+
 .prose :deep(code) {
     background: #e2e8f0;
     color: #0f172a;
@@ -769,6 +842,82 @@ const currentUser = computed(() => ({
 
 .dark .prose :deep(code) {
     background: #334155;
-    color: #e2e8f0;
+    color: #f1f5f9;
+}
+
+/* Comment highlighting animation */
+.highlight-comment {
+    animation: highlightPulse 5s ease-in-out;
+    border-left: 4px solid #eab308 !important;
+    background-color: rgba(254, 240, 138, 0.5) !important;
+}
+
+@keyframes highlightPulse {
+    0% {
+        background-color: rgba(254, 240, 138, 0.7) !important;
+        transform: scale(1);
+    }
+    25% {
+        background-color: rgba(254, 240, 138, 0.6) !important;
+        transform: scale(1.005);
+    }
+    50% {
+        background-color: rgba(254, 240, 138, 0.5) !important;
+        transform: scale(1.01);
+    }
+    75% {
+        background-color: rgba(254, 240, 138, 0.4) !important;
+        transform: scale(1.005);
+    }
+    100% {
+        background-color: rgba(254, 240, 138, 0.3) !important;
+        transform: scale(1);
+    }
+}
+
+/* Dark mode highlighting */
+.dark .highlight-comment {
+    border-left: 4px solid #facc15 !important;
+    background-color: rgba(254, 240, 138, 0.3) !important;
+}
+
+.dark .highlight-comment {
+    animation: highlightPulseDark 5s ease-in-out;
+}
+
+@keyframes highlightPulseDark {
+    0% {
+        background-color: rgba(254, 240, 138, 0.4) !important;
+        transform: scale(1);
+    }
+    25% {
+        background-color: rgba(254, 240, 138, 0.35) !important;
+        transform: scale(1.005);
+    }
+    50% {
+        background-color: rgba(254, 240, 138, 0.3) !important;
+        transform: scale(1.01);
+    }
+    75% {
+        background-color: rgba(254, 240, 138, 0.25) !important;
+        transform: scale(1.005);
+    }
+    100% {
+        background-color: rgba(254, 240, 138, 0.2) !important;
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .highlight-comment {
+        animation: none;
+        background-color: rgba(254, 240, 138, 0.5) !important;
+        border-left: 4px solid #eab308 !important;
+    }
+    
+    .dark .highlight-comment {
+        background-color: rgba(254, 240, 138, 0.3) !important;
+        border-left: 4px solid #facc15 !important;
+    }
 }
 </style>

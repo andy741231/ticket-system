@@ -135,7 +135,7 @@ function showErrorNotification(message, type = 'general', details = null) {
     notification.className = `fixed top-4 right-4 z-50 max-w-md ${typeConfig.bgClass} border ${typeConfig.borderClass} rounded-lg p-4 shadow-lg transition-all duration-300 transform translate-x-full`;
     
     const detailsHtml = details ? `
-        <div class="mt-2 text-xs ${typeConfig.detailsClass} bg-opacity-50 p-2 rounded">
+        <div class="mt-2 text-xs ${typeConfig.detailsClass} bg-opacity-50 dark:bg-gray-900 p-2 rounded">
             <pre class="whitespace-pre-wrap">${typeof details === 'object' ? JSON.stringify(details, null, 2) : details}</pre>
         </div>
     ` : '';
@@ -194,7 +194,7 @@ function getErrorTypeConfig(type) {
         },
         authorization: {
             title: 'Access Denied',
-            bgClass: 'bg-red-50 dark:bg-red-900/20',
+            bgClass: 'bg-red-50 dark:bg-gray-900',
             borderClass: 'border-red-200 dark:border-red-800',
             titleClass: 'text-red-800 dark:text-red-200',
             messageClass: 'text-red-700 dark:text-red-300',
@@ -214,7 +214,7 @@ function getErrorTypeConfig(type) {
         },
         database: {
             title: 'Database Error',
-            bgClass: 'bg-red-50 dark:bg-red-900/20',
+            bgClass: 'bg-red-50 dark:bg-gray-900',
             borderClass: 'border-red-200 dark:border-red-800',
             titleClass: 'text-red-800 dark:text-red-200',
             messageClass: 'text-red-700 dark:text-red-300',
@@ -234,7 +234,7 @@ function getErrorTypeConfig(type) {
         },
         rate_limit: {
             title: 'Rate Limited',
-            bgClass: 'bg-purple-50 dark:bg-purple-900/20',
+            bgClass: 'bg-purple-50 dark:bg-gray-900',
             borderClass: 'border-purple-200 dark:border-purple-800',
             titleClass: 'text-purple-800 dark:text-purple-200',
             messageClass: 'text-purple-700 dark:text-purple-300',
@@ -247,7 +247,7 @@ function getErrorTypeConfig(type) {
     // Default to general error styling
     return configs[type] || {
         title: 'Error',
-        bgClass: 'bg-red-50 dark:bg-red-900/20',
+        bgClass: 'bg-red-50 dark:bg-gray-900',
         borderClass: 'border-red-200 dark:border-red-800',
         titleClass: 'text-red-800 dark:text-red-200',
         messageClass: 'text-red-700 dark:text-red-300',

@@ -14,15 +14,15 @@
 
           <!-- Comment Input -->
           <div class="flex-1">
-            <textarea
+            <MentionAutocomplete
               v-model="newComment"
-              placeholder="Write a comment..."
+              :ticket-id="ticketId"
+              placeholder="Write a comment... Use @username to mention someone"
               class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
               rows="3"
               @keydown.ctrl.enter="submitComment"
-              @input="adjustTextareaHeight"
               ref="commentTextarea"
-            ></textarea>
+            />
            
             <!-- Comment Actions -->
             <div class="flex items-center justify-between mt-3">
@@ -109,6 +109,7 @@
         :key="comment.id"
         :comment="comment"
         :current-user="currentUser"
+        :ticket-id="ticketId"
         :can-delete="canDeleteComment(comment)"
         :can-edit="canEditComment(comment)"
         :can-pin="canPinAny"
@@ -130,9 +131,10 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed } from 'vue';
 import Avatar from '@/Components/Avatar.vue';
-import CommentItem from './CommentItem.vue'
+import CommentItem from './CommentItem.vue';
+import MentionAutocomplete from '@/Components/MentionAutocomplete.vue';
 
 const props = defineProps({
   comments: {
@@ -165,16 +167,8 @@ const attachedFiles = ref([])
 const posting = ref(false)
 
 
-// Auto-resize textarea
+// Reference to comment textarea (for focus management)
 const commentTextarea = ref(null)
-const adjustTextareaHeight = () => {
-  nextTick(() => {
-    if (commentTextarea.value) {
-      commentTextarea.value.style.height = 'auto'
-      commentTextarea.value.style.height = commentTextarea.value.scrollHeight + 'px'
-    }
-  })
-}
 
 // File handling
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per file (matches backend max:10240 KB)
@@ -229,9 +223,6 @@ const submitComment = async () => {
     newComment.value = ''
     attachedFiles.value = []
     fileErrors.value = []
-    if (commentTextarea.value) {
-      commentTextarea.value.style.height = 'auto'
-    }
   } catch (error) {
     console.error('Error posting comment:', error)
   } finally {
