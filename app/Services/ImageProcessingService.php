@@ -15,6 +15,16 @@ use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class ImageProcessingService
 {
+    public function __construct()
+    {
+        $defaultPath = env('MAGICK_PATH') ?? env('PATH') ?? getenv('PATH');
+        if ($defaultPath) {
+            putenv('PATH=' . $defaultPath);
+            $_ENV['PATH'] = $defaultPath;
+            $_SERVER['PATH'] = $defaultPath;
+        }
+    }
+
     /**
      * Process a URL to generate a screenshot
      */
@@ -61,7 +71,6 @@ class ImageProcessingService
 
         return $ticketImage;
     }
-
     /**
      * Capture screenshot using Puppeteer
      */
@@ -78,6 +87,79 @@ class ImageProcessingService
                 mkdir($directory, 0755, true);
             }
 
+            // Set custom temp directory
+            $tempDir = base_path('public/storage/temp/' . $ticketImage->ticket_id);
+            if (!is_dir($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+            if (!is_writable($tempDir)) {
+                @chmod($tempDir, 0755);
+            }
+
+            // Puppeteer cache dir (to avoid using system profile cache)
+            $puppeteerCacheDir = base_path('public/storage/temp/puppeteer');
+            if (!is_dir($puppeteerCacheDir)) {
+                mkdir($puppeteerCacheDir, 0755, true);
+            }
+            if (!is_writable($puppeteerCacheDir)) {
+                @chmod($puppeteerCacheDir, 0755);
+            }
+
+            // Ensure PHP itself and the child process use our temp dir
+            putenv('TEMP=' . $tempDir);
+            putenv('TMP=' . $tempDir);
+            putenv('TMPDIR=' . $tempDir);
+            $_ENV['TEMP'] = $tempDir;
+            $_ENV['TMP'] = $tempDir;
+            $_ENV['TMPDIR'] = $tempDir;
+            $_SERVER['TEMP'] = $tempDir;
+            $_SERVER['TMP'] = $tempDir;
+            $_SERVER['TMPDIR'] = $tempDir;
+            // Also set Puppeteer-specific cache directory
+            putenv('PUPPETEER_CACHE_DIR=' . $puppeteerCacheDir);
+            $_ENV['PUPPETEER_CACHE_DIR'] = $puppeteerCacheDir;
+            $_SERVER['PUPPETEER_CACHE_DIR'] = $puppeteerCacheDir;
+
+            // Optionally set proxy from .env
+            $proxy = env('PUPPETEER_PROXY') ?? env('HTTPS_PROXY') ?? env('HTTP_PROXY');
+            $noProxy = env('NO_PROXY');
+            if ($proxy) {
+                putenv('PUPPETEER_PROXY=' . $proxy);
+                $_ENV['PUPPETEER_PROXY'] = $proxy;
+                $_SERVER['PUPPETEER_PROXY'] = $proxy;
+                // Also set standard proxy vars so any dependencies respect it
+                putenv('HTTPS_PROXY=' . $proxy);
+                putenv('HTTP_PROXY=' . $proxy);
+                $_ENV['HTTPS_PROXY'] = $proxy;
+                $_ENV['HTTP_PROXY'] = $proxy;
+                $_SERVER['HTTPS_PROXY'] = $proxy;
+                $_SERVER['HTTP_PROXY'] = $proxy;
+            }
+            if ($noProxy) {
+                putenv('NO_PROXY=' . $noProxy);
+                $_ENV['NO_PROXY'] = $noProxy;
+                $_SERVER['NO_PROXY'] = $noProxy;
+            }
+
+            // Set environment variables for the spawned process as well
+            $env = array_merge($_SERVER, [
+                'TEMP' => $tempDir,
+                'TMP' => $tempDir,
+                'TMPDIR' => $tempDir,
+                'PUPPETEER_CACHE_DIR' => $puppeteerCacheDir,
+            ]);
+            if ($proxy) {
+                $env['PUPPETEER_PROXY'] = $proxy;
+                $env['HTTPS_PROXY'] = $proxy;
+            }
+            if ($noProxy) {
+                $env['NO_PROXY'] = $noProxy;
+            }
+            $defaultPath = env('MAGICK_PATH') ?? env('PATH') ?? getenv('PATH');
+            if ($defaultPath) {
+                $env['PATH'] = $defaultPath;
+            }
+
             // Run Puppeteer screenshot script
             $scriptPath = base_path('scripts/screenshot-capture.js');
             $process = new Process([
@@ -89,7 +171,7 @@ class ImageProcessingService
                 '1080',
                 'true',
                 '3000'
-            ]);
+            ], null, $env);
 
             $process->setTimeout(60); // 60 seconds timeout
             $process->run();
@@ -291,7 +373,35 @@ class ImageProcessingService
             
             $tempPath = $file->store('temp');
             $fullTempPath = Storage::path($tempPath);
+
+            // Ensure Symfony Process uses our temp dir too
+            $procTempDir = base_path('public/storage/temp/' . $ticketImage->ticket_id);
+            if (!is_dir($procTempDir)) {
+                mkdir($procTempDir, 0755, true);
+            }
+            if (!is_writable($procTempDir)) {
+                @chmod($procTempDir, 0755);
+            }
+            putenv('TEMP=' . $procTempDir);
+            putenv('TMP=' . $procTempDir);
+            putenv('TMPDIR=' . $procTempDir);
+            $_ENV['TEMP'] = $procTempDir;
+            $_ENV['TMP'] = $procTempDir;
+            $_ENV['TMPDIR'] = $procTempDir;
+            $_SERVER['TEMP'] = $procTempDir;
+            $_SERVER['TMP'] = $procTempDir;
+            $_SERVER['TMPDIR'] = $procTempDir;
+            $env = array_merge($_SERVER, [
+                'TEMP' => $procTempDir,
+                'TMP' => $procTempDir,
+                'TMPDIR' => $procTempDir,
+            ]);
             
+            $defaultPath = env('MAGICK_PATH') ?? env('PATH') ?? getenv('PATH');
+            if ($defaultPath) {
+                $env['PATH'] = $defaultPath;
+            }
+
             // Try to use ImageMagick to convert PDF to PNG
             $outputFilename = $filename . '.png';
             $outputPath = $imagePath . $outputFilename;
@@ -303,24 +413,36 @@ class ImageProcessingService
                 mkdir($directory, 0755, true);
             }
             
-            // Use ImageMagick convert command
+            // Use ImageMagick v7 "magick" command (convert is deprecated)
             $process = new Process([
-                'convert',
-                $fullTempPath . '[0]', // First page only
+                'magick',
                 '-density', '150',
+                $fullTempPath . '[0]', // First page only
                 '-quality', '90',
+                '-background', 'white',
+                '-alpha', 'remove',
+                '-alpha', 'off',
                 $fullOutputPath
-            ]);
-            
+            ], null, $env);
+
             $process->setTimeout(30);
             $process->run();
-            
-            if (!$process->isSuccessful()) {
+
+            $outputExists = file_exists($fullOutputPath) && filesize($fullOutputPath) > 0;
+
+            if (!$process->isSuccessful() || !$outputExists) {
+                Log::warning('PDF to image conversion failed', [
+                    'ticket_image_id' => $ticketImage->id,
+                    'exit_code' => $process->getExitCode(),
+                    'error_output' => mb_substr($process->getErrorOutput(), 0, 4000),
+                    'output_exists' => $outputExists,
+                ]);
+                Storage::delete($tempPath);
                 // Fallback: create a placeholder
                 $this->createFilePlaceholder($ticketImage, $file, $imagePath, $filename);
                 return;
             }
-            
+
             $fileSize = filesize($fullOutputPath);
             $manager = new ImageManager(new Driver());
             $image = $manager->read($fullOutputPath);
@@ -336,20 +458,24 @@ class ImageProcessingService
                     'original_mime_type' => $file->getMimeType(),
                     'conversion_method' => 'imagemagick',
                     'processed_at' => now()->toISOString(),
+                    'page_count' => 1,
                 ],
             ]);
             
             // Clean up temp file
             Storage::delete($tempPath);
-            
+
         } catch (\Exception $e) {
             // Fallback to placeholder
+            if (!empty($tempPath)) {
+                Storage::delete($tempPath);
+            }
             $this->createFilePlaceholder($ticketImage, $file, $imagePath, $filename);
         }
     }
 
     /**
-     * Create a placeholder image for unsupported file types
+{{ ... }}
      */
     protected function createFilePlaceholder(TicketImage $ticketImage, UploadedFile $file, string $imagePath, string $filename): void
     {

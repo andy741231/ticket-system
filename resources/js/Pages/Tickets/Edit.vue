@@ -114,6 +114,7 @@ const deleteProofImage = async (image) => {
 const handleFileSelect = (event) => {
     if (event.target.files.length > 0) {
         selectedFile.value = event.target.files[0];
+        uploadProgress.value = 0;
     }
 };
 
@@ -193,6 +194,7 @@ const submitProof = async () => {
             if (!selectedFile.value) return;
             const formData = new FormData();
             formData.append('file', selectedFile.value);
+            uploadProgress.value = 0;
             await axios.post(`/api/tickets/${props.ticket.id}/images/from-file`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -212,6 +214,7 @@ const submitProof = async () => {
     } catch (error) {
         console.error('Error uploading proof:', error);
         uploadError.value = error.response?.data?.message || 'Failed to upload proof. Please try again.';
+        uploadProgress.value = 0;
     }
 };
 
@@ -461,10 +464,7 @@ const cancel = () => {
                                     </p>
                                 </div>
                                 <div v-else>
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                                    <i class="fas fa-draw-polygon mr-2"></i>
-                                    Proofs & Annotations
-                                </h3>
+                                   
                                 </div>
                             </div>
 
@@ -560,11 +560,20 @@ const cancel = () => {
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Image File</label>
                                         <input
                                             type="file"
-                                            accept="image/*"
+                                            accept="image/*,.pdf"
                                             @change="handleFileSelect"
                                             class="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300"
                                         />
-                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">PNG, JPG, GIF up to 10MB</p>
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">PNG, JPG, GIF up to 10MB. PDF uploads are converted to PNG (first page only).</p>
+                                    <div v-if="uploadProgress > 0" class="mt-3">
+                                        <div class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded">
+                                            <div
+                                                class="h-2 bg-blue-500 rounded transition-all"
+                                                :style="{ width: Math.min(uploadProgress, 100) + '%' }"
+                                            ></div>
+                                        </div>
+                                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Uploading file... {{ uploadProgress }}%</p>
+                                    </div>
                                     </div>
 
                                     <!-- URL Input -->

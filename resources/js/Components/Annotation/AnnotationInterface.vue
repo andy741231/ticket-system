@@ -139,6 +139,7 @@
                   :image-url="image.image_url"
                   :image-name="image.original_name || 'Annotation Image'"
                   :annotations="getImageAnnotations(image.id)"
+                  :comments="getImageComments(image.id)"
                   :can-edit="canEditAnnotation"
                   :can-delete="canDeleteAnnotation"
                   :readonly="readonly"
@@ -146,6 +147,10 @@
                   @annotation-updated="updateAnnotation($event)"
                   @annotation-deleted="deleteAnnotation($event)"
                   @annotation-selected="handleAnnotationSelected($event)"
+                  @comment-added="onCanvasCommentAdded(image.id, $event)"
+                  @comment-updated="onCanvasCommentUpdated(image.id, $event)"
+                  @comment-deleted="onCanvasCommentDeleted(image.id, $event)"
+                  @clear-freehand="clearFreehand(image.id)"
                 />
               </div>
               
@@ -390,6 +395,8 @@ const props = defineProps({
 const images = ref([])
 const processingImages = ref([])
 const annotations = ref([])
+// Flat comments derived from annotations for Canvas comment panel convenience
+// We will compute per-image when requested
 const urlInput = ref('')
 const isProcessing = ref(false)
 const newComments = ref({})
@@ -645,6 +652,47 @@ const getImageAnnotations = (imageId) => {
   return annotations.value.filter(annotation => annotation.ticket_image_id === imageId)
 }
 
+const getImageComments = (imageId) => {
+  const imageAnnotations = getImageAnnotations(imageId)
+  const list = []
+  imageAnnotations.forEach(a => {
+    if (Array.isArray(a.comments)) {
+      a.comments.forEach(c => list.push(c))
+    }
+  })
+  return list
+}
+
+// Reload comments for a specific image from the backend and merge into local annotations
+const reloadImageComments = async (imageId) => {
+  try {
+    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/image-comments`, {
+      headers: {
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        'Accept': 'application/json'
+      }
+    })
+    if (response.ok) {
+      const data = await response.json()
+      const comments = Array.isArray(data.data) ? data.data : []
+      // Group comments by annotation_id
+      const byAnnotation = comments.reduce((acc, c) => {
+        if (!acc[c.annotation_id]) acc[c.annotation_id] = []
+        acc[c.annotation_id].push(c)
+        return acc
+      }, {})
+      // Merge into annotations for this image
+      annotations.value
+        .filter(a => a.ticket_image_id === imageId)
+        .forEach(a => {
+          a.comments = byAnnotation[a.id] || []
+        })
+    }
+  } catch (e) {
+    console.warn('Failed to reload image comments:', e)
+  }
+}
+
 const createAnnotation = async (imageId, annotationData) => {
   try {
     const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations`, {
@@ -659,7 +707,26 @@ const createAnnotation = async (imageId, annotationData) => {
     
     if (response.ok) {
       const data = await response.json()
-      annotations.value.push(data.data)
+      const created = { ...data.data }
+      // Ensure ticket_image_id is set locally for filtering functions
+      if (!created.ticket_image_id) created.ticket_image_id = imageId
+      annotations.value.push(created)
+
+      // If this is a text annotation created from inline typing, also create a comment with the same content
+      if (annotationData.type === 'text' && annotationData.content?.trim()) {
+        try {
+          await createAnnotationComment(created, annotationData.content.trim())
+          // Ensure panel syncs with server
+          await reloadImageComments(imageId)
+          // As a fallback, reload images to ensure comments appear in the panel
+          await loadImages()
+          return created
+        } catch (e) {
+          console.warn('Failed to create linked comment for text annotation:', e)
+          // Attempt to refresh anyway in case backend accepted
+          await reloadImageComments(imageId)
+        }
+      }
     } else {
       const error = await response.json()
       alert('Failed to create annotation: ' + (error.message || 'Unknown error'))
@@ -671,15 +738,49 @@ const createAnnotation = async (imageId, annotationData) => {
 }
 
 const updateAnnotation = async (annotation) => {
-  // Implementation for updating annotations
-  console.log('Update annotation:', annotation)
+  try {
+    const imageId = annotation.ticket_image_id
+    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        type: annotation.type,
+        coordinates: annotation.coordinates,
+        style: annotation.style,
+        content: annotation.content
+      })
+    })
+    if (response.ok) {
+      const data = await response.json()
+      const idx = annotations.value.findIndex(a => a.id === annotation.id)
+      if (idx !== -1) {
+        annotations.value[idx] = data.data
+      }
+      // If updated text annotation, also mirror as a new comment entry
+      if (annotation.type === 'text' && annotation.content?.trim()) {
+        try {
+          await createAnnotationComment(data.data, annotation.content.trim())
+          await reloadImageComments(imageId)
+        } catch (e) {
+          console.warn('Failed to mirror updated text to comment:', e)
+          await reloadImageComments(imageId)
+        }
+      }
+    } else {
+      const error = await response.json().catch(() => ({}))
+      alert('Failed to update annotation: ' + (error.message || 'Unknown error'))
+    }
+  } catch (e) {
+    console.error('Failed to update annotation:', e)
+    alert('Failed to update annotation')
+  }
 }
 
 const deleteAnnotation = async (annotation) => {
-  if (!confirm('Are you sure you want to delete this annotation?')) {
-    return
-  }
-  
   try {
     const response = await fetch(`/api/tickets/${props.ticketId}/images/${annotation.ticket_image_id}/annotations/${annotation.id}`, {
       method: 'DELETE',
@@ -801,37 +902,11 @@ const addComment = async (annotationId) => {
   if (!annotation) return
   
   try {
-    const imageId = annotation.ticket_image_id
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotationId}/comments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({ content })
-    })
-    
-    if (response.ok) {
-      const data = await response.json()
-      
-      // Add comment to annotation
-      const annotationIndex = annotations.value.findIndex(a => a.id === annotationId)
-      if (annotationIndex !== -1) {
-        if (!annotations.value[annotationIndex].comments) {
-          annotations.value[annotationIndex].comments = []
-        }
-        annotations.value[annotationIndex].comments.push(data.data)
-      }
-      
-      // Clear input
-      newComments.value[annotationId] = ''
-    } else {
-      const error = await response.json()
-      alert('Failed to add comment: ' + (error.message || 'Unknown error'))
-    }
-  } catch (error) {
-    console.error('Failed to add comment:', error)
+    await createAnnotationComment(annotation, content)
+    // Clear input upon success
+    newComments.value[annotationId] = ''
+  } catch (err) {
+    console.error('Failed to add comment:', err)
     alert('Failed to add comment')
   }
 }

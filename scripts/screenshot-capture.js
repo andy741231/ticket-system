@@ -21,17 +21,24 @@ export async function captureScreenshot(url, outputPath, options = {}) {
     let failedRequests = [];
 
     try {
+        // Allow using a proxy if provided via env
+        const proxyUrl = process.env.PUPPETEER_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+        const launchArgs = [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process'
+        ];
+        if (proxyUrl) {
+            launchArgs.push(`--proxy-server=${proxyUrl}`);
+        }
+
         browser = await puppeteer.launch({
             headless: 'new',
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process'
-            ]
+            args: launchArgs
         });
 
         const page = await browser.newPage();

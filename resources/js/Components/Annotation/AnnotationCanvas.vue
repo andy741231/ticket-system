@@ -23,6 +23,16 @@
           >
             <font-awesome-icon :icon="tool.icon" class="text-sm" />
           </button>
+          <!-- Clear Freehand Annotations -->
+          <button
+            v-if="!readonly"
+            @click="clearFreehandAnnotations"
+            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            title="Clear all freehand annotations"
+            aria-label="Clear all freehand annotations"
+          >
+            <font-awesome-icon :icon="['fas','trash']" class="text-sm" />
+          </button>
         </div>
         
         <!-- Color Swatches -->
@@ -125,6 +135,7 @@
           >
             <font-awesome-icon :icon="['fas','keyboard']" class="text-sm" />
           </button>
+       
         </div>
       </div>
     </div>
@@ -219,10 +230,31 @@
           <div class="annotation-number">
             {{ index + 1 }}
           </div>
+          <!-- Always-available actions overlay (shown on hover/selected) -->
+          <div v-if="!readonly" class="annotation-actions">
+            <button
+              v-if="canEdit(annotation) && annotation.type === 'text'"
+              @click.stop="editAnnotation(annotation)"
+              class="action-btn edit-btn"
+              title="Edit annotation"
+              aria-label="Edit annotation"
+            >
+              <font-awesome-icon :icon="['fas','edit']" class="text-xs" />
+            </button>
+            <button
+              v-if="canDelete(annotation)"
+              @click.stop="deleteAnnotation(annotation)"
+              class="action-btn delete-btn"
+              title="Delete annotation"
+              aria-label="Delete annotation"
+            >
+              <font-awesome-icon :icon="['fas','trash']" class="text-xs" />
+            </button>
+          </div>
           
 
-          <!-- Persistent latest comment box for this annotation -->
-          <div v-if="getLatestCommentForAnnotation(annotation.id)" class="annotation-comment-box ml-3">
+          <!-- Overlay text/comment box for this annotation -->
+          <div v-if="getOverlayContent(annotation)" class="annotation-comment-box ml-3">
             <div class="flex items-start gap-2">
               <div class="flex-shrink-0">
                 <Avatar :user="getLatestCommentForAnnotation(annotation.id)?.user" size="xs" :show-link="false" />
@@ -231,7 +263,7 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="text-xs text-gray-800 dark:text-gray-100 max-w-[220px] break-words">
                     <div class="text-gray-700 dark:text-gray-300">
-                      {{ getLatestCommentForAnnotation(annotation.id)?.content }}
+                      {{ getOverlayContent(annotation) }}
                     </div>
                   </div>
                   <div v-if="!readonly" class="flex items-center gap-1">
@@ -269,41 +301,74 @@
     <div class="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col" :style="{ height: 'calc(100vh - 64px)' }">
       <div class="p-4 border-b border-gray-200 dark:border-gray-700">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Comments</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ comments.length }} comment{{ comments.length !== 1 ? 's' : '' }}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ combinedComments.length }} comment{{ combinedComments.length !== 1 ? 's' : '' }}</p>
       </div>
       
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
-        <div v-if="comments.length === 0" class="text-center text-gray-500 dark:text-gray-400 py-8">
+        <div v-if="combinedComments.length === 0" class="text-center text-gray-500 dark:text-gray-400 py-8">
           <font-awesome-icon :icon="['fas', 'comments']" class="text-4xl mb-2" />
           <p>No comments yet</p>
-          <p class="text-sm">Click on an annotation to add comments</p>
+          <p class="text-sm">Add a text annotation on the canvas or use the panel below</p>
         </div>
         
-        <div v-for="comment in comments" :key="comment.id" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-          <div class="flex items-start justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                {{ comment.user?.name?.charAt(0) || 'U' }}
+        <div
+          v-for="entry in combinedComments"
+          :key="`${entry.type}-${entry.id}`"
+          class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors cursor-default"
+          :class="{
+            'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer': entry.type === 'annotation' || entry.annotation,
+            'ring-1 ring-blue-400/60': entry.type === 'annotation' && selectedAnnotation?.id === entry.annotation.id
+          }"
+          @click="handleCommentEntryClick(entry)"
+        >
+          <template v-if="entry.type === 'annotation'">
+            <div class="flex items-start justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="annotation-comment-number">
+                  {{ getAnnotationNumber(entry.annotation.id) }}
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Text annotation</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(entry.createdAt) }}</p>
+                </div>
               </div>
-              <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ comment.user?.name || 'Anonymous' }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(comment.created_at) }}</p>
+              <div class="flex items-center gap-1" v-if="!readonly && canEdit(entry.annotation)">
+                <button @click.stop="editAnnotation(entry.annotation)" class="text-gray-400 hover:text-blue-500 transition-colors">
+                  <font-awesome-icon :icon="['fas', 'edit']" class="text-xs" />
+                </button>
+                <button v-if="canDelete(entry.annotation)" @click.stop="deleteAnnotation(entry.annotation)" class="text-gray-400 hover:text-red-500 transition-colors">
+                  <font-awesome-icon :icon="['fas', 'trash']" class="text-xs" />
+                </button>
               </div>
             </div>
-            <div class="flex items-center gap-1" v-if="canEditComment(comment)">
-              <button @click="editComment(comment)" class="text-gray-400 hover:text-blue-500 transition-colors">
-                <font-awesome-icon :icon="['fas', 'edit']" class="text-xs" />
-              </button>
-              <button @click="deleteComment(comment)" class="text-gray-400 hover:text-red-500 transition-colors">
-                <font-awesome-icon :icon="['fas', 'trash']" class="text-xs" />
-              </button>
+            <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">{{ entry.annotation.content }}</p>
+          </template>
+          <template v-else>
+            <div class="flex items-start justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                  {{ entry.comment.user?.name?.charAt(0) || 'U' }}
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ entry.comment.user?.name || 'Anonymous' }}</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(entry.createdAt) }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-1" v-if="canEditComment(entry.comment)">
+                <button @click.stop="editComment(entry.comment)" class="text-gray-400 hover:text-blue-500 transition-colors">
+                  <font-awesome-icon :icon="['fas', 'edit']" class="text-xs" />
+                </button>
+                <button @click.stop="deleteComment(entry.comment)" class="text-gray-400 hover:text-red-500 transition-colors">
+                  <font-awesome-icon :icon="['fas', 'trash']" class="text-xs" />
+                </button>
+              </div>
             </div>
-          </div>
-          <p class="text-sm text-gray-700 dark:text-gray-300">{{ comment.content }}</p>
-          <div v-if="comment.annotation_id" class="mt-2 text-xs text-blue-600 dark:text-blue-400">
-            <font-awesome-icon :icon="['fas', 'link']" class="mr-1" />
-            Annotation #{{ getAnnotationNumber(comment.annotation_id) }}
-          </div>
+            <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">{{ entry.comment.content }}</p>
+            <div v-if="entry.comment.annotation_id" class="mt-2 text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+              <font-awesome-icon :icon="['fas', 'link']" />
+              <span>Annotation #{{ getAnnotationNumber(entry.comment.annotation_id) }}</span>
+            </div>
+          </template>
         </div>
       </div>
       
@@ -490,12 +555,14 @@
     <div v-if="showDeleteConfirmation" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          {{ annotationToDelete === 'all' ? 'Clear All Annotations' : 'Delete Annotation' }}
+          {{ annotationToDelete === 'all' ? 'Clear All Annotations' : (annotationToDelete === 'all-freehand' ? 'Clear All Freehand Annotations' : 'Delete Annotation') }}
         </h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          {{ annotationToDelete === 'all' 
-            ? 'Are you sure you want to clear all annotations? This action cannot be undone.' 
-            : 'Are you sure you want to delete this annotation? This action cannot be undone.' }}
+          {{ annotationToDelete === 'all-freehand' 
+            ? 'Are you sure you want to clear all freehand annotations? This action cannot be undone.' 
+            : (annotationToDelete === 'all' 
+              ? 'Are you sure you want to clear all annotations? This action cannot be undone.' 
+              : 'Are you sure you want to delete this annotation? This action cannot be undone.') }}
         </p>
         <div class="flex justify-end space-x-3">
           <button
@@ -508,18 +575,26 @@
             @click="confirmDelete"
             class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
           >
-            {{ annotationToDelete === 'all' ? 'Clear All' : 'Delete' }}
+            {{ annotationToDelete === 'all-freehand' ? 'Clear Freehand' : (annotationToDelete === 'all' ? 'Clear All' : 'Delete') }}
           </button>
         </div>
       </div>
     </div>
 
     <!-- Public User Info Modal -->
-    <div v-if="showPublicUserModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          Add Your Information
-        </h3>
+    <div
+      v-if="showPublicUserModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click="showPublicUserModal = false"
+      role="dialog"
+      aria-labelledby="public-user-modal-title"
+      aria-modal="true"
+    >
+      <div
+        class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4"
+        @click.stop
+      >
+        <h3 id="public-user-modal-title" class="text-lg font-medium text-gray-900 dark:text-white mb-4">Add Your Information</h3>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Please provide your name and email to submit this comment.
         </p>
@@ -620,7 +695,8 @@ const emit = defineEmits([
   'annotations-restored',
   'comment-added',
   'comment-updated',
-  'comment-deleted'
+  'comment-deleted',
+  'clear-freehand'
 ])
 
 // Refs
@@ -670,7 +746,7 @@ const tools = ref([
   { name: 'select', label: 'Select', icon: ['fas', 'mouse-pointer'] },
   { name: 'rectangle', label: 'Rectangle', icon: ['far', 'square'] },
   { name: 'circle', label: 'Circle', icon: ['far', 'circle'] },
-  { name: 'freehand', label: 'Freehand', icon: ['fas', 'draw-polygon'] },
+  { name: 'freehand', label: 'Freehand', icon: ['fas', 'pencil-alt'] },
   { name: 'text', label: 'Text', icon: ['fas', 'i-cursor'] }
 ])
 
@@ -695,6 +771,42 @@ const pendingTextPosition = ref({ x: 0, y: 0 })
 
 // Comment state
 const newCommentContent = ref('')
+
+// Derived annotations/comments for unified panel
+const textAnnotations = computed(() => props.annotations.filter(annotation => annotation.type === 'text'))
+
+const combinedComments = computed(() => {
+  const annotationEntries = textAnnotations.value.map(annotation => ({
+    type: 'annotation',
+    id: annotation.id,
+    annotation,
+    createdAt: annotation.created_at || annotation.updated_at || annotation.createdAt || annotation.createdAt || annotation.updatedAt || null
+  }))
+
+  const commentEntries = (props.comments || []).map(comment => ({
+    type: 'comment',
+    id: comment.id,
+    comment,
+    annotation: props.annotations.find(a => a.id === comment.annotation_id) || null,
+    createdAt: comment.created_at || comment.updated_at || comment.createdAt || comment.updatedAt || null
+  }))
+
+  const entries = [...annotationEntries, ...commentEntries]
+
+  return entries.sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return aTime - bTime
+  })
+})
+
+const handleCommentEntryClick = (entry) => {
+  if (entry.type === 'annotation' && entry.annotation) {
+    selectAnnotation(entry.annotation)
+  } else if (entry.type === 'comment' && entry.annotation) {
+    selectAnnotation(entry.annotation)
+  }
+}
 
 // Modal state
 const showDeleteConfirmation = ref(false)
@@ -765,7 +877,7 @@ const setupCanvas = () => {
   canvas.style.left = (imgRect.left - container.left) + 'px'
   canvas.style.top = (imgRect.top - container.top) + 'px'
   
-  redrawAnnotations()
+  redrawCanvas()
 }
 
 const getCanvasCoordinates = (event) => {
@@ -1033,16 +1145,14 @@ const finishTextEdit = () => {
     return
   }
 
-  // Use the stored canvas coordinates directly
   const canvasCoords = {
     x: textEditPosition.value.x,
     y: textEditPosition.value.y
   }
 
-  // Save to undo stack only when updating existing annotation
   if (editingAnnotationId.value) {
-    saveToUndoStack()
     // Update existing text annotation
+    saveToUndoStack()
     const original = props.annotations.find(a => a.id === editingAnnotationId.value) || {}
     const updated = {
       ...original,
@@ -1054,22 +1164,14 @@ const finishTextEdit = () => {
     }
     emit('annotation-updated', updated)
   } else {
-    // Create a new COMMENT (image-level or annotation-level)
-    const comment = {
-      content: textEditContent.value.trim(),
-      // Link to selected annotation if present; otherwise image-level comment
-      annotation_id: selectedAnnotation.value?.id || null,
-      parent_id: null,
-      created_at: new Date().toISOString()
-    }
-    
-    // For public users, collect name and email first
-    if (props.isPublic) {
-      pendingComment.value = comment
-      showPublicUserModal.value = true
-    } else {
-      emit('comment-added', comment)
-    }
+    // Create a new TEXT ANNOTATION (also mirrored as a comment by parent after creation)
+    saveToUndoStack()
+    emit('annotation-created', {
+      type: 'text',
+      coordinates: canvasCoords,
+      style: { ...currentStyle.value },
+      content: textEditContent.value.trim()
+    })
   }
 
   cancelTextEdit()
@@ -1243,6 +1345,14 @@ const getLatestCommentForAnnotation = (annotationId) => {
   return list[list.length - 1]
 }
 
+// Prefer latest comment content; fallback to annotation.content for text annotations
+const getOverlayContent = (annotation) => {
+  const latest = getLatestCommentForAnnotation(annotation.id)
+  if (latest?.content) return latest.content
+  if (annotation?.type === 'text' && annotation?.content) return annotation.content
+  return null
+}
+
 const selectAnnotation = (annotation) => {
   selectedAnnotation.value = annotation
   emit('annotation-selected', annotation)
@@ -1276,7 +1386,12 @@ const deleteAnnotation = (annotation) => {
 }
 
 const confirmDelete = () => {
-  if (annotationToDelete.value) {
+  if (annotationToDelete.value === 'all-freehand') {
+    emit('clear-freehand')
+  } else if (annotationToDelete.value === 'all') {
+    // optional: could emit a general clear-all later
+    // no-op by default
+  } else if (annotationToDelete.value) {
     saveToUndoStack()
     emit('annotation-deleted', annotationToDelete.value)
   }
@@ -1290,9 +1405,15 @@ const cancelDelete = () => {
 }
 
 const clearAnnotations = () => {
-  // This would need its own modal too, but keeping simple for now
+  // Keep existing clear-all behavior
   showDeleteConfirmation.value = true
-  annotationToDelete.value = 'all' // Special case for clear all
+  annotationToDelete.value = 'all'
+}
+
+const clearFreehandAnnotations = () => {
+  if (props.readonly) return
+  showDeleteConfirmation.value = true
+  annotationToDelete.value = 'all-freehand'
 }
 
 // Zoom and Pan methods
@@ -1525,9 +1646,13 @@ const getAnnotationStyle = (annotation) => {
       break
       
     case 'freehand':
-      // Freehand doesn't need positioning style as it's drawn on canvas
+      // Position the numbered marker at the first path point (or 0,0 fallback)
+      const path = Array.isArray(coords.path) ? coords.path : []
+      const px = (path[0]?.x ?? 0)
+      const py = (path[0]?.y ?? 0)
       style = {
-        display: 'none'
+        left: px + 'px',
+        top: py + 'px'
       }
       break
       
@@ -1573,6 +1698,8 @@ const redrawCanvas = () => {
 const redrawAnnotations = () => {
   if (!ctx.value) return
   
+  // Clear then draw all to ensure a fresh render
+  ctx.value.clearRect(0, 0, canvasWidth.value, canvasHeight.value)
   props.annotations.forEach(annotation => {
     drawAnnotation(annotation)
   })
@@ -1716,7 +1843,7 @@ watch(() => props.imageUrl, () => {
 // Watch for annotation changes
 watch(() => props.annotations, () => {
   nextTick(() => {
-    redrawAnnotations()
+    redrawCanvas()
   })
 }, { deep: true })
 
@@ -1865,6 +1992,8 @@ watch(imageLoaded, (loaded) => {
   if (loaded) {
     nextTick(() => {
       fitToScreen()
+      // Ensure any existing annotations render right after image becomes ready
+      redrawCanvas()
     })
   }
 })
