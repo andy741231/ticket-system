@@ -49,8 +49,39 @@ import {
     faThumbtack,
     faTrash,
     faFaceSmile,
-    faReply
+    faReply,
+    // Annotation toolbar icons
+    faMousePointer,
+    faMapPin,
+    faSquare,
+    faCircle,
+    faArrowRight,
+    faPencilAlt,
+    faFont,
+    faSearchMinus,
+    faSearchPlus,
+    faExpandArrowsAlt,
+    faUndo,
+    faRedo,
+    faKeyboard,
+    faExclamationTriangle,
+    faCommentDots,
+    faStickyNote,
+    // Additional icons for annotation canvas
+    faHandPaper,
+    faDrawPolygon,
+    faICursor,
+    faCompressArrowsAlt,
+    faLink,
+    faPaperPlane,
+    faSpinner
 } from '@fortawesome/free-solid-svg-icons';
+
+// Import regular icons
+import {
+    faSquare as farSquare,
+    faCircle as farCircle
+} from '@fortawesome/free-regular-svg-icons';
 
 // Add icons to the library
 library.add(
@@ -58,7 +89,14 @@ library.add(
     faChevronLeft, faPlus, faSearch, faThLarge, faFilter, faUserTag, faTimes, faTicketAlt,
     faSortUp, faSortDown, faInbox, faSync, faPause, faCheckCircle, faTimesCircle, faLock,
     faArrowDown, faArrowsAltV, faArrowUp, faThumbsUp, faThumbsDown, faCopy, faCheck, faEdit,
-    faComments, faPaperclip, faFile, faThumbtack, faTrash, faFaceSmile, faReply
+    faComments, faPaperclip, faFile, faThumbtack, faTrash, faFaceSmile, faReply,
+    // Annotation icons
+    faMousePointer, faMapPin, faSquare, faCircle, faArrowRight, faPencilAlt, faFont,
+    faSearchMinus, faSearchPlus, faExpandArrowsAlt, faUndo, faRedo, faKeyboard,
+    faExclamationTriangle, faCommentDots, faStickyNote, faHandPaper, faDrawPolygon,
+    faICursor, faCompressArrowsAlt, faLink, faPaperPlane, faSpinner,
+    // Regular icons
+    farSquare, farCircle
 );
 
 // Initialize dark mode from localStorage or system preference

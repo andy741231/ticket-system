@@ -11,6 +11,7 @@ import FileUploader from '@/Components/FileUploader.vue';
 import FileIcon from '@/Components/FileIcon.vue';
 import { useHasAny } from '@/Extensions/useAuthz';
 import CommentList from '@/Components/Comments/CommentList.vue';
+import AnnotationInterface from '@/Components/Annotation/AnnotationInterface.vue';
 
 const props = defineProps({
     ticket: {
@@ -324,10 +325,14 @@ const handleReplyPosted = (data) => {
 const descriptionContent = ref(null);
 
 // Process description after component is mounted
-onMounted(() => {
+onMounted(async () => {
     if (descriptionContent.value) {
         descriptionContent.value.innerHTML = renderWithLinks(descriptionContent.value.innerHTML);
     }
+    
+    // Load proof images and annotations
+    await loadProofImages();
+    await loadProofAnnotations();
     
     // Highlight comment if accessed via direct link
     const urlParams = new URLSearchParams(window.location.search);
@@ -391,6 +396,137 @@ const currentUser = computed(() => ({
     name: props.authUser?.name || 'Current User',
     email: props.authUser?.email || ''
 }));
+
+// Proof modal state
+const showProofModal = ref(false);
+const proofUploadType = ref('file'); // 'file' or 'url'
+const proofUrl = ref('');
+const proofFile = ref(null);
+const proofImages = ref([]);
+const proofAnnotations = ref([]);
+
+// Load proof images on mount
+const loadProofImages = async () => {
+    try {
+        const response = await fetch(`/api/tickets/${props.ticket.id}/images`, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            proofImages.value = data.data || [];
+        }
+    } catch (error) {
+        console.error('Failed to load proof images:', error);
+    }
+};
+
+// Load annotations for proof images
+const loadProofAnnotations = async () => {
+    try {
+        for (const image of proofImages.value) {
+            const response = await fetch(`/api/tickets/${props.ticket.id}/images/${image.id}/annotations`, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                proofAnnotations.value.push(...(data.data || []));
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load annotations:', error);
+    }
+};
+
+// Get annotation count for an image
+const getAnnotationCount = (imageId) => {
+    return proofAnnotations.value.filter(annotation => annotation.ticket_image_id === imageId).length;
+};
+
+// Handle proof upload
+const submitProof = async () => {
+    if (proofUploadType.value === 'url' && !proofUrl.value.trim()) {
+        alert('Please enter a valid URL');
+        return;
+    }
+    
+    if (proofUploadType.value === 'file' && !proofFile.value) {
+        alert('Please select a file');
+        return;
+    }
+    
+    try {
+        let response;
+        
+        if (proofUploadType.value === 'url') {
+            response = await fetch(`/api/tickets/${props.ticket.id}/images/from-url`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ url: proofUrl.value })
+            });
+        } else {
+            const formData = new FormData();
+            formData.append('file', proofFile.value);
+            
+            response = await fetch(`/api/tickets/${props.ticket.id}/images/from-file`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+        }
+        
+        if (response.ok) {
+            const data = await response.json();
+            // Redirect to annotation page
+            window.open(`/annotations/${data.data.id}`, '_blank');
+            
+            // Close modal and refresh
+            showProofModal.value = false;
+            proofUrl.value = '';
+            proofFile.value = null;
+            await loadProofImages();
+        } else {
+            const error = await response.json();
+            alert('Failed to upload proof: ' + (error.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error uploading proof:', error);
+        alert('Failed to upload proof. Please try again.');
+    }
+};
+
+// Open annotation page
+const openAnnotationPage = (image) => {
+    window.open(`/annotations/${image.id}`, '_blank');
+};
+
+// Handle file selection
+const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+        proofFile.value = file;
+    }
+};
+
+// Close proof modal
+const closeProofModal = () => {
+    showProofModal.value = false;
+    proofUrl.value = '';
+    proofFile.value = null;
+    proofUploadType.value = 'file';
+};
 </script>
 
 <template>
@@ -518,7 +654,10 @@ const currentUser = computed(() => ({
                                 
                                 <!-- Attachments Section -->
                                 <div v-if="ticket.files && ticket.files.length > 0" class="mt-8">
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Attachments</h3>
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Attachments</h3>
+                                        
+                                    </div>
                                     <div class="space-y-3">
                                         <div v-for="file in ticket.files" :key="file.id" class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                                             <a :href="getFileUrl(file)" target="_blank" rel="noopener noreferrer" class="flex items-center min-w-0 flex-1 group">
@@ -543,6 +682,49 @@ const currentUser = computed(() => ({
                                             </a>
                                         </div>
                                     </div>
+                                </div>
+                                
+                                
+
+                                <!-- Proofs Section -->
+                                <div class="mt-8">
+                                    
+                                    <div v-if="proofImages.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                        <div 
+                                            v-for="image in proofImages" 
+                                            :key="image.id" 
+                                            class="relative group cursor-pointer bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 transition-colors"
+                                            @click="openAnnotationPage(image)"
+                                        >
+                                            <div class="aspect-square p-2">
+                                                <img 
+                                                    :src="image.image_url" 
+                                                    :alt="image.original_name || 'Proof image'" 
+                                                    class="w-full h-full object-cover rounded"
+                                                />
+                                            </div>
+                                            <div class="p-2">
+                                                <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate" :title="image.original_name">
+                                                    {{ image.original_name || 'Untitled' }}
+                                                </p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                    {{ getAnnotationCount(image.id) }} annotations
+                                                </p>
+                                            </div>
+                                            <!-- Status indicator -->
+                                            <div class="absolute top-2 right-2">
+                                                <div 
+                                                    :class="{
+                                                        'bg-yellow-500': image.status === 'processing',
+                                                        'bg-green-500': image.status === 'completed',
+                                                        'bg-red-500': image.status === 'failed'
+                                                    }"
+                                                    class="w-3 h-3 rounded-full"
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
                                 </div>
 
                             </div>
@@ -715,6 +897,101 @@ const currentUser = computed(() => ({
                     </div>
             </div>
         </div>
+        
+        <!-- Proof Upload Modal -->
+        <Modal :show="showProofModal" @close="closeProofModal">
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+                        Add Proof
+                    </h2>
+                    <button
+                        @click="closeProofModal"
+                        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                    Upload an image or capture a screenshot from a URL to create annotations and provide visual proof.
+                </p>
+                
+                <!-- Upload Type Selector -->
+                <div class="mb-6">
+                    <div class="flex space-x-4">
+                        <label class="flex items-center">
+                            <input
+                                type="radio"
+                                v-model="proofUploadType"
+                                value="file"
+                                class="mr-2 text-blue-500 focus:ring-blue-500"
+                            />
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Upload File</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input
+                                type="radio"
+                                v-model="proofUploadType"
+                                value="url"
+                                class="mr-2 text-blue-500 focus:ring-blue-500"
+                            />
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Capture URL</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- File Upload -->
+                <div v-if="proofUploadType === 'file'" class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Select Image File
+                    </label>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        @change="handleFileSelect"
+                        class="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        PNG, JPG, GIF up to 10MB
+                    </p>
+                </div>
+                
+                <!-- URL Input -->
+                <div v-if="proofUploadType === 'url'" class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Website URL
+                    </label>
+                    <input
+                        type="url"
+                        v-model="proofUrl"
+                        placeholder="https://example.com"
+                        class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        We'll capture a screenshot of this webpage
+                    </p>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="flex justify-end space-x-3">
+                    <button
+                        @click="closeProofModal"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="submitProof"
+                        :disabled="(proofUploadType === 'file' && !proofFile) || (proofUploadType === 'url' && !proofUrl.trim())"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-500 border border-transparent rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <i class="fas fa-upload mr-2"></i>
+                        {{ proofUploadType === 'url' ? 'Capture & Annotate' : 'Upload & Annotate' }}
+                    </button>
+                </div>
+            </div>
+        </Modal>
 
         <!-- Enhanced Comments Section -->
         <div class="py-6">

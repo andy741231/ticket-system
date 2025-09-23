@@ -10,6 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import FileUploader from '@/Components/FileUploader.vue';
 import MultiSelectCheckbox from '@/Components/MultiSelectCheckbox.vue';
+import AnnotationInterface from '@/Components/Annotation/AnnotationInterface.vue';
 import Datepicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -53,6 +54,9 @@ onUnmounted(() => {
 // Store temporary file IDs that need to be associated with the ticket after creation
 const tempFiles = ref([]);
 
+// Track created ticket for annotations
+const createdTicket = ref(null);
+
 const handleFilesUploaded = (files) => {
     // Store the file IDs to be associated with the ticket and update previews
     files.forEach(file => {
@@ -72,10 +76,16 @@ const handleFileRemoved = (file) => {
 // Handle form submission
 const submit = () => {
     form.post(route('tickets.store'), {
-        onSuccess: () => {
-            form.reset();
-            tempFiles.value = [];
+        onSuccess: (page) => {
+            // Extract the created ticket from the response
+            if (page.props && page.props.ticket) {
+                createdTicket.value = page.props.ticket;
+            }
+            // Don't reset form immediately to allow annotations
         },
+        onError: () => {
+            // Handle errors
+        }
     });
 };
 
@@ -181,6 +191,37 @@ const cancel = () => {
                                     class="mt-2"
                                 />
                                 <InputError :message="form.errors.temp_file_ids" class="mt-2" />
+                            </div>
+
+                            <!-- Annotation System -->
+                            <div class="mt-6">
+                                <InputLabel class="text-uh-slate dark:text-uh-cream mb-2" value="Image Annotations" />
+                                <template v-if="!createdTicket">
+                                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg mb-4">
+                                        <div class="flex items-start">
+                                            <i class="fas fa-info-circle text-blue-500 mr-2 mt-0.5"></i>
+                                            <span class="text-blue-700 dark:text-blue-300">
+                                                Please create the ticket first to enable image annotations. After you click "Create Ticket", this section will unlock so you can add screenshots or upload files and annotate them.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg mb-4">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                                            <span class="text-green-700 dark:text-green-300 font-medium">
+                                                Ticket created successfully! You can now add image annotations.
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <AnnotationInterface
+                                        :ticket-id="createdTicket.id"
+                                        :can-review-annotations="false"
+                                        :readonly="false"
+                                        :allow-delete="false"
+                                    />
+                                </template>
                             </div>
 
                             <!-- Submit Button -->

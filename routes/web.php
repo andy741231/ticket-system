@@ -176,6 +176,14 @@ Route::middleware(['auth', 'verified'])->prefix('tickets')->name('tickets.')->gr
     });
 });
 
+// Annotation Routes
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/annotations/{image}', [\App\Http\Controllers\AnnotationController::class, 'show'])->name('annotations.show');
+});
+
+// Public Annotation Routes (no auth required)
+Route::get('/annotations/{image}/public', [\App\Http\Controllers\AnnotationController::class, 'showPublic'])->name('annotations.public');
+
 // Directory Routes (now using DirectoryController)
 Route::middleware(['auth', 'verified'])->prefix('directory')->name('directory.')->group(function () {
     Route::get('/', [\App\Http\Controllers\DirectoryController::class, 'index'])->name('index');

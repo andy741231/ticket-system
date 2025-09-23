@@ -109,4 +109,12 @@ class Ticket extends Model
             ->orderByDesc('pinned')
             ->orderBy('created_at', 'asc');
     }
+
+    /**
+     * Images associated with the ticket for annotation.
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(TicketImage::class);
+    }
 }

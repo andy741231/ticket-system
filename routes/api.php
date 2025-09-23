@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\TicketFileController;
 use App\Http\Controllers\Api\TempFileController;
+use App\Http\Controllers\Api\TicketImageController;
+use App\Http\Controllers\Api\AnnotationController;
 use App\Http\Controllers\Newsletter\PublicController as NewsletterPublicController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\ImageUploadController;
@@ -37,6 +39,39 @@ Route::middleware(['web', 'auth'])->group(function () {
         
         // Get mentionable users for a ticket
         Route::get('/mentionable-users', [\App\Http\Controllers\TicketCommentController::class, 'mentionableUsers']);
+
+        // Annotation system routes
+        Route::prefix('images')->group(function () {
+            // Image management
+            Route::get('/', [TicketImageController::class, 'index']);
+            Route::post('/from-url', [TicketImageController::class, 'storeFromUrl']);
+            Route::post('/from-file', [TicketImageController::class, 'storeFromFile']);
+            Route::get('/{ticketImage}', [TicketImageController::class, 'show']);
+            Route::delete('/{ticketImage}', [TicketImageController::class, 'destroy']);
+            Route::get('/{ticketImage}/status', [TicketImageController::class, 'status']);
+
+            // Annotation management for specific images
+            Route::prefix('{ticketImage}/annotations')->group(function () {
+                Route::get('/', [AnnotationController::class, 'index']);
+                Route::post('/', [AnnotationController::class, 'store']);
+                Route::get('/{annotation}', [AnnotationController::class, 'show']);
+                Route::put('/{annotation}', [AnnotationController::class, 'update']);
+                Route::delete('/{annotation}', [AnnotationController::class, 'destroy']);
+                Route::put('/{annotation}/status', [AnnotationController::class, 'updateStatus']);
+
+                // Annotation comments
+                Route::get('/{annotation}/comments', [AnnotationController::class, 'getComments']);
+                Route::post('/{annotation}/comments', [AnnotationController::class, 'storeComment']);
+                Route::put('/{annotation}/comments/{comment}', [AnnotationController::class, 'updateComment']);
+                Route::delete('/{annotation}/comments/{comment}', [AnnotationController::class, 'destroyComment']);
+
+                // Image-level comments (no specific annotation)
+                Route::get('/image-comments', [AnnotationController::class, 'listImageComments']);
+                Route::post('/image-comments', [AnnotationController::class, 'storeImageComment']);
+                Route::put('/image-comments/{comment}', [AnnotationController::class, 'updateImageComment']);
+                Route::delete('/image-comments/{comment}', [AnnotationController::class, 'destroyImageComment']);
+            });
+        });
     });
 
     // Dashboard stats
@@ -60,3 +95,19 @@ Route::post('/image-upload', [ImageUploadController::class, 'store'])->name('ima
 Route::options('/directory/team', [DirectoryPublicController::class, 'options']);
 Route::get('/directory/team', [DirectoryPublicController::class, 'index']);
 
+// Public annotation routes
+Route::prefix('public/annotations/{image}')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'index']);
+    Route::post('/', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'store']);
+    Route::delete('/{annotation}', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'destroy']);
+    
+    // Public image-level comments
+    Route::post('/image-comments', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'storeImageComment']);
+    
+    Route::prefix('annotations/{annotation}')->group(function () {
+        Route::get('/comments', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'getComments']);
+        Route::post('/comments', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'storeComment']);
+        Route::put('/comments/{comment}', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'updateComment']);
+        Route::delete('/comments/{comment}', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'destroyComment']);
+    });
+});

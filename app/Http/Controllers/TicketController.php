@@ -405,6 +405,12 @@ class TicketController extends Controller
                     'name' => $user->name,
                 ];
             }),
+            'can' => [
+                'update' => auth()->user()->can('update', $ticket),
+                'delete' => auth()->user()->can('delete', $ticket),
+                'changeStatus' => auth()->user()->can('changeStatus', $ticket),
+                'changeStatusAll' => auth()->user()->can('tickets.ticket.manage') || auth()->user()->can('tickets.ticket.update'),
+            ],
         ]);
     }
 
