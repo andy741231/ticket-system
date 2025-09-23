@@ -494,18 +494,7 @@ const cancel = () => {
                                             {{ getAnnotationCount(image.id) }} annotations
                                         </p>
                                     </div>
-                                    <!-- Status indicator -->
-                                    <div class="absolute top-2 right-2">
-                                        <div 
-                                            :class="{
-                                                'bg-yellow-500': image.status === 'processing',
-                                                'bg-green-500': image.status === 'completed',
-                                                'bg-red-500': image.status === 'failed' || image.status === 'error'
-                                            }"
-                                            class="w-3 h-3 rounded-full"
-                                            :title="image.status"
-                                        ></div>
-                                    </div>
+                                    
                                     <!-- Delete button -->
                                     <div v-if="can.update" class="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
@@ -515,7 +504,9 @@ const cancel = () => {
                                             :disabled="deletingProof[image.id]"
                                             @click.stop="deleteProofImage(image)"
                                         >
-                                            <span v-if="!deletingProof[image.id]" aria-hidden="true"><i class="fas fa-trash text-xs"></i></span>
+                                            <span v-if="!deletingProof[image.id]" aria-hidden="true">
+                                                <font-awesome-icon icon="trash" class="text-xs" />
+                                            </span>
                                             <span v-else class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
                                             <span class="sr-only">Delete</span>
                                         </button>

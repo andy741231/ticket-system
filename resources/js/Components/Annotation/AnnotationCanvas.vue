@@ -3,7 +3,8 @@
     <!-- Main Canvas Area -->
     <div class="flex-1 relative">
     <!-- Toolbar -->
-    <div class="annotation-toolbar flex items-center justify-between p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+     <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div class="max-w-5xl mx-auto annotation-toolbar flex items-center justify-between p-3">
       <!-- Left: Drawing Tools -->
       <div class="flex items-center gap-2">
         <!-- Tool Buttons -->
@@ -138,6 +139,7 @@
        
         </div>
       </div>
+      </div>
     </div>
     
     <!-- Image Viewport -->
@@ -216,6 +218,7 @@
           :key="annotation.id"
           class="absolute annotation-marker"
           :style="getAnnotationStyle(annotation)"
+          @mousedown="onAnnotationMarkerMouseDown(annotation, $event)"
           @click="selectAnnotation(annotation)"
           @mouseenter="hoveredAnnotation = annotation"
           @mouseleave="hoveredAnnotation = null"
@@ -257,7 +260,7 @@
           <div v-if="getOverlayContent(annotation)" class="annotation-comment-box ml-3">
             <div class="flex items-start gap-2">
               <div class="flex-shrink-0">
-                <Avatar :user="getLatestCommentForAnnotation(annotation.id)?.user" size="xs" :show-link="false" />
+                <Avatar :user="getDisplayUserForAnnotation(annotation)" size="xs" :show-link="false" />
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-2">
@@ -267,24 +270,7 @@
                     </div>
                   </div>
                   <div v-if="!readonly" class="flex items-center gap-1">
-                    <button
-                      v-if="canEdit(annotation)"
-                      @click.stop="editAnnotation(annotation)"
-                      class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 hover:text-blue-600"
-                      title="Edit annotation"
-                      aria-label="Edit annotation"
-                    >
-                      <font-awesome-icon :icon="['fas','edit']" class="text-xs" />
-                    </button>
-                    <button
-                      v-if="canDelete(annotation)"
-                      @click.stop="deleteAnnotation(annotation)"
-                      class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 hover:text-red-600"
-                      title="Delete annotation"
-                      aria-label="Delete annotation"
-                    >
-                      <font-awesome-icon :icon="['fas','trash']" class="text-xs" />
-                    </button>
+                    
                   </div>
                 </div>
               </div>
@@ -324,9 +310,7 @@
           <template v-if="entry.type === 'annotation'">
             <div class="flex items-start justify-between mb-2">
               <div class="flex items-center gap-2">
-                <div class="annotation-comment-number">
-                  {{ getAnnotationNumber(entry.annotation.id) }}
-                </div>
+                <Avatar :user="getDisplayUserForAnnotation(entry.annotation)" size="sm" :show-link="false" />
                 <div>
                   <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Text annotation</p>
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(entry.createdAt) }}</p>
@@ -346,11 +330,9 @@
           <template v-else>
             <div class="flex items-start justify-between mb-2">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                  {{ entry.comment.user?.name?.charAt(0) || 'U' }}
-                </div>
+                <Avatar :user="getDisplayUserForComment(entry.comment)" size="sm" :show-link="false" />
                 <div>
-                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ entry.comment.user?.name || 'Anonymous' }}</p>
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ getDisplayUserForComment(entry.comment)?.name || 'Anonymous' }}</p>
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(entry.createdAt) }}</p>
                 </div>
               </div>
@@ -765,6 +747,14 @@ const colorPalette = ref([
 // Annotation state
 const selectedAnnotation = ref(null)
 const hoveredAnnotation = ref(null)
+const isDraggingAnnotation = ref(false)
+const draggedAnnotationSnapshot = ref(null)
+const dragStartAnchor = ref({ x: 0, y: 0 })
+const dragOffset = ref({ x: 0, y: 0 })
+const lastDragDelta = ref({ x: 0, y: 0 })
+const activeDragAnnotationId = ref(null)
+const activeDragDelta = ref({ x: 0, y: 0 })
+const pendingAnnotationUpdates = ref({})
 const showTextModal = ref(false)
 const textContent = ref('')
 const pendingTextPosition = ref({ x: 0, y: 0 })
@@ -1331,7 +1321,89 @@ const getAnnotationNumber = (annotationId) => {
   return index >= 0 ? index + 1 : '?'
 }
 
-// Return the most recent comment for a given annotation (if any)
+const normalizeId = (id) => {
+  if (id === null || id === undefined) return null
+  return String(id)
+}
+
+const ensureNumber = (value, fallback = 0) => {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
+const getAnnotationAnchor = (annotation) => {
+  if (!annotation) return { x: 0, y: 0 }
+  const coords = annotation.coordinates || {}
+
+  switch (annotation.type) {
+    case 'rectangle':
+      return {
+        x: ensureNumber(coords.x),
+        y: ensureNumber(coords.y)
+      }
+    case 'circle':
+      return {
+        x: ensureNumber(coords.centerX ?? coords.x),
+        y: ensureNumber(coords.centerY ?? coords.y)
+      }
+    case 'freehand':
+      if (Array.isArray(coords.path) && coords.path.length > 0) {
+        const firstPoint = coords.path[0] || {}
+        return {
+          x: ensureNumber(firstPoint.x),
+          y: ensureNumber(firstPoint.y)
+        }
+      }
+      return { x: 0, y: 0 }
+    case 'point':
+    case 'text':
+    default:
+      return {
+        x: ensureNumber(coords.x),
+        y: ensureNumber(coords.y)
+      }
+  }
+}
+
+const parsePublicInfo = (info) => {
+  if (!info) return null
+  if (typeof info === 'string') {
+    try {
+      return JSON.parse(info)
+    } catch (error) {
+      console.warn('Failed to parse public user info JSON', error)
+      return null
+    }
+  }
+  return info
+}
+
+const buildUserLike = (name, email) => {
+  const trimmedName = name?.toString().trim()
+  const trimmedEmail = email?.toString().trim()
+
+  if (!trimmedName && !trimmedEmail) {
+    return {
+      name: 'Anonymous',
+      email: null
+    }
+  }
+
+  return {
+    name: trimmedName || trimmedEmail || 'Anonymous',
+    email: trimmedEmail || null
+  }
+}
+
+const extractPublicUser = (source) => {
+  const info = parsePublicInfo(source)
+  if (!info) return null
+  const name = info.name || info.public_name
+  const email = info.email || info.public_email
+  if (!name && !email) return null
+  return buildUserLike(name, email)
+}
+
 const getLatestCommentForAnnotation = (annotationId) => {
   if (!Array.isArray(props.comments) || !annotationId) return null
   const list = props.comments.filter(c => c.annotation_id === annotationId)
@@ -1351,6 +1423,53 @@ const getOverlayContent = (annotation) => {
   if (latest?.content) return latest.content
   if (annotation?.type === 'text' && annotation?.content) return annotation.content
   return null
+}
+
+const getDisplayUserForComment = (comment) => {
+  if (!comment) return buildUserLike()
+
+  if (comment.user) {
+    return comment.user
+  }
+
+  const fromPublicInfo = extractPublicUser(comment.public_user_info)
+  if (fromPublicInfo) return fromPublicInfo
+
+  if (comment.public_name || comment.public_email) {
+    return buildUserLike(comment.public_name, comment.public_email)
+  }
+
+  if (comment.name || comment.email) {
+    return buildUserLike(comment.name, comment.email)
+  }
+
+  return buildUserLike()
+}
+
+const getDisplayUserForAnnotation = (annotation) => {
+  if (!annotation) return buildUserLike()
+
+  if (annotation.user) {
+    return annotation.user
+  }
+
+  const fromPublicInfo = extractPublicUser(annotation.public_user_info)
+  if (fromPublicInfo) return fromPublicInfo
+
+  const latestComment = getLatestCommentForAnnotation(annotation.id)
+  if (latestComment) {
+    return getDisplayUserForComment(latestComment)
+  }
+
+  if (annotation.public_name || annotation.public_email) {
+    return buildUserLike(annotation.public_name, annotation.public_email)
+  }
+
+  if (annotation.created_by_public) {
+    return buildUserLike('Guest Reviewer', null)
+  }
+
+  return buildUserLike()
 }
 
 const selectAnnotation = (annotation) => {
@@ -1611,59 +1730,255 @@ const redo = () => {
 }
 
 const getAnnotationStyle = (annotation) => {
-  const coords = annotation.coordinates || {}
-  let style = {}
-  
-  // Ensure coordinates exist and are valid numbers
-  const x = typeof coords.x === 'number' ? coords.x : 0
-  const y = typeof coords.y === 'number' ? coords.y : 0
-  
-  switch (annotation.type) {
+  const effective = getEffectiveAnnotation(annotation)
+  const coords = effective.coordinates || {}
+  const anchor = getAnnotationAnchor(effective)
+
+  switch (effective.type) {
     case 'point':
-      style = {
-        left: x + 'px',
-        top: y + 'px',
+      return {
+        left: anchor.x + 'px',
+        top: anchor.y + 'px',
         transform: 'translate(-50%, -50%)'
       }
-      break
-      
-    case 'text':
-      style = {
-        left: x + 'px',
-        top: y + 'px'
-      }
-      break
-      
     case 'rectangle':
-      const width = typeof coords.width === 'number' ? coords.width : 0
-      const height = typeof coords.height === 'number' ? coords.height : 0
-      style = {
-        left: x + 'px',
-        top: y + 'px',
-        width: width + 'px',
-        height: height + 'px'
+      return {
+        left: anchor.x + 'px',
+        top: anchor.y + 'px',
+        width: ensureNumber(coords.width) + 'px',
+        height: ensureNumber(coords.height) + 'px'
       }
-      break
-      
-    case 'freehand':
-      // Position the numbered marker at the first path point (or 0,0 fallback)
-      const path = Array.isArray(coords.path) ? coords.path : []
-      const px = (path[0]?.x ?? 0)
-      const py = (path[0]?.y ?? 0)
-      style = {
-        left: px + 'px',
-        top: py + 'px'
-      }
-      break
-      
     default:
-      style = {
-        left: x + 'px',
-        top: y + 'px'
+      return {
+        left: anchor.x + 'px',
+        top: anchor.y + 'px'
       }
   }
-  
-  return style
+}
+
+const cloneAnnotationCoordinates = (annotation) => {
+  if (!annotation || !annotation.coordinates) return {}
+  try {
+    return JSON.parse(JSON.stringify(annotation.coordinates))
+  } catch (error) {
+    console.warn('Failed to clone annotation coordinates', error)
+    return { ...annotation.coordinates }
+  }
+}
+
+const applyDeltaToCoordinates = (type, originalCoords, delta) => {
+  const safe = (value) => ensureNumber(value)
+  const coords = { ...originalCoords }
+
+  switch (type) {
+    case 'rectangle':
+      return {
+        ...coords,
+        x: safe(coords.x) + delta.x,
+        y: safe(coords.y) + delta.y
+      }
+    case 'circle': {
+      const updated = {
+        ...coords,
+        centerX: safe(coords.centerX ?? coords.x) + delta.x,
+        centerY: safe(coords.centerY ?? coords.y) + delta.y
+      }
+      if ('x' in coords) {
+        updated.x = safe(coords.x) + delta.x
+      }
+      if ('y' in coords) {
+        updated.y = safe(coords.y) + delta.y
+      }
+      return updated
+    }
+    case 'freehand':
+      return {
+        ...coords,
+        path: Array.isArray(coords.path)
+          ? coords.path.map(point => ({
+              x: safe(point.x) + delta.x,
+              y: safe(point.y) + delta.y
+            }))
+          : []
+      }
+    default:
+      return {
+        ...coords,
+        x: safe(coords.x) + delta.x,
+        y: safe(coords.y) + delta.y
+      }
+  }
+}
+
+const startAnnotationDrag = (annotation, event) => {
+  if (!annotation) return
+
+  saveToUndoStack()
+
+  const pointer = getCanvasCoordinates(event)
+  const anchor = getAnnotationAnchor(annotation)
+
+  draggedAnnotationSnapshot.value = {
+    ...annotation,
+    coordinates: cloneAnnotationCoordinates(annotation)
+  }
+  dragStartAnchor.value = anchor
+  dragOffset.value = {
+    x: pointer.x - anchor.x,
+    y: pointer.y - anchor.y
+  }
+  lastDragDelta.value = { x: 0, y: 0 }
+  isDraggingAnnotation.value = true
+  activeDragAnnotationId.value = annotation.id
+  activeDragDelta.value = { x: 0, y: 0 }
+
+  selectAnnotation(annotation)
+
+  window.addEventListener('mousemove', handleAnnotationDrag)
+  window.addEventListener('mouseup', endAnnotationDrag)
+}
+
+const handleAnnotationDrag = (event) => {
+  if (!isDraggingAnnotation.value || props.readonly || !draggedAnnotationSnapshot.value) {
+    return
+  }
+
+  event.preventDefault()
+
+  const pointer = getCanvasCoordinates(event)
+  const newAnchor = {
+    x: pointer.x - dragOffset.value.x,
+    y: pointer.y - dragOffset.value.y
+  }
+  const delta = {
+    x: newAnchor.x - dragStartAnchor.value.x,
+    y: newAnchor.y - dragStartAnchor.value.y
+  }
+
+  if (
+    Math.abs(delta.x - lastDragDelta.value.x) < 0.01 &&
+    Math.abs(delta.y - lastDragDelta.value.y) < 0.01
+  ) {
+    return
+  }
+
+  lastDragDelta.value = { ...delta }
+  activeDragDelta.value = { ...delta }
+
+  const snapshot = draggedAnnotationSnapshot.value
+  const updatedAnnotation = {
+    ...snapshot,
+    coordinates: applyDeltaToCoordinates(snapshot.type, snapshot.coordinates, activeDragDelta.value)
+  }
+
+  selectedAnnotation.value = updatedAnnotation
+  redrawCanvas()
+}
+
+const cleanupAnnotationDrag = () => {
+  window.removeEventListener('mousemove', handleAnnotationDrag)
+  window.removeEventListener('mouseup', endAnnotationDrag)
+
+  isDraggingAnnotation.value = false
+  draggedAnnotationSnapshot.value = null
+  dragStartAnchor.value = { x: 0, y: 0 }
+  dragOffset.value = { x: 0, y: 0 }
+  lastDragDelta.value = { x: 0, y: 0 }
+  activeDragAnnotationId.value = null
+  activeDragDelta.value = { x: 0, y: 0 }
+}
+
+const endAnnotationDrag = (event) => {
+  if (!isDraggingAnnotation.value) return
+
+  if (event) {
+    event.preventDefault()
+    handleAnnotationDrag(event)
+  }
+
+  const snapshot = draggedAnnotationSnapshot.value
+  if (snapshot) {
+    const idKey = normalizeId(snapshot.id)
+    const finalAnnotation = {
+      ...snapshot,
+      coordinates: applyDeltaToCoordinates(snapshot.type, snapshot.coordinates, activeDragDelta.value)
+    }
+    if (idKey) {
+      pendingAnnotationUpdates.value = {
+        ...pendingAnnotationUpdates.value,
+        [idKey]: finalAnnotation
+      }
+    }
+    emit('annotation-updated', finalAnnotation)
+    selectedAnnotation.value = finalAnnotation
+  }
+
+  cleanupAnnotationDrag()
+}
+
+const onAnnotationMarkerMouseDown = (annotation, event) => {
+  if (props.readonly) return
+  if (event.button !== 0) return
+  if (event.target.closest('.annotation-actions')) return
+  if (typeof props.canEdit === 'function' && !props.canEdit(annotation)) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  startAnnotationDrag(annotation, event)
+}
+
+const getEffectiveAnnotation = (annotation) => {
+  if (
+    isDraggingAnnotation.value &&
+    activeDragAnnotationId.value &&
+    draggedAnnotationSnapshot.value &&
+    annotation.id === activeDragAnnotationId.value
+  ) {
+    return {
+      ...draggedAnnotationSnapshot.value,
+      coordinates: applyDeltaToCoordinates(
+        draggedAnnotationSnapshot.value.type,
+        draggedAnnotationSnapshot.value.coordinates,
+        activeDragDelta.value
+      )
+    }
+  }
+  const idKey = normalizeId(annotation?.id)
+  if (idKey && pendingAnnotationUpdates.value[idKey]) {
+    return pendingAnnotationUpdates.value[idKey]
+  }
+  return annotation
+}
+
+const syncPendingAnnotations = (annotations) => {
+  const pending = pendingAnnotationUpdates.value
+  const keys = Object.keys(pending)
+  if (!keys.length) return
+
+  const nextPending = { ...pending }
+  let changed = false
+
+  keys.forEach(key => {
+    const match = annotations?.find?.(item => normalizeId(item?.id) === key)
+    if (!match) {
+      delete nextPending[key]
+      changed = true
+      return
+    }
+
+    const pendingAnnotation = pending[key]
+    const pendingCoords = JSON.stringify(pendingAnnotation?.coordinates ?? null)
+    const matchCoords = JSON.stringify(match?.coordinates ?? null)
+    if (pendingCoords === matchCoords) {
+      delete nextPending[key]
+      changed = true
+    }
+  })
+
+  if (changed) {
+    pendingAnnotationUpdates.value = nextPending
+  }
 }
 
 // Optimized canvas redrawing with requestAnimationFrame
@@ -1707,15 +2022,16 @@ const redrawAnnotations = () => {
 
 const drawAnnotation = (annotation) => {
   if (!ctx.value) return
-  
-  const coords = annotation.coordinates
-  const style = annotation.style || currentStyle.value
-  
+
+  const effective = getEffectiveAnnotation(annotation)
+  const coords = effective.coordinates
+  const style = effective.style || annotation.style || currentStyle.value
+
   ctx.value.strokeStyle = style.color
   ctx.value.lineWidth = style.strokeWidth
   ctx.value.fillStyle = style.fillColor || 'transparent'
-  
-  switch (annotation.type) {
+
+  switch (effective.type) {
     case 'point':
       ctx.value.beginPath()
       ctx.value.arc(coords.x, coords.y, 5, 0, 2 * Math.PI)
@@ -1842,6 +2158,7 @@ watch(() => props.imageUrl, () => {
 
 // Watch for annotation changes
 watch(() => props.annotations, () => {
+  syncPendingAnnotations(props.annotations)
   nextTick(() => {
     redrawCanvas()
   })
@@ -2008,6 +2325,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
+  cleanupAnnotationDrag()
 })
 </script>
 

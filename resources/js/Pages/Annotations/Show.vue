@@ -466,7 +466,7 @@ onMounted(async () => {
         </div>
         
         <!-- Main Content -->
-        <div class="mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto">
             <div v-if="loading" class="flex items-center justify-center h-64">
                 <div class="text-center">
                     <i class="fas fa-spinner fa-spin text-3xl text-gray-400 mb-4"></i>
