@@ -54,17 +54,17 @@ class DirectoryPublicController extends Controller
             return [
                 'id' => (string) $t->id,
                 'name' => trim(($t->first_name ?? '') . ' ' . ($t->last_name ?? '')),
-                'degree' => $t->degree,
-                'title' => $t->title,
-                'email' => $t->email,
+                'degree' => $t->degree ?? '',
+                'title' => $t->title ?? '',
+                'email' => $t->email ?? '',
                 'description' => $t->description ?? '',
                 'message' => $t->message ?? '',
                 'bio' => $t->bio ?? '',
                 'img' => $this->absoluteImageUrl($t->img),
-                'group' => $t->group_1,
-                'team' => $t->team,
-                'program' => $t->program,
-                'department' => $t->department,
+                'group' => $t->group_1 ?? '',
+                'team' => $t->team ?? '',
+                'program' => $t->program ?? '',
+                'department' => $t->department ?? '',
             ];
         });
 
@@ -77,7 +77,7 @@ class DirectoryPublicController extends Controller
     private function absoluteImageUrl(?string $path): ?string
     {
         if (!$path) {
-            return null;
+            return '';
         }
         if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;

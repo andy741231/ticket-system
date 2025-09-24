@@ -15,13 +15,19 @@ use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class ImageProcessingService
 {
+    protected ?string $computedPath = null;
+
+    protected string $nodeBinary = 'node';
+
     public function __construct()
     {
-        $defaultPath = env('MAGICK_PATH') ?? env('PATH') ?? getenv('PATH');
-        if ($defaultPath) {
-            putenv('PATH=' . $defaultPath);
-            $_ENV['PATH'] = $defaultPath;
-            $_SERVER['PATH'] = $defaultPath;
+        $this->computedPath = $this->buildExecutablePath();
+        $this->nodeBinary = env('PUPPETEER_NODE_BINARY') ?? env('NODE_BINARY', 'node');
+
+        if ($this->computedPath) {
+            putenv('PATH=' . $this->computedPath);
+            $_ENV['PATH'] = $this->computedPath;
+            $_SERVER['PATH'] = $this->computedPath;
         }
     }
 
@@ -155,15 +161,14 @@ class ImageProcessingService
             if ($noProxy) {
                 $env['NO_PROXY'] = $noProxy;
             }
-            $defaultPath = env('MAGICK_PATH') ?? env('PATH') ?? getenv('PATH');
-            if ($defaultPath) {
-                $env['PATH'] = $defaultPath;
+            if ($this->computedPath) {
+                $env['PATH'] = $this->computedPath;
             }
 
             // Run Puppeteer screenshot script
             $scriptPath = base_path('scripts/screenshot-capture.js');
             $process = new Process([
-                'node',
+                $this->nodeBinary,
                 $scriptPath,
                 $url,
                 $fullPath,
@@ -397,9 +402,8 @@ class ImageProcessingService
                 'TMPDIR' => $procTempDir,
             ]);
             
-            $defaultPath = env('MAGICK_PATH') ?? env('PATH') ?? getenv('PATH');
-            if ($defaultPath) {
-                $env['PATH'] = $defaultPath;
+            if ($this->computedPath) {
+                $env['PATH'] = $this->computedPath;
             }
 
             // Try to use ImageMagick to convert PDF to PNG
@@ -533,5 +537,42 @@ class ImageProcessingService
         $bytes /= pow(1024, $pow);
         
         return round($bytes, 2) . ' ' . $units[$pow];
+    }
+
+    protected function buildExecutablePath(): ?string
+    {
+        $sources = [
+            env('MAGICK_PATH'),
+            env('PATH'),
+            getenv('PATH') ?: null,
+            $_SERVER['PATH'] ?? null,
+            $_ENV['PATH'] ?? null,
+        ];
+
+        $segments = [];
+
+        foreach ($sources as $source) {
+            if (!$source) {
+                continue;
+            }
+
+            foreach (explode(PATH_SEPARATOR, $source) as $segment) {
+                $segment = trim($segment, "\"' ");
+
+                if ($segment === '') {
+                    continue;
+                }
+
+                if (!in_array($segment, $segments, true)) {
+                    $segments[] = $segment;
+                }
+            }
+        }
+
+        if (empty($segments)) {
+            return null;
+        }
+
+        return implode(PATH_SEPARATOR, $segments);
     }
 }
