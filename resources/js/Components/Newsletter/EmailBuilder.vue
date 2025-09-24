@@ -127,7 +127,7 @@ async function exportAsPng() {
 
     const canvas = await html2canvas(canvasElement, {
       backgroundColor: '#ffffff',
-      scale: window.devicePixelRatio || 2,
+      scale: window.devicePixelRatio || 5,
       useCORS: true,
       logging: false,
       removeContainer: true,
