@@ -57,6 +57,13 @@ Route::middleware(['web', 'auth'])->group(function () {
 
             // Annotation management for specific images
             Route::prefix('{ticketImage}/annotations')->group(function () {
+                // Image-level comments (no specific annotation) - MUST BE FIRST to avoid route conflicts
+                Route::get('/image-comments', [AnnotationController::class, 'listImageComments']);
+                Route::post('/image-comments', [AnnotationController::class, 'storeImageComment']);
+                Route::put('/image-comments/{comment}', [AnnotationController::class, 'updateImageComment']);
+                Route::delete('/image-comments/{comment}', [AnnotationController::class, 'destroyImageComment']);
+
+                // Annotation CRUD
                 Route::get('/', [AnnotationController::class, 'index']);
                 Route::post('/', [AnnotationController::class, 'store']);
                 Route::get('/{annotation}', [AnnotationController::class, 'show']);
@@ -69,12 +76,6 @@ Route::middleware(['web', 'auth'])->group(function () {
                 Route::post('/{annotation}/comments', [AnnotationController::class, 'storeComment']);
                 Route::put('/{annotation}/comments/{comment}', [AnnotationController::class, 'updateComment']);
                 Route::delete('/{annotation}/comments/{comment}', [AnnotationController::class, 'destroyComment']);
-
-                // Image-level comments (no specific annotation)
-                Route::get('/image-comments', [AnnotationController::class, 'listImageComments']);
-                Route::post('/image-comments', [AnnotationController::class, 'storeImageComment']);
-                Route::put('/image-comments/{comment}', [AnnotationController::class, 'updateImageComment']);
-                Route::delete('/image-comments/{comment}', [AnnotationController::class, 'destroyImageComment']);
             });
         });
     });

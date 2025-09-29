@@ -171,12 +171,14 @@ const deleteAnnotation = async (annotation) => {
 
 // Load comments (image-level + per-annotation)
 const loadComments = async () => {
+    console.log('[loadComments] Called');
     try {
         const allComments = [];
 
         // 1) Image-level comments (auth only)
         if (!props.isPublic) {
             const imageUrl = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`;
+            console.log('[loadComments] Fetching image-level comments from:', imageUrl);
             const respImage = await fetch(imageUrl, {
                 headers: {
                     'Accept': 'application/json',
@@ -185,11 +187,15 @@ const loadComments = async () => {
             });
             if (respImage.ok) {
                 const data = await respImage.json();
+                console.log('[loadComments] Image-level comments fetched:', data.data?.length || 0, data.data);
                 allComments.push(...(data.data || []));
+            } else {
+                console.error('[loadComments] Failed to fetch image-level comments:', respImage.status);
             }
         }
 
         // 2) Comments for each visible annotation
+        console.log('[loadComments] Fetching comments for', annotations.value.length, 'annotations');
         for (const annotation of annotations.value) {
             const url = props.isPublic 
                 ? `/api/public/annotations/${props.image.id}/annotations/${annotation.id}/comments?token=${props.publicToken}`
@@ -208,6 +214,7 @@ const loadComments = async () => {
             }
         }
 
+        console.log('[loadComments] Total comments loaded:', allComments.length);
         comments.value = allComments;
     } catch (err) {
         console.error('Error loading comments:', err);
@@ -216,6 +223,7 @@ const loadComments = async () => {
 
 // Add comment (image-level if no annotation_id)
 const addComment = async (commentData) => {
+    console.log('[addComment] Called with:', commentData);
     try {
         let url = '';
         if (props.isPublic) {
@@ -231,6 +239,8 @@ const addComment = async (commentData) => {
                 url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`;
             }
         }
+
+        console.log('[addComment] Posting to:', url);
 
         // Prepare request body
         let requestBody = { content: commentData.content, parent_id: commentData.parent_id || null };
@@ -253,9 +263,13 @@ const addComment = async (commentData) => {
         
         if (response.ok) {
             const data = await response.json();
-            comments.value.push(data.data);
+            console.log('[addComment] Comment created successfully:', data);
+            // Reload all comments from server to ensure sync
+            await loadComments();
+            console.log('[addComment] Comments reloaded');
         } else {
             const error = await response.json();
+            console.error('[addComment] API error:', error);
             alert('Failed to add comment: ' + (error.message || 'Unknown error'));
         }
     } catch (error) {
@@ -523,6 +537,7 @@ onMounted(async () => {
                     :comments="comments"
                     :readonly="false"
                     :is-public="isPublic"
+                    :ticket-id="ticket.id"
                     @annotation-created="createAnnotation"
                     @annotation-updated="updateAnnotation"
                     @annotation-deleted="deleteAnnotation"

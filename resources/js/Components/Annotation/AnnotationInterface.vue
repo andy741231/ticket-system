@@ -143,6 +143,7 @@
                   :can-edit="canEditAnnotation"
                   :can-delete="canDeleteAnnotation"
                   :readonly="readonly"
+                  :ticket-id="ticketId"
                   @annotation-created="createAnnotation(image.id, $event)"
                   @annotation-updated="updateAnnotation($event)"
                   @annotation-deleted="deleteAnnotation($event)"
@@ -325,18 +326,22 @@
                         
                         <!-- Quick Comment Input -->
                         <div v-if="!readonly && selectedAnnotation?.id === annotation.id" class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                          <div class="flex gap-2">
-                            <input
-                              v-model="newComments[annotation.id]"
-                              type="text"
-                              placeholder="Add a comment..."
-                              class="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                              @keydown.enter="addComment(annotation.id)"
-                            />
+                          <div class="flex gap-2 items-start">
+                            <div class="flex-1">
+                              <MentionAutocomplete
+                                v-model="newComments[annotation.id]"
+                                :ticket-id="ticketId"
+                                placeholder="Add a comment... Use @username to mention"
+                                class="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                rows="2"
+                                @keydown.enter.prevent="addComment(annotation.id)"
+                              />
+                            </div>
                             <button
                               @click="addComment(annotation.id)"
                               :disabled="!newComments[annotation.id]?.trim()"
-                              class="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                              class="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 disabled:opacity-50 transition-colors flex-shrink-0"
+                              title="Send comment"
                             >
                               <i class="fas fa-paper-plane"></i>
                             </button>
@@ -367,6 +372,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 import AnnotationCanvas from './AnnotationCanvas.vue'
+import MentionAutocomplete from '@/Components/MentionAutocomplete.vue'
 
 const props = defineProps({
   ticketId: {
@@ -395,6 +401,8 @@ const props = defineProps({
 const images = ref([])
 const processingImages = ref([])
 const annotations = ref([])
+// Store image-level comments separately (not linked to specific annotations)
+const imageLevelComments = ref({}) // Map of imageId -> comments array
 // Flat comments derived from annotations for Canvas comment panel convenience
 // We will compute per-image when requested
 const urlInput = ref('')
@@ -444,6 +452,11 @@ const getAnnotationIndex = (imageId, annotationId) => {
 
 const focusAnnotation = (annotation, imageId) => {
   selectedAnnotation.value = annotation
+  
+  // Initialize comment field for this annotation if not already present
+  if (!newComments.value[annotation.id]) {
+    newComments.value[annotation.id] = ''
+  }
 
   // Forward selection to the correct canvas instance if available
   const comp = canvasRefs.value?.[imageId]
@@ -460,6 +473,11 @@ const focusAnnotation = (annotation, imageId) => {
 
 const handleAnnotationSelected = (annotation) => {
   selectedAnnotation.value = annotation
+  
+  // Initialize comment field for this annotation if not already present
+  if (annotation && !newComments.value[annotation.id]) {
+    newComments.value[annotation.id] = ''
+  }
 }
 
 // Keyboard navigation for annotation list
@@ -506,6 +524,7 @@ const handleAnnotationListKeydown = (event, imageId) => {
 
 // Methods
 const loadImages = async () => {
+  console.log('[loadImages] Called')
   try {
     const response = await fetch(`/api/tickets/${props.ticketId}/images`, {
       headers: {
@@ -517,6 +536,7 @@ const loadImages = async () => {
     if (response.ok) {
       const data = await response.json()
       images.value = data.data || []
+      console.log('[loadImages] Loaded images:', images.value.length)
       
       // Extract all annotations
       annotations.value = []
@@ -525,6 +545,14 @@ const loadImages = async () => {
           annotations.value.push(...image.annotations)
         }
       })
+      console.log('[loadImages] Extracted annotations:', annotations.value.length)
+      
+      // Load image-level comments for each image
+      console.log('[loadImages] Loading comments for each image...')
+      for (const image of images.value) {
+        await reloadImageComments(image.id)
+      }
+      console.log('[loadImages] All comments loaded')
     }
   } catch (error) {
     console.error('Failed to load images:', error)
@@ -655,17 +683,35 @@ const getImageAnnotations = (imageId) => {
 const getImageComments = (imageId) => {
   const imageAnnotations = getImageAnnotations(imageId)
   const list = []
+  
+  // Add annotation-linked comments
   imageAnnotations.forEach(a => {
     if (Array.isArray(a.comments)) {
       a.comments.forEach(c => list.push(c))
     }
   })
+  
+  // Add image-level comments (not linked to specific annotations)
+  if (imageLevelComments.value[imageId]) {
+    list.push(...imageLevelComments.value[imageId])
+  }
+  
+  console.log('[getImageComments] Image ID:', imageId, 'Total comments:', list.length, 'Image-level:', imageLevelComments.value[imageId]?.length || 0)
+  
   return list
 }
 
 // Reload comments for a specific image from the backend and merge into local annotations
 const reloadImageComments = async (imageId) => {
   try {
+    // First, get all annotations for this image (including annotation-linked comments)
+    const imageAnnotations = annotations.value.filter(a => a.ticket_image_id === imageId)
+    const annotationIds = new Set(imageAnnotations.map(a => a.id))
+    
+    console.log('[reloadImageComments] Image ID:', imageId)
+    console.log('[reloadImageComments] Visible annotation IDs:', Array.from(annotationIds))
+    
+    // Fetch all comments for this image (both annotation-linked and image-level)
     const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/image-comments`, {
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
@@ -675,21 +721,76 @@ const reloadImageComments = async (imageId) => {
     if (response.ok) {
       const data = await response.json()
       const comments = Array.isArray(data.data) ? data.data : []
-      // Group comments by annotation_id
-      const byAnnotation = comments.reduce((acc, c) => {
+      
+      console.log('[reloadImageComments] Fetched comments:', comments.length, comments)
+      
+      // Separate annotation-linked comments from image-level comments
+      // Image-level comments have annotation_id but it points to the root annotation (not visible)
+      const annotationComments = []
+      const imageLevelCommentsForImage = []
+      
+      comments.forEach(c => {
+        // If the comment's annotation_id matches a visible annotation, it's annotation-linked
+        if (c.annotation_id && annotationIds.has(c.annotation_id)) {
+          annotationComments.push(c)
+        } else {
+          // Otherwise, it's an image-level comment (attached to root annotation or no annotation)
+          imageLevelCommentsForImage.push(c)
+        }
+      })
+      
+      console.log('[reloadImageComments] Annotation-linked comments:', annotationComments.length)
+      console.log('[reloadImageComments] Image-level comments:', imageLevelCommentsForImage.length, imageLevelCommentsForImage)
+      
+      // Group annotation comments by annotation_id
+      const byAnnotation = annotationComments.reduce((acc, c) => {
         if (!acc[c.annotation_id]) acc[c.annotation_id] = []
         acc[c.annotation_id].push(c)
         return acc
       }, {})
+      
       // Merge into annotations for this image
-      annotations.value
-        .filter(a => a.ticket_image_id === imageId)
-        .forEach(a => {
-          a.comments = byAnnotation[a.id] || []
-        })
+      imageAnnotations.forEach(a => {
+        a.comments = byAnnotation[a.id] || []
+      })
+      
+      // Store image-level comments
+      imageLevelComments.value[imageId] = imageLevelCommentsForImage
+      console.log('[reloadImageComments] Stored image-level comments for image', imageId, ':', imageLevelComments.value[imageId])
     }
   } catch (e) {
     console.warn('Failed to reload image comments:', e)
+  }
+}
+
+const createAnnotationComment = async (annotation, content) => {
+  try {
+    const imageId = annotation.ticket_image_id
+    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}/comments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ content })
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      // Add comment to local annotation
+      if (!annotation.comments) annotation.comments = []
+      annotation.comments.push(data.data)
+      
+      // Reload comments to sync with server
+      await reloadImageComments(imageId)
+    } else {
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to create comment')
+    }
+  } catch (error) {
+    console.error('Failed to create annotation comment:', error)
+    throw error
   }
 }
 
@@ -909,6 +1010,70 @@ const addComment = async (annotationId) => {
     console.error('Failed to add comment:', err)
     alert('Failed to add comment')
   }
+}
+
+// Canvas comment handlers
+const onCanvasCommentAdded = async (imageId, commentData) => {
+  console.log('[onCanvasCommentAdded] Called with imageId:', imageId, 'commentData:', commentData)
+  
+  try {
+    if (commentData.annotation_id) {
+      // Comment linked to specific annotation
+      console.log('[onCanvasCommentAdded] Annotation-linked comment, annotation_id:', commentData.annotation_id)
+      const annotation = annotations.value.find(a => a.id === commentData.annotation_id)
+      if (annotation) {
+        console.log('[onCanvasCommentAdded] Found annotation, creating comment...')
+        await createAnnotationComment(annotation, commentData.content)
+        console.log('[onCanvasCommentAdded] Annotation comment created successfully')
+      } else {
+        console.warn('[onCanvasCommentAdded] Annotation not found for id:', commentData.annotation_id)
+      }
+    } else {
+      // Image-level comment (no specific annotation)
+      console.log('[onCanvasCommentAdded] Image-level comment (no annotation selected)')
+      const url = `/api/tickets/${props.ticketId}/images/${imageId}/annotations/image-comments`
+      console.log('[onCanvasCommentAdded] Posting to:', url)
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ content: commentData.content })
+      })
+      
+      console.log('[onCanvasCommentAdded] Response status:', response.status)
+      
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('[onCanvasCommentAdded] API error:', error)
+        throw new Error(error.message || 'Failed to create image comment')
+      }
+      
+      const result = await response.json()
+      console.log('[onCanvasCommentAdded] Image comment created successfully:', result)
+      
+      // Reload to sync with server
+      console.log('[onCanvasCommentAdded] Reloading images...')
+      await loadImages()
+      console.log('[onCanvasCommentAdded] Images reloaded')
+    }
+  } catch (err) {
+    console.error('[onCanvasCommentAdded] Failed to add canvas comment:', err)
+    alert('Failed to add comment: ' + err.message)
+  }
+}
+
+const onCanvasCommentUpdated = async (imageId, commentData) => {
+  // Reload comments to sync with server
+  await reloadImageComments(imageId)
+}
+
+const onCanvasCommentDeleted = async (imageId, commentData) => {
+  // Reload comments to sync with server
+  await reloadImageComments(imageId)
 }
 
 // Utility functions

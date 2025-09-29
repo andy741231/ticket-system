@@ -361,15 +361,15 @@
           Commenting on Annotation #{{ getAnnotationNumber(selectedAnnotation.id) }}
         </div>
         <div class="flex gap-2">
-          <textarea
+          <MentionAutocomplete
             v-model="newCommentContent"
-            placeholder="Add a comment..."
+            :ticket-id="ticketId"
+            placeholder="Add a comment... Use @username to mention"
             class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm resize-none"
             rows="2"
-            @keydown.stop
             @keydown.ctrl.enter="addComment"
             @keydown.meta.enter="addComment"
-          ></textarea>
+          />
           <button
             @click="addComment"
             :disabled="!newCommentContent.trim()"
@@ -629,6 +629,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import Avatar from '@/Components/Avatar.vue'
+import MentionAutocomplete from '@/Components/MentionAutocomplete.vue'
 
 const props = defineProps({
   imageUrl: {
@@ -666,6 +667,10 @@ const props = defineProps({
   isPublic: {
     type: Boolean,
     default: false
+  },
+  ticketId: {
+    type: [String, Number],
+    required: true
   }
 })
 
@@ -822,6 +827,12 @@ watch(() => props.annotations, () => {
     redrawCanvas()
   }
 }, { deep: true })
+
+// Watch for comments changes
+watch(() => props.comments, (newComments) => {
+  console.log('[AnnotationCanvas] Comments updated:', newComments?.length || 0, newComments)
+}, { deep: true, immediate: true })
+
 const showKeyboardHelp = ref(false)
 
 // Image loading
@@ -1252,7 +1263,13 @@ const distanceToLineSegment = (point, start, end) => {
 
 // Comment management methods
 const addComment = () => {
-  if (!newCommentContent.value.trim()) return
+  console.log('[AnnotationCanvas.addComment] Called, content:', newCommentContent.value)
+  console.log('[AnnotationCanvas.addComment] Selected annotation:', selectedAnnotation.value?.id || 'none')
+  
+  if (!newCommentContent.value.trim()) {
+    console.warn('[AnnotationCanvas.addComment] Empty content, aborting')
+    return
+  }
   
   const comment = {
     content: newCommentContent.value.trim(),
@@ -1260,13 +1277,18 @@ const addComment = () => {
     created_at: new Date().toISOString()
   }
   
+  console.log('[AnnotationCanvas.addComment] Comment object:', comment)
+  
   // For public users, collect name and email first
   if (props.isPublic) {
+    console.log('[AnnotationCanvas.addComment] Public user, showing modal')
     pendingComment.value = comment
     showPublicUserModal.value = true
   } else {
+    console.log('[AnnotationCanvas.addComment] Emitting comment-added event')
     emit('comment-added', comment)
     newCommentContent.value = ''
+    console.log('[AnnotationCanvas.addComment] Comment emitted, input cleared')
   }
 }
 

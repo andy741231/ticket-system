@@ -18,6 +18,7 @@ class AnnotationComment extends Model
         'parent_id',
         'created_by_public',
         'public_user_info',
+        'mentions',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class AnnotationComment extends Model
         'updated_at' => 'datetime',
         'created_by_public' => 'boolean',
         'public_user_info' => 'array',
+        'mentions' => 'array',
     ];
 
     /**
