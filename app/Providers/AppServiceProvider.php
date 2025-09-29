@@ -36,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
         // In production, always generate HTTPS URLs to avoid mixed content
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
+            URL::forceRootUrl(config('app.url'));
+            
+            // Force HTTPS for all routes
+            $this->app['request']->server->set('HTTPS', 'on');
         }
 
         Vite::prefetch(concurrency: 3);

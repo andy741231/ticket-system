@@ -46,6 +46,7 @@ class TicketImageController extends Controller
                     'status' => $image->status,
                     'error_message' => $image->error_message,
                     'metadata' => $image->metadata,
+                    'file_size' => $image->file_size,
                     'created_at' => $image->created_at,
                     'annotations' => $image->annotations,
                 ];
@@ -217,6 +218,7 @@ class TicketImageController extends Controller
                 'status' => $ticketImage->status,
                 'error_message' => $ticketImage->error_message,
                 'metadata' => $ticketImage->metadata,
+                'file_size' => $ticketImage->file_size,
                 'created_at' => $ticketImage->created_at,
                 'annotations' => $ticketImage->annotations,
             ]

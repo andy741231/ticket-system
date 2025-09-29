@@ -36,6 +36,7 @@ class TicketImage extends Model
     // Always include computed attributes when serializing
     protected $appends = [
         'image_url',
+        'file_size',
     ];
 
     protected static function booted(): void
@@ -70,6 +71,11 @@ class TicketImage extends Model
     public function getImageUrlAttribute(): string
     {
         return Storage::disk('public')->url($this->image_path);
+    }
+
+    public function getFileSizeAttribute(): int
+    {
+        return (int) ($this->size ?? 0);
     }
 
     /**

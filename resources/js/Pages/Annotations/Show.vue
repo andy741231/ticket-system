@@ -1,5 +1,5 @@
 <script setup>
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue';
 import AnnotationCanvas from '@/Components/Annotation/AnnotationCanvas.vue';
 
@@ -389,6 +389,33 @@ const copyShareLink = async () => {
     }
 };
 
+// Safe back navigation: use history when available, otherwise fall back to a known route
+const goBack = () => {
+    try {
+        const hasHistory = window.history.length > 1;
+        const sameOriginReferrer = document.referrer && new URL(document.referrer).origin === window.location.origin;
+
+        if (hasHistory && sameOriginReferrer) {
+            window.history.back();
+            return;
+        }
+
+        // Fallback destinations
+        if (!props.isPublic) {
+            router.visit(`/tickets/${props.ticket.id}`);
+        } else {
+            router.visit('/');
+        }
+    } catch (e) {
+        // Ultimate fallback to avoid unhandled errors
+        if (!props.isPublic) {
+            router.visit(`/tickets/${props.ticket.id}`);
+        } else {
+            router.visit('/');
+        }
+    }
+};
+
 // Generate share link on mount
 onMounted(async () => {
     await loadAnnotations();
@@ -408,12 +435,12 @@ onMounted(async () => {
         
         <!-- Header -->
         <div class="bg-white dark:bg-gray-800 shadow">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between h-16">
                     <!-- Left: Back and Title -->
                     <div class="flex items-center space-x-4">
                         <button
-                            @click="window.history.back()"
+                            @click="goBack"
                             class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
                         >
                             <i class="fas fa-arrow-left mr-2"></i>

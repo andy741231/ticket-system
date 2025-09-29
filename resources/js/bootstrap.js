@@ -17,6 +17,12 @@ window.axios.interceptors.request.use(config => {
     try {
         const reqUrl = new URL(config.url, window.location.origin);
         isSameOrigin = reqUrl.origin === window.location.origin;
+        
+        // Force HTTPS for same-origin requests if current page is HTTPS
+        if (isSameOrigin && window.location.protocol === 'https:' && reqUrl.protocol === 'http:') {
+            reqUrl.protocol = 'https:';
+            config.url = reqUrl.toString();
+        }
     } catch (e) {
         isSameOrigin = true;
     }
