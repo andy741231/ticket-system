@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\TicketFileController;
 use App\Http\Controllers\Api\TempFileController;
 use App\Http\Controllers\Api\TicketImageController;
 use App\Http\Controllers\Api\AnnotationController;
+use App\Http\Controllers\Api\NewsletterCampaignController;
 use App\Http\Controllers\Newsletter\PublicController as NewsletterPublicController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\ImageUploadController;
@@ -29,6 +30,9 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::delete('/{file}', [TempFileController::class, 'destroy'])->middleware('perm:tickets.file.upload');
     });
 
+    // Newsletter campaign utilities for authenticated users
+    Route::get('/newsletter/campaigns/drafts', [NewsletterCampaignController::class, 'drafts']);
+
     // File upload endpoints
     Route::prefix('tickets/{ticket}')->group(function () {
         // Upload files to a ticket
@@ -46,6 +50,7 @@ Route::middleware(['web', 'auth'])->group(function () {
             Route::get('/', [TicketImageController::class, 'index']);
             Route::post('/from-url', [TicketImageController::class, 'storeFromUrl']);
             Route::post('/from-file', [TicketImageController::class, 'storeFromFile']);
+            Route::post('/from-newsletter', [TicketImageController::class, 'storeFromNewsletter']);
             Route::get('/{ticketImage}', [TicketImageController::class, 'show']);
             Route::delete('/{ticketImage}', [TicketImageController::class, 'destroy']);
             Route::get('/{ticketImage}/status', [TicketImageController::class, 'status']);

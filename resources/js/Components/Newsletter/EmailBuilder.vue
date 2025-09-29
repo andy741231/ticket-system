@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import html2canvas from 'html2canvas';
 import { Editor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -37,7 +36,6 @@ import {
   faSquare,
   faRulerHorizontal,
   faInbox,
-  faDownload,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -61,7 +59,6 @@ library.add(
   faSquare,
   faRulerHorizontal,
   faInbox,
-  faDownload,
 );
 
 const props = defineProps({
@@ -101,52 +98,6 @@ function safeParseJson(val) {
     return null;
   }
 }
-
-function getExportFileName() {
-  const rawName = (props.campaignName || 'newsletter').toString().toLowerCase();
-  const sanitized = rawName
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60) || 'newsletter';
-  const dateStamp = new Date().toISOString().slice(0, 10);
-  return `${sanitized}-${dateStamp}.png`;
-}
-
-async function exportAsPng() {
-  if (isExporting.value) return;
-  try {
-    isExporting.value = true;
-    await nextTick();
-    const canvasElement = emailCanvasRef.value;
-    if (!canvasElement) {
-      console.warn('Email canvas element not found for PNG export.');
-      return;
-    }
-
-    const canvas = await html2canvas(canvasElement, {
-      backgroundColor: '#ffffff',
-      scale: window.devicePixelRatio || 5,
-      useCORS: true,
-      logging: false,
-      removeContainer: true,
-    });
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const downloadLink = document.createElement('a');
-    downloadLink.href = dataUrl;
-    downloadLink.download = getExportFileName();
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-  } catch (error) {
-    console.error('Failed to export newsletter as PNG', error);
-  } finally {
-    isExporting.value = false;
-  }
-}
-
 
 // Canvas Columns DnD handlers
 // removed misplaced duplicate canvas handlers
@@ -283,7 +234,6 @@ const headerLogos = ref([]); // New logos array
 const showLogoLibrary = ref(false); // New logo library modal visibility
 const showFooterEditor = ref(false);
 const emailCanvasRef = ref(null);
-const isExporting = ref(false);
 // Currently editing block (computed helper)
 const currentEditingBlock = computed(() => emailBlocks.value.find(b => b.id === editingBlock.value) || null);
 const footerContent = ref('');
@@ -2407,15 +2357,6 @@ function insertTokenIntoEditor(token) {
               <span class="inline-flex items-center gap-2">
                 <font-awesome-icon :icon="['fas','code']" class="w-4 h-4" />
                 <span>Source</span>
-              </span>
-            </button>
-            <button type="button"
-              @click="exportAsPng"
-              :disabled="isExporting"
-              class="px-3 py-1.5 text-sm font-medium rounded-md bg-emerald-600 text-white transition-colors disabled:opacity-70 disabled:cursor-not-allowed hover:bg-emerald-700">
-              <span class="inline-flex items-center gap-2">
-                <font-awesome-icon :icon="['fas','download']" class="w-4 h-4" />
-                <span>{{ isExporting ? 'Exporting…' : 'Export PNG' }}</span>
               </span>
             </button>
             <button type="button"

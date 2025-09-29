@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use App\Models\TicketImage;
+use App\Models\Newsletter\Campaign;
 use App\Services\ImageProcessingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -89,6 +90,58 @@ class TicketImageController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to process URL: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create image from a newsletter campaign draft
+     */
+    public function storeFromNewsletter(Request $request, Ticket $ticket): JsonResponse
+    {
+        $this->authorize('update', $ticket);
+
+        $validator = Validator::make($request->all(), [
+            'newsletter_campaign_id' => 'required|integer|exists:newsletter_campaigns,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $campaign = Campaign::query()
+                ->select(['id', 'name', 'html_content', 'status', 'subject'])
+                ->findOrFail($validator->validated()['newsletter_campaign_id']);
+
+            if ($campaign->status !== 'draft') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only draft campaigns can be captured.',
+                ], 422);
+            }
+
+            $ticketImage = $this->imageProcessingService->processNewsletterCampaign($ticket, $campaign);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $ticketImage->id,
+                    'source_type' => $ticketImage->source_type,
+                    'source_value' => $ticketImage->source_value,
+                    'original_name' => $ticketImage->original_name,
+                    'status' => $ticketImage->status,
+                    'created_at' => $ticketImage->created_at,
+                ],
+                'message' => 'Newsletter capture started. The preview will appear once ready.',
+            ], 201);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process newsletter campaign: ' . $e->getMessage(),
             ], 500);
         }
     }

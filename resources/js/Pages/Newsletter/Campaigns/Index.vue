@@ -558,19 +558,24 @@ function deleteSelected() {
                 Showing {{ campaigns.from }} to {{ campaigns.to }} of {{ campaigns.total }} results
               </div>
               <div class="flex gap-1">
-                <Link
-                  v-for="link in campaigns.links"
-                  :key="link.label"
-                  :href="link.url"
-                  v-html="link.label"
-                  :class="`px-3 py-2 text-sm border rounded-md ${
-                    link.active
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : link.url
-                      ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      : 'bg-gray-100 dark:bg-gray-900 text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed'
-                  }`"
-                />
+                <template v-for="(link, index) in campaigns.links" :key="index">
+                  <Link
+                    v-if="link.url"
+                    :href="link.url"
+                    v-html="link.label"
+                    :class="`px-3 py-2 text-sm border rounded-md ${
+                      link.active
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`"
+                  />
+                  <span
+                    v-else
+                    v-html="link.label"
+                    class="px-3 py-2 text-sm border rounded-md bg-gray-100 dark:bg-gray-900 text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed"
+                    aria-disabled="true"
+                  />
+                </template>
               </div>
             </div>
           </div>

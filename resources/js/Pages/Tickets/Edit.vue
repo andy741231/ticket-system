@@ -56,6 +56,66 @@ const formatDateForInput = (dateString) => {
     return `${year}-${month}-${day}`;
 };
 
+const loadNewsletterDrafts = async (page = 1) => {
+    newsletterLoading.value = true;
+    newsletterError.value = null;
+    try {
+        const response = await axios.get('/api/newsletter/campaigns/drafts', {
+            params: {
+                page,
+                per_page: NEWSLETTER_PER_PAGE,
+            },
+        });
+        newsletterDrafts.value = response?.data?.data || [];
+        newsletterMeta.value = response?.data?.meta || {};
+        newsletterLinks.value = response?.data?.links || {};
+        newsletterPage.value = page;
+        newsletterHasLoaded.value = true;
+    } catch (error) {
+        console.error('Failed to load newsletter drafts', error);
+        newsletterError.value = error?.response?.data?.message || 'Failed to load newsletter drafts.';
+    } finally {
+        newsletterLoading.value = false;
+    }
+};
+
+const handleNewsletterPageChange = (page) => {
+    if (!page || page === newsletterPage.value) return;
+    loadNewsletterDrafts(page);
+};
+
+const captureNewsletterDraft = async () => {
+    if (!selectedNewsletterId.value) return;
+    isCapturing.value = true;
+    uploadError.value = null;
+    captureProgress.value = 0;
+    try {
+        const response = await axios.post(`/api/tickets/${props.ticket.id}/images/from-newsletter`, {
+            newsletter_campaign_id: selectedNewsletterId.value,
+        });
+        const ticketImageId = response?.data?.data?.id || response?.data?.id;
+        if (ticketImageId) {
+            const result = await pollUrlCapture(ticketImageId);
+            if (result?.failed) {
+                uploadError.value = result.error || 'Failed to capture newsletter preview.';
+                return;
+            }
+            if (result?.timeout) {
+                uploadError.value = 'Capture is taking longer than expected. Please check the proof list shortly or try again.';
+                return;
+            }
+        }
+        await loadProofImages();
+        closeProofModal();
+    } catch (error) {
+        console.error('Failed to capture newsletter draft', error);
+        uploadError.value = error?.response?.data?.message || 'Failed to capture newsletter draft.';
+    } finally {
+        isCapturing.value = false;
+        captureProgress.value = 0;
+    }
+};
+
 // Proof images data
 const proofImages = ref([]);
 const showProofModal = ref(false);
@@ -67,6 +127,15 @@ const proofUploadType = ref('file'); // 'file' | 'url'
 const proofUrl = ref('');
 const isCapturing = ref(false);
 const captureProgress = ref(0);
+const newsletterDrafts = ref([]);
+const newsletterMeta = ref({});
+const newsletterLinks = ref({});
+const newsletterLoading = ref(false);
+const newsletterError = ref(null);
+const newsletterPage = ref(1);
+const selectedNewsletterId = ref(null);
+const newsletterHasLoaded = ref(false);
+const NEWSLETTER_PER_PAGE = 6;
 
 // Load proof images for this ticket
 const loadProofImages = async () => {
@@ -126,6 +195,9 @@ const closeProofModal = () => {
     proofUploadType.value = 'file';
     uploadProgress.value = 0;
     uploadError.value = null;
+    newsletterError.value = null;
+    selectedNewsletterId.value = null;
+    captureProgress.value = 0;
 };
 
 // Poll status for URL capture and update determinate progress
@@ -166,13 +238,16 @@ const pollUrlCapture = async (imageId) => {
     });
 };
 
-// Handle proof upload (file or URL)
+// Handle proof upload (file, URL, or newsletter)
 const submitProof = async () => {
     try {
         uploadError.value = null;
 
         if (proofUploadType.value === 'url') {
-            if (!proofUrl.value || !proofUrl.value.trim()) return;
+            if (!proofUrl.value || !proofUrl.value.trim()) {
+                uploadError.value = 'Please enter a valid URL to capture.';
+                return;
+            }
             isCapturing.value = true;
             captureProgress.value = 0;
             try {
@@ -182,16 +257,31 @@ const submitProof = async () => {
                     const result = await pollUrlCapture(imageId);
                     if (result?.failed) {
                         uploadError.value = result.error || 'Failed to capture screenshot.';
+                        return;
                     }
                 }
-                // After polling, refresh list regardless of success to reflect any new items
                 await loadProofImages();
                 closeProofModal();
             } finally {
                 isCapturing.value = false;
             }
-        } else {
-            if (!selectedFile.value) return;
+            return;
+        }
+
+        if (proofUploadType.value === 'newsletter') {
+            if (!selectedNewsletterId.value) {
+                uploadError.value = 'Please select a draft newsletter to capture.';
+                return;
+            }
+            await captureNewsletterDraft();
+            return;
+        }
+
+        if (proofUploadType.value === 'file') {
+            if (!selectedFile.value) {
+                uploadError.value = 'Please select a file to upload.';
+                return;
+            }
             const formData = new FormData();
             formData.append('file', selectedFile.value);
             uploadProgress.value = 0;
@@ -206,15 +296,18 @@ const submitProof = async () => {
                     }
                 },
             });
+
+            await loadProofImages();
+            closeProofModal();
+            return;
         }
 
-        // Refresh the proof images list
-        await loadProofImages();
-        closeProofModal();
+        uploadError.value = 'Unsupported proof upload type.';
     } catch (error) {
         console.error('Error uploading proof:', error);
         uploadError.value = error.response?.data?.message || 'Failed to upload proof. Please try again.';
         uploadProgress.value = 0;
+        isCapturing.value = false;
     }
 };
 
@@ -288,6 +381,25 @@ console.log('Initial existingFiles ref:', existingFiles.value);
 watch(existingFiles, (newVal) => {
     console.log('existingFiles changed:', newVal);
 }, { deep: true });
+
+watch(proofUploadType, async (newType) => {
+    if (newType === 'newsletter' && showProofModal.value && !newsletterHasLoaded.value) {
+        await loadNewsletterDrafts(newsletterPage.value || 1);
+    }
+    if (newType !== 'newsletter') {
+        selectedNewsletterId.value = null;
+    }
+});
+
+watch(showProofModal, async (isOpen) => {
+    if (isOpen && proofUploadType.value === 'newsletter' && !newsletterHasLoaded.value) {
+        await loadNewsletterDrafts(newsletterPage.value || 1);
+    }
+    if (!isOpen) {
+        selectedNewsletterId.value = null;
+        newsletterError.value = null;
+    }
+});
 
 // Update form when ticket prop changes
 watch(() => props.ticket, (newTicket) => {
@@ -543,6 +655,10 @@ const cancel = () => {
                                                 <input type="radio" v-model="proofUploadType" value="url" class="mr-2 text-blue-500 focus:ring-blue-500" />
                                                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Capture URL</span>
                                             </label>
+                                            <label class="flex items-center">
+                                                <input type="radio" v-model="proofUploadType" value="newsletter" class="mr-2 text-blue-500 focus:ring-blue-500" />
+                                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Capture Newsletter</span>
+                                            </label>
                                         </div>
                                     </div>
 
@@ -586,6 +702,90 @@ const cancel = () => {
                                         </div>
                                     </div>
 
+                                    <!-- Newsletter Drafts -->
+                                    <div v-if="proofUploadType === 'newsletter'" class="mb-6">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Select Draft Newsletter</label>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">Pick a draft campaign to capture its latest preview.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="text-sm text-blue-600 hover:text-blue-500 flex items-center"
+                                                @click="loadNewsletterDrafts(newsletterPage || 1)"
+                                                :disabled="newsletterLoading"
+                                            >
+                                                <font-awesome-icon icon="sync" :class="['mr-1', newsletterLoading ? 'animate-spin' : '']" />
+                                                Refresh
+                                            </button>
+                                        </div>
+
+                                        <div v-if="newsletterError" class="mb-4 rounded-md bg-red-50 dark:bg-red-900/40 p-3 text-sm text-red-700 dark:text-red-200">
+                                            {{ newsletterError }}
+                                        </div>
+
+                                        <div v-if="newsletterLoading" class="flex items-center justify-center py-8 text-gray-500 dark:text-gray-300">
+                                            <span class="inline-flex items-center">
+                                                <span class="mr-3 inline-block h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></span>
+                                                Loading drafts...
+                                            </span>
+                                        </div>
+
+                                        <div v-else>
+                                            <div v-if="newsletterDrafts.length === 0" class="py-6 text-center text-sm text-gray-500 dark:text-gray-300">
+                                                No draft campaigns available. Create a draft in Newsletter Campaigns to use this feature.
+                                            </div>
+
+                                            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <button
+                                                    v-for="draft in newsletterDrafts"
+                                                    :key="draft.id"
+                                                    type="button"
+                                                    class="w-full text-left border rounded-lg p-4 transition-colors"
+                                                    :class="selectedNewsletterId === draft.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-500'"
+                                                    @click="selectedNewsletterId = draft.id"
+                                                >
+                                                    <div class="flex items-start justify-between">
+                                                        <div>
+                                                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ draft.name }}</h3>
+                                                            <p class="text-xs text-gray-500 dark:text-gray-400" v-if="draft.subject">Subject: {{ draft.subject }}</p>
+                                                        </div>
+                                                        <font-awesome-icon
+                                                            v-if="selectedNewsletterId === draft.id"
+                                                            icon="check-circle"
+                                                            class="text-blue-500"
+                                                        />
+                                                    </div>
+                                                    <p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                                                        Updated {{ draft.updated_at ? new Date(draft.updated_at).toLocaleString() : '-' }}
+                                                    </p>
+                                                </button>
+                                            </div>
+
+                                            <div v-if="newsletterMeta && newsletterMeta.last_page > 1" class="mt-4 flex items-center justify-between text-sm">
+                                                <button
+                                                    type="button"
+                                                    class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    :disabled="!newsletterLinks.prev"
+                                                    @click="handleNewsletterPageChange(newsletterMeta.current_page - 1)"
+                                                >
+                                                    Previous
+                                                </button>
+                                                <span class="text-gray-500 dark:text-gray-300">
+                                                    Page {{ newsletterMeta.current_page }} of {{ newsletterMeta.last_page }}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    :disabled="!newsletterLinks.next"
+                                                    @click="handleNewsletterPageChange(newsletterMeta.current_page + 1)"
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <!-- Action Buttons -->
                                     <div class="flex justify-end space-x-3">
                                         <button
@@ -600,7 +800,8 @@ const cancel = () => {
                                             @click="submitProof"
                                             :disabled="
                                                 (proofUploadType === 'file' && (!selectedFile || uploadProgress > 0)) ||
-                                                (proofUploadType === 'url' && (!proofUrl.trim() || isCapturing))
+                                                (proofUploadType === 'url' && (!proofUrl.trim() || isCapturing)) ||
+                                                (proofUploadType === 'newsletter' && (!selectedNewsletterId || isCapturing))
                                             "
                                             class="px-4 py-2 text-sm font-medium text-white bg-blue-500 border border-transparent rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
@@ -608,6 +809,8 @@ const cancel = () => {
                                             {{
                                                 proofUploadType === 'url'
                                                     ? (isCapturing ? 'Capturing...' : 'Capture & Annotate')
+                                                    : proofUploadType === 'newsletter'
+                                                        ? (isCapturing ? 'Capturing...' : 'Capture Newsletter')
                                                     : (uploadProgress > 0 ? `Uploading... ${uploadProgress}%` : 'Upload & Annotate')
                                             }}
                                         </button>

@@ -105,12 +105,68 @@ const form = useForm({
 });
 
 const isSending = ref(false);
-const sendStatus = ref({ type: '', message: '' });
 const sendError = ref(null);
 const recipientCount = ref(0);
 const isLoadingRecipients = ref(false);
 const clientErrors = ref({});
 const isValidating = ref(false);
+
+function handleTemplateSelection(template) {
+  if (!template) return;
+
+  if (Object.prototype.hasOwnProperty.call(template, 'id')) {
+    form.template_id = template.id ?? '';
+  }
+
+  if (template.content) {
+    try {
+      const parsed = typeof template.content === 'string'
+        ? JSON.parse(template.content)
+        : template.content;
+      if (parsed && parsed.blocks) {
+        form.content = JSON.stringify(parsed);
+        form.clearErrors('content');
+        delete clientErrors.value.content;
+      }
+    } catch (e) {
+      console.warn('Failed to apply template content in edit view:', e);
+    }
+  }
+
+  if (template.html_content) {
+    form.html_content = template.html_content;
+    form.clearErrors('html_content');
+  }
+
+  const trimmedSubject = typeof template.subject === 'string' ? template.subject.trim() : '';
+  if (trimmedSubject) {
+    form.subject = template.subject;
+    form.clearErrors('subject');
+    delete clientErrors.value.subject;
+  }
+
+  const trimmedPreview = typeof template.preview_text === 'string' ? template.preview_text.trim() : '';
+  if (trimmedPreview) {
+    form.preview_text = template.preview_text;
+    form.clearErrors('preview_text');
+    delete clientErrors.value.preview_text;
+  }
+
+  const trimmedFromName = typeof template.from_name === 'string' ? template.from_name.trim() : '';
+  if (trimmedFromName) {
+    form.from_name = template.from_name;
+    form.clearErrors('from_name');
+    delete clientErrors.value.from_name;
+  }
+
+  const trimmedFromEmail = typeof template.from_email === 'string' ? template.from_email.trim() : '';
+  if (trimmedFromEmail) {
+    form.from_email = template.from_email;
+    form.clearErrors('from_email');
+    delete clientErrors.value.from_email;
+  }
+}
+
 const isDraftSaving = ref(false);
 
 // Initialize recurring config if needed

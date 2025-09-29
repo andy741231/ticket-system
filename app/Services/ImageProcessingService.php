@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Ticket;
 use App\Models\TicketImage;
+use App\Models\Newsletter\Campaign;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -223,7 +224,9 @@ class ImageProcessingService
 
             if ($parsed && !empty($parsed['success'])) {
                 $fileSize = filesize($fullPath);
-                
+
+                $existingMetadata = $ticketImage->metadata ?? [];
+
                 $ticketImage->update([
                     'image_path' => $imagePath,
                     'mime_type' => 'image/png',
@@ -231,13 +234,13 @@ class ImageProcessingService
                     'width' => $parsed['width'] ?? null,
                     'height' => $parsed['height'] ?? null,
                     'status' => 'completed',
-                    'metadata' => [
+                    'metadata' => array_merge($existingMetadata, [
                         'viewport_width' => 1920,
                         'viewport_height' => 1080,
                         'full_page' => true,
                         'captured_at' => now()->toISOString(),
                         'failed_requests' => $parsed['failedRequests'] ?? ($parsed['failedRequestsCount'] ?? 0),
-                    ],
+                    ]),
                 ]);
 
                 Log::info("Screenshot captured successfully for ticket image {$ticketImage->id}");
@@ -265,8 +268,111 @@ class ImageProcessingService
             $ticketImage->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage(),
+                'metadata' => array_merge($ticketImage->metadata ?? [], [
+                    'failed_at' => now()->toISOString(),
+                ]),
             ]);
         }
+    }
+
+    public function processNewsletterCampaign(Ticket $ticket, Campaign $campaign): TicketImage
+    {
+        $ticketImage = TicketImage::create([
+            'ticket_id' => $ticket->id,
+            'source_type' => 'newsletter',
+            'source_value' => (string) $campaign->id,
+            'original_name' => $campaign->name,
+            'size' => 0,
+            'image_path' => '',
+            'status' => 'processing',
+            'metadata' => [
+                'newsletter_campaign_id' => $campaign->id,
+                'newsletter_campaign_name' => $campaign->name,
+                'newsletter_subject' => $campaign->subject,
+            ],
+        ]);
+
+        try {
+            $html = $campaign->html_content;
+            if (!$html || !is_string($html)) {
+                $html = '<p>No preview content available for this campaign.</p>';
+            }
+
+            $html = $this->normalizeNewsletterHtml($html, $campaign);
+            $dataUrl = $this->buildDataUrlFromHtml($html);
+
+            $this->captureScreenshot($ticketImage, $dataUrl);
+        } catch (\Throwable $e) {
+            $ticketImage->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+                'metadata' => array_merge($ticketImage->metadata ?? [], [
+                    'failed_at' => now()->toISOString(),
+                ]),
+            ]);
+        }
+
+        return $ticketImage;
+    }
+
+    protected function normalizeNewsletterHtml(string $html, Campaign $campaign): string
+    {
+        $trimmed = trim($html);
+        if ($trimmed === '') {
+            $trimmed = '<p>Empty campaign content</p>';
+        }
+
+        $hasHtml = stripos($trimmed, '<html') !== false && stripos($trimmed, '<body') !== false;
+
+        if ($hasHtml) {
+            return $trimmed;
+        }
+
+        $subject = htmlspecialchars($campaign->subject ?? $campaign->name ?? 'Newsletter', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $fontFamily = "'Source Sans 3', Roboto, Helvetica, Arial, sans-serif";
+
+        return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{$subject}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: {$fontFamily};
+            line-height: 1.6;
+            background-color: #f4f4f4;
+        }
+        .newsletter-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="newsletter-container">
+        {$trimmed}
+    </div>
+</body>
+</html>
+HTML;
+    }
+
+    protected function buildDataUrlFromHtml(string $html): string
+    {
+        $encoded = base64_encode($html);
+        return 'data:text/html;charset=utf-8;base64,' . $encoded;
     }
 
     /**
