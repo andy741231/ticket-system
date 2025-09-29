@@ -81,7 +81,7 @@ class ImageProcessingService
     /**
      * Capture screenshot using Puppeteer
      */
-    protected function captureScreenshot(TicketImage $ticketImage, string $url): void
+    protected function captureScreenshot(TicketImage $ticketImage, string $url, ?string $tempFilePath = null): void
     {
         try {
             $filename = 'screenshot_' . $ticketImage->id . '_' . time() . '.png';
@@ -272,6 +272,11 @@ class ImageProcessingService
                     'failed_at' => now()->toISOString(),
                 ]),
             ]);
+        } finally {
+            // Clean up temporary HTML file if it was created
+            if ($tempFilePath && file_exists($tempFilePath)) {
+                @unlink($tempFilePath);
+            }
         }
     }
 
@@ -299,9 +304,12 @@ class ImageProcessingService
             }
 
             $html = $this->normalizeNewsletterHtml($html, $campaign);
-            $dataUrl = $this->buildDataUrlFromHtml($html);
+            
+            // Write HTML to temporary file instead of using data URL to avoid command line length limits
+            $tempHtmlPath = $this->writeHtmlToTempFile($html, $ticketImage->id);
+            $fileUrl = 'file://' . str_replace('\\', '/', $tempHtmlPath);
 
-            $this->captureScreenshot($ticketImage, $dataUrl);
+            $this->captureScreenshot($ticketImage, $fileUrl, $tempHtmlPath);
         } catch (\Throwable $e) {
             $ticketImage->update([
                 'status' => 'failed',
@@ -373,6 +381,22 @@ HTML;
     {
         $encoded = base64_encode($html);
         return 'data:text/html;charset=utf-8;base64,' . $encoded;
+    }
+
+    /**
+     * Write HTML content to a temporary file for screenshot capture
+     */
+    protected function writeHtmlToTempFile(string $html, int $ticketImageId): string
+    {
+        $tempDir = base_path('public/storage/temp/' . floor($ticketImageId / 100));
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+        
+        $tempFilePath = $tempDir . '/newsletter_' . $ticketImageId . '_' . time() . '.html';
+        file_put_contents($tempFilePath, $html);
+        
+        return $tempFilePath;
     }
 
     /**
