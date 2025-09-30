@@ -37,6 +37,8 @@ const props = defineProps({
   campaign: Object,
   templates: Array,
   groups: Array,
+  defaultFromName: String,
+  defaultFromEmail: String,
 });
 
 // Initialize form with campaign data - ensure content is properly formatted
@@ -68,9 +70,9 @@ const initializeContent = () => {
 const form = useForm({
   name: props.campaign?.name || '',
   subject: props.campaign?.subject || '',
-  from_name: props.campaign?.from_name || 'UHPH',
-  from_email: props.campaign?.from_email || 'noreply@uhphub.com',
-  reply_to: props.campaign?.reply_to || 'noreply@uhphub.com',
+  from_name: props.campaign?.from_name || props.defaultFromName || 'UHPH News',
+  from_email: props.campaign?.from_email || props.defaultFromEmail || 'noreply@central.uh.edu',
+  reply_to: props.campaign?.reply_to || props.defaultFromEmail || 'noreply@central.uh.edu',
   preview_text: props.campaign?.preview_text || '',
   content: initializeContent(),
   html_content: props.campaign?.html_content || '',
@@ -152,11 +154,15 @@ function handleTemplateSelection(template) {
     delete clientErrors.value.preview_text;
   }
 
+  // Apply template overrides for from_name and from_email, or fall back to env defaults
   const trimmedFromName = typeof template.from_name === 'string' ? template.from_name.trim() : '';
   if (trimmedFromName) {
     form.from_name = template.from_name;
     form.clearErrors('from_name');
     delete clientErrors.value.from_name;
+  } else {
+    // Fall back to env defaults if template has no override
+    form.from_name = props.defaultFromName || 'UHPH News';
   }
 
   const trimmedFromEmail = typeof template.from_email === 'string' ? template.from_email.trim() : '';
@@ -164,6 +170,9 @@ function handleTemplateSelection(template) {
     form.from_email = template.from_email;
     form.clearErrors('from_email');
     delete clientErrors.value.from_email;
+  } else {
+    // Fall back to env defaults if template has no override
+    form.from_email = props.defaultFromEmail || 'noreply@central.uh.edu';
   }
 }
 

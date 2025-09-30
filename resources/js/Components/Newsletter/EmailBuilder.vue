@@ -1668,7 +1668,7 @@ function getBlockHtml(type, data) {
     return styles.length > 0 ? styles.join('; ') + ';' : '';
   };
   
-  // Helper to add margin reset to first/last elements in content for email compatibility
+  // Helper to add margin reset to all elements in content for email compatibility
   const addMarginResets = (htmlContent) => {
     if (!htmlContent) return htmlContent;
     
@@ -1681,31 +1681,35 @@ function getBlockHtml(type, data) {
     
     if (children.length === 0) return htmlContent;
     
-    // Reset first child's top margin
-    const firstChild = children[0];
-    if (firstChild && firstChild.style !== undefined) {
-      const currentStyle = firstChild.getAttribute('style') || '';
-      const hasMarginTop = /margin-top\s*:/i.test(currentStyle);
-      
-      if (hasMarginTop) {
-        firstChild.setAttribute('style', currentStyle.replace(/margin-top\s*:[^;]+;?/gi, 'margin-top: 0;'));
-      } else {
-        firstChild.setAttribute('style', currentStyle + (currentStyle && !currentStyle.endsWith(';') ? '; ' : '') + 'margin-top: 0;');
+    // Reset ALL children's margins to 0 for consistent email rendering
+    children.forEach((child, index) => {
+      if (child && child.style !== undefined) {
+        const currentStyle = child.getAttribute('style') || '';
+        let newStyle = currentStyle;
+        
+        // Remove existing margin declarations
+        newStyle = newStyle.replace(/margin(-top|-bottom|-left|-right)?\s*:[^;]+;?/gi, '');
+        
+        // Add margin: 0 for first and last, or appropriate spacing for middle elements
+        if (index === 0) {
+          // First child: no top margin
+          newStyle += (newStyle && !newStyle.endsWith(';') ? '; ' : '') + 'margin: 0 0 0.75em 0;';
+        } else if (index === children.length - 1) {
+          // Last child: no bottom margin
+          newStyle += (newStyle && !newStyle.endsWith(';') ? '; ' : '') + 'margin: 0.75em 0 0 0;';
+        } else {
+          // Middle children: spacing on top and bottom
+          newStyle += (newStyle && !newStyle.endsWith(';') ? '; ' : '') + 'margin: 0.75em 0;';
+        }
+        
+        // If only one child, no margins at all
+        if (children.length === 1) {
+          newStyle = newStyle.replace(/margin[^;]+;?/gi, 'margin: 0;');
+        }
+        
+        child.setAttribute('style', newStyle);
       }
-    }
-    
-    // Reset last child's bottom margin
-    const lastChild = children[children.length - 1];
-    if (lastChild && lastChild.style !== undefined) {
-      const currentStyle = lastChild.getAttribute('style') || '';
-      const hasMarginBottom = /margin-bottom\s*:/i.test(currentStyle);
-      
-      if (hasMarginBottom) {
-        lastChild.setAttribute('style', currentStyle.replace(/margin-bottom\s*:[^;]+;?/gi, 'margin-bottom: 0;'));
-      } else {
-        lastChild.setAttribute('style', currentStyle + (currentStyle && !currentStyle.endsWith(';') ? '; ' : '') + 'margin-bottom: 0;');
-      }
-    }
+    });
     
     return tempDiv.innerHTML;
   };
@@ -1731,8 +1735,25 @@ function getBlockHtml(type, data) {
     case 'heading':
       data = data || {};
       const headingStyles = getBlockStyles(data);
-      const headingContent = data.content || 'Your Heading Here';
-      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${headingContent}</h${data.level || 2}></div>`;
+      let headingContent = data.content || 'Your Heading Here';
+      // Remove wrapping <p> tags from heading content if present (common TipTap output)
+      headingContent = headingContent.replace(/^<p[^>]*>(.*)<\/p>$/is, '$1');
+      // Remove underlines from links in headings
+      headingContent = headingContent.replace(/<a\s+([^>]*?)>/gi, (match, attrs) => {
+        if (!/style\s*=/i.test(attrs)) {
+          return `<a ${attrs} style="text-decoration: none;">`;
+        } else {
+          return match.replace(/style\s*=\s*["']([^"']*)["']/i, (m, styles) => {
+            const hasTextDecoration = /text-decoration\s*:/i.test(styles);
+            if (hasTextDecoration) {
+              return `style="${styles.replace(/text-decoration\s*:[^;]+;?/gi, 'text-decoration: none;')}"`;
+            } else {
+              return `style="${styles}${styles.endsWith(';') ? '' : ';'} text-decoration: none;"`;
+            }
+          });
+        }
+      });
+      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'}; line-height: 1.3;">${headingContent}</h${data.level || 2}></div>`;
     case 'image':
       data = data || {};
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
@@ -3735,32 +3756,76 @@ function insertTokenIntoEditor(token) {
 
 /* Reset child element margins/paddings to respect block-level padding settings */
 /* This prevents element default margins from showing when block padding is smaller */
-.email-canvas > div > div > *:first-child,
-.email-preview > div > div > *:first-child {
+
+/* Reset all direct children of blocks */
+.email-canvas > div > div > *,
+.email-preview > div > div > * {
+  margin: 0 !important;
+}
+
+/* Reset nested elements inside headings */
+.email-canvas h1 > *,
+.email-canvas h2 > *,
+.email-canvas h3 > *,
+.email-canvas h4 > *,
+.email-canvas h5 > *,
+.email-canvas h6 > *,
+.email-preview h1 > *,
+.email-preview h2 > *,
+.email-preview h3 > *,
+.email-preview h4 > *,
+.email-preview h5 > *,
+.email-preview h6 > * {
+  margin: 0 !important;
+}
+
+/* Consistent line-height for headings */
+.email-canvas h1,
+.email-canvas h2,
+.email-canvas h3,
+.email-canvas h4,
+.email-canvas h5,
+.email-canvas h6,
+.email-preview h1,
+.email-preview h2,
+.email-preview h3,
+.email-preview h4,
+.email-preview h5,
+.email-preview h6 {
+  line-height: 1.3 !important;
+}
+
+/* Remove underlines from links in headings */
+.email-canvas h1 a,
+.email-canvas h2 a,
+.email-canvas h3 a,
+.email-canvas h4 a,
+.email-canvas h5 a,
+.email-canvas h6 a,
+.email-preview h1 a,
+.email-preview h2 a,
+.email-preview h3 a,
+.email-preview h4 a,
+.email-preview h5 a,
+.email-preview h6 a {
+  text-decoration: none !important;
+}
+
+/* Ensure paragraphs have spacing between each other */
+.email-canvas p + p,
+.email-preview p + p {
+  margin-top: 0.75em !important;
+}
+
+/* But first/last paragraphs have no outer margins */
+.email-canvas > div > div > p:first-child,
+.email-preview > div > div > p:first-child {
   margin-top: 0 !important;
 }
 
-.email-canvas > div > div > *:last-child,
-.email-preview > div > div > *:last-child {
+.email-canvas > div > div > p:last-child,
+.email-preview > div > div > p:last-child {
   margin-bottom: 0 !important;
-}
-
-/* Ensure paragraphs have an extra row of space in both the canvas and preview */
-/* But respect the first/last child rules above */
-.email-canvas p,
-.email-preview p {
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
-}
-
-.email-canvas p:first-child,
-.email-preview p:first-child {
-  margin-top: 0;
-}
-
-.email-canvas p:last-child,
-.email-preview p:last-child {
-  margin-bottom: 0;
 }
 
 /* Disable clicks on header logo links inside the editing canvas to prevent misclicks */

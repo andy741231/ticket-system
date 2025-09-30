@@ -37,6 +37,8 @@ import {
 const props = defineProps({
   templates: Array,
   groups: Array,
+  defaultFromName: String,
+  defaultFromEmail: String,
 });
 
 // Temporary upload key used before campaign ID exists
@@ -124,20 +126,40 @@ const getDefaultContent = () => {
 // Apply from name/email overrides from a selected template
 function applyTemplateOverrides(tpl) {
   if (!tpl) return;
+  // Template overrides take precedence over env defaults
   if (tpl.from_name && String(tpl.from_name).trim() !== '') {
     form.from_name = tpl.from_name;
+  } else {
+    // Fall back to env defaults if template has no override
+    form.from_name = props.defaultFromName || 'UHPH News';
   }
   if (tpl.from_email && String(tpl.from_email).trim() !== '') {
     form.from_email = tpl.from_email;
+  } else {
+    // Fall back to env defaults if template has no override
+    form.from_email = props.defaultFromEmail || 'noreply@central.uh.edu';
+  }
+}
+
+// Handle template selection from EmailContentSection
+function handleTemplateSelection(template) {
+  if (!template) return;
+  
+  // Apply template overrides for from_name and from_email
+  applyTemplateOverrides(template);
+  
+  // Set template_id if available
+  if (template.id) {
+    form.template_id = template.id;
   }
 }
 
 const form = useForm({
   name: '',
   subject: '',
-  from_name: 'UHPH',
-  from_email: 'noreply@uhphub.com',
-  reply_to: 'noreply@uhphub.com',
+  from_name: props.defaultFromName || 'UHPH News',
+  from_email: props.defaultFromEmail || 'noreply@central.uh.edu',
+  reply_to: props.defaultFromEmail || 'noreply@central.uh.edu',
   preview_text: '',
   content: '', // Will be initialized in onMounted
   html_content: '<p>Draft content</p>',

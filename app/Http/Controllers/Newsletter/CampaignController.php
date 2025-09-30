@@ -107,6 +107,8 @@ class CampaignController extends Controller
         return Inertia::render('Newsletter/Campaigns/Create', [
             'templates' => $templates,
             'groups' => $groups,
+            'defaultFromName' => env('MAIL_NEWSLETTER_FROM_NAME', config('mail.from.name', 'UHPH News')),
+            'defaultFromEmail' => env('MAIL_NEWSLETTER_FROM_ADDRESS', config('mail.from.address', 'noreply@central.uh.edu')),
         ]);
     }
 
@@ -427,6 +429,8 @@ class CampaignController extends Controller
             'campaign' => $campaign,
             'templates' => $templates,
             'groups' => $groups,
+            'defaultFromName' => env('MAIL_NEWSLETTER_FROM_NAME', config('mail.from.name', 'UHPH News')),
+            'defaultFromEmail' => env('MAIL_NEWSLETTER_FROM_ADDRESS', config('mail.from.address', 'noreply@central.uh.edu')),
         ]);
     }
 
