@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Ticket;
 use App\Models\TempFile;
 use App\Models\TicketFile;
+use App\Models\TempTicketImage;
+use App\Models\TicketImage;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Team;
@@ -137,6 +139,8 @@ class TicketController extends Controller
             'assigned_user_ids.*' => 'integer|exists:users,id',
             'temp_file_ids' => 'sometimes|array',
             'temp_file_ids.*' => 'integer',
+            'temp_image_ids' => 'sometimes|array',
+            'temp_image_ids.*' => 'integer',
         ]);
 
         $ticket = new Ticket($validated);
@@ -187,6 +191,48 @@ class TicketController extends Controller
 
                 // Remove temp file record
                 $temp->delete();
+            }
+        }
+
+        // If there are temporary proof images, move them to the ticket and create TicketImage records
+        $tempImageIds = collect($request->input('temp_image_ids', []))
+            ->filter();
+
+        if ($tempImageIds->isNotEmpty()) {
+            // Fetch only the current user's temp images by IDs
+            $tempImages = TempTicketImage::whereIn('id', $tempImageIds)
+                ->where('user_id', auth()->id())
+                ->get();
+
+            foreach ($tempImages as $tempImage) {
+                // Determine new path under tickets/{ticket_id}/images
+                $fileName = basename($tempImage->image_path);
+                $newPath = 'tickets/' . $ticket->id . '/images/' . $fileName;
+
+                // Move file within public disk
+                if (Storage::disk('public')->exists($tempImage->image_path)) {
+                    Storage::disk('public')->move($tempImage->image_path, $newPath);
+                }
+
+                // Create TicketImage record
+                TicketImage::create([
+                    'ticket_id' => $ticket->id,
+                    'source_type' => $tempImage->source_type,
+                    'source_value' => $tempImage->source_value,
+                    'image_path' => $newPath,
+                    'original_name' => $tempImage->original_name,
+                    'name' => $tempImage->name,
+                    'mime_type' => $tempImage->mime_type,
+                    'size' => $tempImage->size,
+                    'width' => $tempImage->width,
+                    'height' => $tempImage->height,
+                    'status' => $tempImage->status,
+                    'error_message' => $tempImage->error_message,
+                    'metadata' => $tempImage->metadata,
+                ]);
+
+                // Remove temp image record
+                $tempImage->delete();
             }
         }
 

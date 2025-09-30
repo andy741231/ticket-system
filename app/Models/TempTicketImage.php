@@ -5,15 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
-class TicketImage extends Model
+class TempTicketImage extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'ticket_id',
+        'user_id',
         'source_type',
         'source_value',
         'image_path',
@@ -42,28 +41,20 @@ class TicketImage extends Model
 
     protected static function booted(): void
     {
-        static::deleting(function (TicketImage $ticketImage) {
+        static::deleting(function (TempTicketImage $tempImage) {
             // Delete the image file when the record is deleted
-            if ($ticketImage->image_path && Storage::disk('public')->exists($ticketImage->image_path)) {
-                Storage::disk('public')->delete($ticketImage->image_path);
+            if ($tempImage->image_path && Storage::disk('public')->exists($tempImage->image_path)) {
+                Storage::disk('public')->delete($tempImage->image_path);
             }
         });
     }
 
     /**
-     * Get the ticket that owns this image.
+     * Get the user that owns this temp image.
      */
-    public function ticket(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(Ticket::class);
-    }
-
-    /**
-     * Get all annotations for this image.
-     */
-    public function annotations(): HasMany
-    {
-        return $this->hasMany(Annotation::class);
+        return $this->belongsTo(User::class);
     }
 
     /**

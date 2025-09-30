@@ -3,32 +3,28 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Ticket;
-use App\Models\TicketImage;
+use App\Models\TempTicketImage;
 use App\Models\Newsletter\Campaign;
-use App\Services\ImageProcessingService;
+use App\Services\TempImageProcessingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 
-class TicketImageController extends Controller
+class TempTicketImageController extends Controller
 {
-    protected ImageProcessingService $imageProcessingService;
+    protected TempImageProcessingService $imageProcessingService;
 
-    public function __construct(ImageProcessingService $imageProcessingService)
+    public function __construct(TempImageProcessingService $imageProcessingService)
     {
         $this->imageProcessingService = $imageProcessingService;
     }
 
     /**
-     * Get all images for a ticket
+     * Get all temp images for the current user
      */
-    public function index(Ticket $ticket): JsonResponse
+    public function index(): JsonResponse
     {
-        $this->authorize('view', $ticket);
-
-        $images = $ticket->images()
-            ->with(['annotations.user', 'annotations.comments.user'])
+        $images = TempTicketImage::where('user_id', auth()->id())
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -49,19 +45,16 @@ class TicketImageController extends Controller
                     'metadata' => $image->metadata,
                     'file_size' => $image->file_size,
                     'created_at' => $image->created_at,
-                    'annotations' => $image->annotations,
                 ];
             })
         ]);
     }
 
     /**
-     * Create image from URL
+     * Create temp image from URL
      */
-    public function storeFromUrl(Request $request, Ticket $ticket): JsonResponse
+    public function storeFromUrl(Request $request): JsonResponse
     {
-        $this->authorize('update', $ticket);
-
         $validator = Validator::make($request->all(), [
             'url' => 'required|url|max:2048',
             'name' => 'nullable|string|max:100',
@@ -75,8 +68,8 @@ class TicketImageController extends Controller
         }
 
         try {
-            $ticketImage = $this->imageProcessingService->processUrl(
-                $ticket, 
+            $tempImage = $this->imageProcessingService->processUrl(
+                auth()->id(),
                 $request->url,
                 $request->input('name')
             );
@@ -84,11 +77,11 @@ class TicketImageController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'id' => $ticketImage->id,
-                    'source_type' => $ticketImage->source_type,
-                    'source_value' => $ticketImage->source_value,
-                    'status' => $ticketImage->status,
-                    'created_at' => $ticketImage->created_at,
+                    'id' => $tempImage->id,
+                    'source_type' => $tempImage->source_type,
+                    'source_value' => $tempImage->source_value,
+                    'status' => $tempImage->status,
+                    'created_at' => $tempImage->created_at,
                 ],
                 'message' => 'Screenshot capture started. Please check back in a few moments.'
             ], 201);
@@ -102,12 +95,10 @@ class TicketImageController extends Controller
     }
 
     /**
-     * Create image from a newsletter campaign draft
+     * Create temp image from a newsletter campaign draft
      */
-    public function storeFromNewsletter(Request $request, Ticket $ticket): JsonResponse
+    public function storeFromNewsletter(Request $request): JsonResponse
     {
-        $this->authorize('update', $ticket);
-
         $validator = Validator::make($request->all(), [
             'newsletter_campaign_id' => 'required|integer|exists:newsletter_campaigns,id',
             'name' => 'nullable|string|max:100',
@@ -132,8 +123,8 @@ class TicketImageController extends Controller
                 ], 422);
             }
 
-            $ticketImage = $this->imageProcessingService->processNewsletterCampaign(
-                $ticket, 
+            $tempImage = $this->imageProcessingService->processNewsletterCampaign(
+                auth()->id(),
                 $campaign,
                 $request->input('name')
             );
@@ -141,12 +132,12 @@ class TicketImageController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'id' => $ticketImage->id,
-                    'source_type' => $ticketImage->source_type,
-                    'source_value' => $ticketImage->source_value,
-                    'original_name' => $ticketImage->original_name,
-                    'status' => $ticketImage->status,
-                    'created_at' => $ticketImage->created_at,
+                    'id' => $tempImage->id,
+                    'source_type' => $tempImage->source_type,
+                    'source_value' => $tempImage->source_value,
+                    'original_name' => $tempImage->original_name,
+                    'status' => $tempImage->status,
+                    'created_at' => $tempImage->created_at,
                 ],
                 'message' => 'Newsletter capture started. The preview will appear once ready.',
             ], 201);
@@ -159,12 +150,10 @@ class TicketImageController extends Controller
     }
 
     /**
-     * Create image from uploaded file
+     * Create temp image from uploaded file
      */
-    public function storeFromFile(Request $request, Ticket $ticket): JsonResponse
+    public function storeFromFile(Request $request): JsonResponse
     {
-        $this->authorize('update', $ticket);
-
         $validator = Validator::make($request->all(), [
             'file' => 'required|file|max:10240', // 10MB max
             'name' => 'nullable|string|max:100',
@@ -178,8 +167,8 @@ class TicketImageController extends Controller
         }
 
         try {
-            $ticketImage = $this->imageProcessingService->processFile(
-                $ticket, 
+            $tempImage = $this->imageProcessingService->processFile(
+                auth()->id(),
                 $request->file('file'),
                 $request->input('name')
             );
@@ -187,12 +176,12 @@ class TicketImageController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'id' => $ticketImage->id,
-                    'source_type' => $ticketImage->source_type,
-                    'source_value' => $ticketImage->source_value,
-                    'original_name' => $ticketImage->original_name,
-                    'status' => $ticketImage->status,
-                    'created_at' => $ticketImage->created_at,
+                    'id' => $tempImage->id,
+                    'source_type' => $tempImage->source_type,
+                    'source_value' => $tempImage->source_value,
+                    'original_name' => $tempImage->original_name,
+                    'status' => $tempImage->status,
+                    'created_at' => $tempImage->created_at,
                 ],
                 'message' => 'File processing started.'
             ], 201);
@@ -206,57 +195,53 @@ class TicketImageController extends Controller
     }
 
     /**
-     * Get specific image with annotations
+     * Get specific temp image
      */
-    public function show(Ticket $ticket, TicketImage $ticketImage): JsonResponse
+    public function show(TempTicketImage $tempImage): JsonResponse
     {
-        $this->authorize('view', $ticket);
-
-        if ($ticketImage->ticket_id !== $ticket->id) {
+        // Ensure the current user owns the temp image
+        if ($tempImage->user_id !== auth()->id()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Image not found for this ticket'
+                'message' => 'Image not found'
             ], 404);
         }
-
-        $ticketImage->load(['annotations.user', 'annotations.comments.user']);
 
         return response()->json([
             'success' => true,
             'data' => [
-                'id' => $ticketImage->id,
-                'source_type' => $ticketImage->source_type,
-                'source_value' => $ticketImage->source_value,
-                'image_url' => $ticketImage->image_url,
-                'original_name' => $ticketImage->original_name,
-                'name' => $ticketImage->name,
-                'width' => $ticketImage->width,
-                'height' => $ticketImage->height,
-                'status' => $ticketImage->status,
-                'error_message' => $ticketImage->error_message,
-                'metadata' => $ticketImage->metadata,
-                'created_at' => $ticketImage->created_at,
-                'annotations' => $ticketImage->annotations,
+                'id' => $tempImage->id,
+                'source_type' => $tempImage->source_type,
+                'source_value' => $tempImage->source_value,
+                'image_url' => $tempImage->image_url,
+                'original_name' => $tempImage->original_name,
+                'name' => $tempImage->name,
+                'width' => $tempImage->width,
+                'height' => $tempImage->height,
+                'status' => $tempImage->status,
+                'error_message' => $tempImage->error_message,
+                'metadata' => $tempImage->metadata,
+                'file_size' => $tempImage->file_size,
+                'created_at' => $tempImage->created_at,
             ]
         ]);
     }
 
     /**
-     * Delete an image
+     * Delete a temp image
      */
-    public function destroy(Ticket $ticket, TicketImage $ticketImage): JsonResponse
+    public function destroy(TempTicketImage $tempImage): JsonResponse
     {
-        $this->authorize('update', $ticket);
-
-        if ($ticketImage->ticket_id !== $ticket->id) {
+        // Ensure the current user owns the temp image
+        if ($tempImage->user_id !== auth()->id()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Image not found for this ticket'
+                'message' => 'Image not found'
             ], 404);
         }
 
         try {
-            $ticketImage->delete();
+            $tempImage->delete();
 
             return response()->json([
                 'success' => true,
@@ -272,29 +257,28 @@ class TicketImageController extends Controller
     }
 
     /**
-     * Check processing status of an image
+     * Check processing status of a temp image
      */
-    public function status(Ticket $ticket, TicketImage $ticketImage): JsonResponse
+    public function status(TempTicketImage $tempImage): JsonResponse
     {
-        $this->authorize('view', $ticket);
-
-        if ($ticketImage->ticket_id !== $ticket->id) {
+        // Ensure the current user owns the temp image
+        if ($tempImage->user_id !== auth()->id()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Image not found for this ticket'
+                'message' => 'Image not found'
             ], 404);
         }
 
         return response()->json([
             'success' => true,
             'data' => [
-                'id' => $ticketImage->id,
-                'status' => $ticketImage->status,
-                'error_message' => $ticketImage->error_message,
-                'image_url' => $ticketImage->isCompleted() ? $ticketImage->image_url : null,
-                'width' => $ticketImage->width,
-                'height' => $ticketImage->height,
-                'updated_at' => $ticketImage->updated_at,
+                'id' => $tempImage->id,
+                'status' => $tempImage->status,
+                'error_message' => $tempImage->error_message,
+                'image_url' => $tempImage->isCompleted() ? $tempImage->image_url : null,
+                'width' => $tempImage->width,
+                'height' => $tempImage->height,
+                'updated_at' => $tempImage->updated_at,
             ]
         ]);
     }

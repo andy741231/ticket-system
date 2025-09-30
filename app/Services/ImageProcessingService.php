@@ -35,12 +35,13 @@ class ImageProcessingService
     /**
      * Process a URL to generate a screenshot
      */
-    public function processUrl(Ticket $ticket, string $url): TicketImage
+    public function processUrl(Ticket $ticket, string $url, ?string $name = null): TicketImage
     {
         $ticketImage = TicketImage::create([
             'ticket_id' => $ticket->id,
             'source_type' => 'url',
             'source_value' => $url,
+            'name' => $name,
             'size' => 0,
             'image_path' => '', // Will be set after processing
             'status' => 'processing',
@@ -55,13 +56,14 @@ class ImageProcessingService
     /**
      * Process an uploaded file to convert it to an image
      */
-    public function processFile(Ticket $ticket, UploadedFile $file): TicketImage
+    public function processFile(Ticket $ticket, UploadedFile $file, ?string $name = null): TicketImage
     {
         $ticketImage = TicketImage::create([
             'ticket_id' => $ticket->id,
             'source_type' => 'file',
             'source_value' => $file->getClientOriginalName(),
             'original_name' => $file->getClientOriginalName(),
+            'name' => $name,
             'size' => 0,
             'image_path' => '', // Will be set after processing
             'status' => 'processing',
@@ -280,13 +282,14 @@ class ImageProcessingService
         }
     }
 
-    public function processNewsletterCampaign(Ticket $ticket, Campaign $campaign): TicketImage
+    public function processNewsletterCampaign(Ticket $ticket, Campaign $campaign, ?string $name = null): TicketImage
     {
         $ticketImage = TicketImage::create([
             'ticket_id' => $ticket->id,
             'source_type' => 'newsletter',
             'source_value' => (string) $campaign->id,
             'original_name' => $campaign->name,
+            'name' => $name,
             'size' => 0,
             'image_path' => '',
             'status' => 'processing',

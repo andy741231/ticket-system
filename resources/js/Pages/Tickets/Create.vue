@@ -1,6 +1,7 @@
 <script setup>
 import { Head, useForm, router } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted } from 'vue';
+import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -10,7 +11,7 @@ import TextInput from '@/Components/TextInput.vue';
 import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import FileUploader from '@/Components/FileUploader.vue';
 import MultiSelectCheckbox from '@/Components/MultiSelectCheckbox.vue';
-import AnnotationInterface from '@/Components/Annotation/AnnotationInterface.vue';
+import ProofUploadModal from '@/Components/ProofUploadModal.vue';
 import Datepicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
 
@@ -32,6 +33,7 @@ const form = useForm({
     due_date: '',
     assigned_user_ids: [],
     temp_file_ids: [],
+    temp_image_ids: [],
 });
 
 // Track Tailwind dark mode to sync with the datepicker theme
@@ -54,8 +56,32 @@ onUnmounted(() => {
 // Store temporary file IDs that need to be associated with the ticket after creation
 const tempFiles = ref([]);
 
+// Store temporary proof image IDs
+const tempImageIds = ref([]);
+
 // Track created ticket for annotations
 const createdTicket = ref(null);
+
+// Proof modal state
+const showProofModal = ref(false);
+
+// Temp proof images
+const tempProofImages = ref([]);
+
+const loadTempProofImages = async () => {
+    try {
+        const response = await axios.get('/api/temp-images');
+        tempProofImages.value = response.data.data || [];
+        // Update form with temp image IDs
+        form.temp_image_ids = tempProofImages.value.map(img => img.id);
+    } catch (error) {
+        console.error('Failed to load temp proof images:', error);
+    }
+};
+
+onMounted(() => {
+    loadTempProofImages();
+});
 
 const handleFilesUploaded = (files) => {
     // Store the file IDs to be associated with the ticket and update previews
@@ -71,6 +97,30 @@ const handleFileRemoved = (file) => {
     form.temp_file_ids = form.temp_file_ids.filter(id => id !== file.id);
     // Also remove the file object from the tempFiles previews
     tempFiles.value = tempFiles.value.filter(f => f.id !== file.id);
+};
+
+const handleTempImagesUpdated = (imageIds) => {
+    // Update the temp image IDs to be associated with the ticket
+    tempImageIds.value = imageIds;
+    form.temp_image_ids = imageIds;
+};
+
+const handleProofUploaded = async () => {
+    // Reload proof images after upload
+    await loadTempProofImages();
+};
+
+const deleteTempProofImage = async (imageId) => {
+    if (!confirm('Are you sure you want to delete this proof image?')) {
+        return;
+    }
+    try {
+        await axios.delete(`/api/temp-images/${imageId}`);
+        await loadTempProofImages();
+    } catch (error) {
+        console.error('Failed to delete temp proof image:', error);
+        alert('Failed to delete proof image. Please try again.');
+    }
 };
 
 // Handle form submission
@@ -182,7 +232,6 @@ const cancel = () => {
 
                             <!-- File Uploader -->
                             <div class="mt-6">
-                                <InputLabel class="text-uh-slate dark:text-uh-cream mb-2" value="Attachments" />
                                 <FileUploader
                                     :temp-mode="true"
                                     :existing-files="tempFiles"
@@ -193,36 +242,71 @@ const cancel = () => {
                                 <InputError :message="form.errors.temp_file_ids" class="mt-2" />
                             </div>
 
-                            <!-- Annotation System -->
+                            <!-- Proof Images (Temp Mode) -->
                             <div class="mt-6">
-                                <InputLabel class="text-uh-slate dark:text-uh-cream mb-2" value="Image Annotations" />
-                                <template v-if="!createdTicket">
-                                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg mb-4">
-                                        <div class="flex items-start">
-                                            <i class="fas fa-info-circle text-blue-500 mr-2 mt-0.5"></i>
-                                            <span class="text-blue-700 dark:text-blue-300">
-                                                Please create the ticket first to enable image annotations. After you click "Create Ticket", this section will unlock so you can add screenshots or upload files and annotate them.
-                                            </span>
+                                <div class="flex items-center justify-between mb-2">
+                                    <PrimaryButton
+                                        type="button"
+                                        @click="showProofModal = true"
+                                    >
+                                        <i class="fas fa-plus mr-2"></i>
+                                        Add Proof
+                                    </PrimaryButton>
+                                </div>
+                                
+                                
+                                <!-- Proof Images List -->
+                                <div v-if="tempProofImages.length > 0" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                    <div 
+                                        v-for="image in tempProofImages" 
+                                        :key="image.id" 
+                                        class="relative group bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 transition-colors"
+                                    >
+                                        <div class="aspect-square p-2">
+                                            <img 
+                                                v-if="image.status === 'completed'"
+                                                :src="image.image_url" 
+                                                :alt="image.name || image.original_name || 'Proof image'" 
+                                                class="w-full h-full object-cover rounded"
+                                            />
+                                            <div v-else-if="image.status === 'processing'" class="w-full h-full flex items-center justify-center">
+                                                <div class="text-center">
+                                                    <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                                                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Processing...</p>
+                                                </div>
+                                            </div>
+                                            <div v-else class="w-full h-full flex items-center justify-center">
+                                                <p class="text-xs text-red-500">Failed</p>
+                                            </div>
+                                        </div>
+                                        <div class="p-2">
+                                            <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate" :title="image.name || image.original_name">
+                                                {{ image.name || image.original_name || 'Untitled' }}
+                                            </p>
+                                        </div>
+                                        <!-- Delete button -->
+                                        <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center justify-center w-7 h-7 rounded-md bg-red-600/90 hover:bg-red-600 text-white shadow"
+                                                title="Delete proof"
+                                                @click="deleteTempProofImage(image.id)"
+                                            >
+                                                <i class="fas fa-trash text-xs"></i>
+                                            </button>
                                         </div>
                                     </div>
-                                </template>
-                                <template v-else>
-                                    <div class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg mb-4">
-                                        <div class="flex items-center">
-                                            <i class="fas fa-check-circle text-green-500 mr-2"></i>
-                                            <span class="text-green-700 dark:text-green-300 font-medium">
-                                                Ticket created successfully! You can now add image annotations.
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <AnnotationInterface
-                                        :ticket-id="createdTicket.id"
-                                        :can-review-annotations="false"
-                                        :readonly="false"
-                                        :allow-delete="false"
-                                    />
-                                </template>
+                                </div>
+                               
                             </div>
+
+                            <!-- Proof Upload Modal -->
+                            <ProofUploadModal
+                                :show="showProofModal"
+                                :temp-mode="true"
+                                @close="showProofModal = false"
+                                @uploaded="handleProofUploaded"
+                            />
 
                             <!-- Submit Button -->
                             <div class="flex items-center justify-end mt-6 space-x-4">

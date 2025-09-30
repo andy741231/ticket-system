@@ -58,7 +58,7 @@ class AnnotationMentionNotification extends Mailable implements ShouldQueue
                 'comment' => $this->comment,
                 'mentionedUser' => $this->mentionedUser,
                 'mentioningUser' => $this->mentioningUser,
-                'annotationUrl' => config('app.url') . '/annotations/' . $this->annotation->id,
+                'annotationUrl' => config('app.url') . '/annotations/' . $this->annotation->ticket_image_id,
             ],
         );
     }

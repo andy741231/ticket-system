@@ -688,8 +688,13 @@ const closeProofModal = () => {
 
                                 <!-- Proofs Section -->
                                 <div class="mt-8">
-                                    
                                     <div v-if="proofImages.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                        <h3 class="col-span-full text-lg font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            Proofs
+                                        </h3>
                                         <div 
                                             v-for="image in proofImages" 
                                             :key="image.id" 
@@ -704,24 +709,14 @@ const closeProofModal = () => {
                                                 />
                                             </div>
                                             <div class="p-2">
-                                                <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate" :title="image.original_name">
-                                                    {{ image.original_name || 'Untitled' }}
+                                                <p class="text-xs font-medium text-gray-900 dark:text-gray-100 truncate" :title="image.name || image.original_name">
+                                                    {{ image.name || image.original_name || 'Untitled' }}
                                                 </p>
                                                 <p class="text-xs text-gray-500 dark:text-gray-400">
                                                     {{ getAnnotationCount(image.id) }} annotations
                                                 </p>
                                             </div>
-                                            <!-- Status indicator -->
-                                            <div class="absolute top-2 right-2">
-                                                <div 
-                                                    :class="{
-                                                        'bg-yellow-500': image.status === 'processing',
-                                                        'bg-green-500': image.status === 'completed',
-                                                        'bg-red-500': image.status === 'failed'
-                                                    }"
-                                                    class="w-3 h-3 rounded-full"
-                                                ></div>
-                                            </div>
+                                            <!--trassh can icon-->
                                         </div>
                                     </div>
                                     

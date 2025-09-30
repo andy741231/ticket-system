@@ -264,9 +264,8 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-2">
-                  <div class="text-xs text-gray-800 dark:text-gray-100 max-w-[220px] break-words">
-                    <div class="text-gray-700 dark:text-gray-300">
-                      {{ getOverlayContent(annotation) }}
+                  <div class="text-xs text-gray-800 dark:text-gray-100 break-words">
+                    <div class="text-gray-700 dark:text-gray-300" v-html="linkifyText(getOverlayContent(annotation))">
                     </div>
                   </div>
                   <div v-if="!readonly" class="flex items-center gap-1">
@@ -288,6 +287,33 @@
       <div class="p-4 border-b border-gray-200 dark:border-gray-700">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Comments</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ combinedComments.length }} comment{{ combinedComments.length !== 1 ? 's' : '' }}</p>
+      </div>
+
+      <!-- Add Comment Form -->
+      <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div v-if="selectedAnnotation" class="mb-3 text-sm text-blue-600 dark:text-blue-400">
+          <font-awesome-icon :icon="['fas', 'reply']" class="mr-1" />
+          Commenting on Annotation #{{ getAnnotationNumber(selectedAnnotation.id) }}
+        </div>
+        <div class="flex gap-2">
+          <MentionAutocomplete
+            v-model="newCommentContent"
+            :ticket-id="ticketId"
+            placeholder="Add a comment... Use @username to mention"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm resize-none"
+            rows="2"
+            @keydown.ctrl.enter="addComment"
+            @keydown.meta.enter="addComment"
+          />
+          <button
+            @click="addComment"
+            :disabled="!newCommentContent.trim()"
+            class="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <font-awesome-icon :icon="['fas', 'paper-plane']" class="text-sm" />
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Ctrl+Enter to send</p>
       </div>
       
       <div class="flex-1 overflow-y-auto p-4 space-y-4">
@@ -325,7 +351,7 @@
                 </button>
               </div>
             </div>
-            <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">{{ entry.annotation.content }}</p>
+            <p class="text-sm text-gray-700 dark:text-gray-300 break-words" v-html="linkifyText(entry.annotation.content)"></p>
           </template>
           <template v-else>
             <div class="flex items-start justify-between mb-2">
@@ -345,7 +371,7 @@
                 </button>
               </div>
             </div>
-            <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">{{ entry.comment.content }}</p>
+            <p class="text-sm text-gray-700 dark:text-gray-300 break-words" v-html="linkifyText(entry.comment.content)"></p>
             <div v-if="entry.comment.annotation_id" class="mt-2 text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
               <font-awesome-icon :icon="['fas', 'link']" />
               <span>Annotation #{{ getAnnotationNumber(entry.comment.annotation_id) }}</span>
@@ -354,32 +380,7 @@
         </div>
       </div>
       
-      <!-- Add Comment Form -->
-      <div class="p-4 border-t border-gray-200 dark:border-gray-700">
-        <div v-if="selectedAnnotation" class="mb-3 text-sm text-blue-600 dark:text-blue-400">
-          <font-awesome-icon :icon="['fas', 'reply']" class="mr-1" />
-          Commenting on Annotation #{{ getAnnotationNumber(selectedAnnotation.id) }}
-        </div>
-        <div class="flex gap-2">
-          <MentionAutocomplete
-            v-model="newCommentContent"
-            :ticket-id="ticketId"
-            placeholder="Add a comment... Use @username to mention"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm resize-none"
-            rows="2"
-            @keydown.ctrl.enter="addComment"
-            @keydown.meta.enter="addComment"
-          />
-          <button
-            @click="addComment"
-            :disabled="!newCommentContent.trim()"
-            class="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <font-awesome-icon :icon="['fas', 'paper-plane']" class="text-sm" />
-          </button>
-        </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Ctrl+Enter to send</p>
-      </div>
+      
     </div>
     
     <!-- Text Input Modal -->
@@ -855,6 +856,33 @@ const onImageLoad = () => {
 
 const onImageError = () => {
   console.error('Failed to load annotation image')
+}
+
+// Helper function to escape HTML and linkify URLs in text
+const linkifyText = (text) => {
+  if (!text) return ''
+  
+  // First escape HTML to prevent XSS
+  const escapeHtml = (str) => {
+    const div = document.createElement('div')
+    div.textContent = str
+    return div.innerHTML
+  }
+  
+  let escaped = escapeHtml(text)
+  
+  // Convert newlines to <br> tags
+  escaped = escaped.replace(/\n/g, '<br>')
+  
+  // Convert URLs to clickable links
+  const urlRegex = /(https?:\/\/[^\s<]+)/g
+  escaped = escaped.replace(urlRegex, (url) => {
+    // Remove trailing punctuation that might have been captured
+    const cleanUrl = url.replace(/[.,;:!?]+$/, '')
+    return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline break-all" onclick="event.stopPropagation()">${cleanUrl}</a>`
+  })
+  
+  return escaped
 }
 
 const setupCanvas = () => {
@@ -2401,7 +2429,9 @@ onUnmounted(() => {
   border-radius: 6px;
   box-shadow: 0 6px 16px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.08);
   padding: 6px 8px;
-  max-width: 260px;
+  max-width: 360px;
+  width: fit-content;
+  min-width: 120px;
 }
 
 .dark .annotation-comment-box {

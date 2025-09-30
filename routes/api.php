@@ -30,6 +30,17 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::delete('/{file}', [TempFileController::class, 'destroy'])->middleware('perm:tickets.file.upload');
     });
 
+    // Temporary proof image endpoints (before ticket exists)
+    Route::prefix('temp-images')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\TempTicketImageController::class, 'index']);
+        Route::post('/from-url', [\App\Http\Controllers\Api\TempTicketImageController::class, 'storeFromUrl']);
+        Route::post('/from-file', [\App\Http\Controllers\Api\TempTicketImageController::class, 'storeFromFile']);
+        Route::post('/from-newsletter', [\App\Http\Controllers\Api\TempTicketImageController::class, 'storeFromNewsletter']);
+        Route::get('/{tempImage}', [\App\Http\Controllers\Api\TempTicketImageController::class, 'show']);
+        Route::delete('/{tempImage}', [\App\Http\Controllers\Api\TempTicketImageController::class, 'destroy']);
+        Route::get('/{tempImage}/status', [\App\Http\Controllers\Api\TempTicketImageController::class, 'status']);
+    });
+
     // Newsletter campaign utilities for authenticated users
     Route::get('/newsletter/campaigns/drafts', [NewsletterCampaignController::class, 'drafts']);
 

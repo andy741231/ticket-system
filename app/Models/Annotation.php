@@ -28,6 +28,7 @@ class Annotation extends Model
 
     protected $casts = [
         'coordinates' => 'array',
+        'content' => 'json',
         'style' => 'array',
         'reviewed_at' => 'datetime',
         'created_at' => 'datetime',

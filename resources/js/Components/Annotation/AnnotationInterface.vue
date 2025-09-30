@@ -377,7 +377,11 @@ import MentionAutocomplete from '@/Components/MentionAutocomplete.vue'
 const props = defineProps({
   ticketId: {
     type: Number,
-    required: true
+    required: false
+  },
+  tempMode: {
+    type: Boolean,
+    default: false
   },
   canReviewAnnotations: {
     type: Boolean,
@@ -396,6 +400,8 @@ const props = defineProps({
     default: true
   }
 })
+
+const emit = defineEmits(['temp-images-updated'])
 
 // Reactive data
 const images = ref([])
@@ -524,9 +530,13 @@ const handleAnnotationListKeydown = (event, imageId) => {
 
 // Methods
 const loadImages = async () => {
-  console.log('[loadImages] Called')
+  console.log('[loadImages] Called, tempMode:', props.tempMode)
   try {
-    const response = await fetch(`/api/tickets/${props.ticketId}/images`, {
+    const url = props.tempMode 
+      ? '/api/temp-images'
+      : `/api/tickets/${props.ticketId}/images`
+    
+    const response = await fetch(url, {
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
         'Accept': 'application/json'
@@ -547,12 +557,19 @@ const loadImages = async () => {
       })
       console.log('[loadImages] Extracted annotations:', annotations.value.length)
       
-      // Load image-level comments for each image
-      console.log('[loadImages] Loading comments for each image...')
-      for (const image of images.value) {
-        await reloadImageComments(image.id)
+      // Load image-level comments for each image (skip in temp mode)
+      if (!props.tempMode) {
+        console.log('[loadImages] Loading comments for each image...')
+        for (const image of images.value) {
+          await reloadImageComments(image.id)
+        }
+        console.log('[loadImages] All comments loaded')
       }
-      console.log('[loadImages] All comments loaded')
+      
+      // Emit temp image IDs if in temp mode
+      if (props.tempMode) {
+        emit('temp-images-updated', images.value.map(img => img.id))
+      }
     }
   } catch (error) {
     console.error('Failed to load images:', error)
@@ -565,7 +582,11 @@ const captureFromUrl = async () => {
   isProcessing.value = true
   
   try {
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/from-url`, {
+    const url = props.tempMode
+      ? '/api/temp-images/from-url'
+      : `/api/tickets/${props.ticketId}/images/from-url`
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -602,7 +623,11 @@ const uploadFile = async (event) => {
   formData.append('file', file)
   
   try {
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/from-file`, {
+    const url = props.tempMode
+      ? '/api/temp-images/from-file'
+      : `/api/tickets/${props.ticketId}/images/from-file`
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
@@ -638,7 +663,11 @@ const pollImageStatus = async (imageId) => {
   
   const poll = async () => {
     try {
-      const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/status`, {
+      const url = props.tempMode
+        ? `/api/temp-images/${imageId}/status`
+        : `/api/tickets/${props.ticketId}/images/${imageId}/status`
+      
+      const response = await fetch(url, {
         headers: {
           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
           'Accept': 'application/json'
@@ -912,12 +941,16 @@ const deleteAnnotation = async (annotation) => {
 }
 
 const deleteImage = async (image) => {
-  if (!confirm(`Are you sure you want to delete "${image.original_name || 'this image'}" and all its annotations? This action cannot be undone.`)) {
+  if (!confirm(`Are you sure you want to delete "${image.original_name || image.name || 'this image'}" and all its annotations? This action cannot be undone.`)) {
     return
   }
   
   try {
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${image.id}`, {
+    const url = props.tempMode
+      ? `/api/temp-images/${image.id}`
+      : `/api/tickets/${props.ticketId}/images/${image.id}`
+    
+    const response = await fetch(url, {
       method: 'DELETE',
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
@@ -943,6 +976,11 @@ const deleteImage = async (image) => {
       // Clear canvas refs for this image
       if (canvasRefs.value[image.id]) {
         delete canvasRefs.value[image.id]
+      }
+      
+      // Emit updated temp image IDs if in temp mode
+      if (props.tempMode) {
+        emit('temp-images-updated', images.value.map(img => img.id))
       }
     } else {
       throw new Error('Failed to delete image')
