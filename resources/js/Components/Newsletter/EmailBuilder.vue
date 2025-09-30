@@ -1668,9 +1668,46 @@ function getBlockHtml(type, data) {
     return styles.length > 0 ? styles.join('; ') + ';' : '';
   };
   
-  // Helper to add child element reset styles
-  const getChildResetClass = () => {
-    return 'block-content-reset';
+  // Helper to add margin reset to first/last elements in content for email compatibility
+  const addMarginResets = (htmlContent) => {
+    if (!htmlContent) return htmlContent;
+    
+    // Parse the HTML to find all top-level elements
+    const tempDiv = typeof document !== 'undefined' ? document.createElement('div') : null;
+    if (!tempDiv) return htmlContent; // Server-side, skip processing
+    
+    tempDiv.innerHTML = htmlContent;
+    const children = Array.from(tempDiv.children);
+    
+    if (children.length === 0) return htmlContent;
+    
+    // Reset first child's top margin
+    const firstChild = children[0];
+    if (firstChild && firstChild.style !== undefined) {
+      const currentStyle = firstChild.getAttribute('style') || '';
+      const hasMarginTop = /margin-top\s*:/i.test(currentStyle);
+      
+      if (hasMarginTop) {
+        firstChild.setAttribute('style', currentStyle.replace(/margin-top\s*:[^;]+;?/gi, 'margin-top: 0;'));
+      } else {
+        firstChild.setAttribute('style', currentStyle + (currentStyle && !currentStyle.endsWith(';') ? '; ' : '') + 'margin-top: 0;');
+      }
+    }
+    
+    // Reset last child's bottom margin
+    const lastChild = children[children.length - 1];
+    if (lastChild && lastChild.style !== undefined) {
+      const currentStyle = lastChild.getAttribute('style') || '';
+      const hasMarginBottom = /margin-bottom\s*:/i.test(currentStyle);
+      
+      if (hasMarginBottom) {
+        lastChild.setAttribute('style', currentStyle.replace(/margin-bottom\s*:[^;]+;?/gi, 'margin-bottom: 0;'));
+      } else {
+        lastChild.setAttribute('style', currentStyle + (currentStyle && !currentStyle.endsWith(';') ? '; ' : '') + 'margin-bottom: 0;');
+      }
+    }
+    
+    return tempDiv.innerHTML;
   };
 
   switch (type) {
@@ -1689,11 +1726,13 @@ function getBlockHtml(type, data) {
       data = data || {};
       const textStyles = getBlockStyles(data);
       const textMargin = data.margin || '0';
-      return `<div style="margin: ${textMargin}; padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'}; ${textStyles}">${data.content || '<p>Click to edit this text...</p>'}</div>`;
+      const textContent = addMarginResets(data.content || '<p>Click to edit this text...</p>');
+      return `<div style="margin: ${textMargin}; padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'}; ${textStyles}">${textContent}</div>`;
     case 'heading':
       data = data || {};
       const headingStyles = getBlockStyles(data);
-      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${data.content || 'Your Heading Here'}</h${data.level || 2}></div>`;
+      const headingContent = data.content || 'Your Heading Here';
+      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${headingContent}</h${data.level || 2}></div>`;
     case 'image':
       data = data || {};
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
