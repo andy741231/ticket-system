@@ -36,6 +36,7 @@ import {
   faSquare,
   faRulerHorizontal,
   faInbox,
+  faList,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -59,6 +60,7 @@ library.add(
   faSquare,
   faRulerHorizontal,
   faInbox,
+  faList,
 );
 
 const props = defineProps({
@@ -209,6 +211,15 @@ const textEditor = ref(null);
 const editingNested = ref(null); // { blockId, colIdx, itemIndex }
 const nestedDragging = ref(null); // { blockId, colIdx, index }
 const nestedDragOver = ref(null); // { blockId, colIdx, index }
+
+// Table list editor state
+const showTableListEditor = ref(false);
+const tableListRowCount = ref(3);
+const tableListGap = ref('10px');
+const tableListMaxHeight = ref('60px');
+const tableListCol1Width = ref('50%');
+const tableListCol2Width = ref('50%');
+const tableListContent = ref([]); // array of row content
 const lastDroppedByBlock = ref({}); // { [blockId]: { colIdx, itemIndex } }
 // Temporary model for the heading editor modal
 const textModalContent = ref('');
@@ -242,10 +253,25 @@ const footerCopyright = ref('');
 const footerTextColor = ref('#ffffff');
 const showTokensDropdown = ref(null);
 
+// Block styling controls
+const showBlockSettings = ref(false);
+const blockMargin = ref('0');
+const blockPadding = ref('15px 35px');
+const blockBorder = ref('none');
+const blockBorderColor = ref('#e5e7eb');
+const blockBorderWidth = ref('1px');
+const blockBorderStyle = ref('solid');
+
 // Columns editor state
 const columnCount = ref(2);
 const columnGap = ref('20px');
 const columnsContent = ref([]); // array of strings
+
+// Table list nested state
+const tableListDragging = ref(null); // { blockId, rowIdx }
+const tableListDragOver = ref(null); // { blockId, rowIdx }
+const canvasTableListHover = ref({ blockId: null, rowIdx: null });
+const editingTableListNested = ref(null); // { blockId, rowIdx, itemIndex }
 
 // Email structure and content
 const emailBlocks = ref([
@@ -353,6 +379,7 @@ const blockTypes = [
   { type: 'image', label: 'Image', icon: ['fas', 'image'] },
   { type: 'button', label: 'Button', icon: ['fas', 'square'] },
   { type: 'columns', label: 'Columns', icon: ['fas', 'table-columns'] },
+  { type: 'tablelist', label: 'Table List', icon: ['fas', 'list'] },
   { type: 'divider', label: 'Divider', icon: ['fas', 'minus'] },
   { type: 'spacer', label: 'Spacer', icon: ['fas', 'ruler-horizontal'] },
   { type: 'footer', label: 'Footer', icon: ['fas', 'flag'] },
@@ -886,6 +913,199 @@ function openLastNestedAcross(block) {
   } catch (e) {}
 }
 
+// --- Table List Helper Functions ---
+function normalizeTableListRows(rows) {
+  const rowsArr = Array.isArray(rows) ? rows : [];
+  return rowsArr.map((r, i) => {
+    const items = Array.isArray(r.items) ? r.items : [];
+    return { items, content: r.content || '' };
+  });
+}
+
+function getTableListItem(blockId, rowIdx, itemIndex) {
+  const blk = emailBlocks.value.find(b => b.id === blockId);
+  if (!blk) return null;
+  const rows = normalizeTableListRows(blk.data?.rows || []);
+  return (rows[rowIdx]?.items || [])[itemIndex] || null;
+}
+
+function updateTableListItem(blockId, rowIdx, itemIndex, newDataPartial) {
+  const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
+  if (blkIdx === -1) return;
+  const blk = emailBlocks.value[blkIdx];
+  const rows = normalizeTableListRows(blk.data?.rows || []);
+  const items = rows[rowIdx].items;
+  if (!items || !items[itemIndex]) return;
+  const item = items[itemIndex];
+  item.data = { ...(item.data || {}), ...(newDataPartial || {}) };
+  item.content = getBlockHtml(item.type, item.data);
+  updateBlockData(blockId, { rows });
+}
+
+function removeTableListItem(blockId, rowIdx, itemIndex) {
+  const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
+  if (blkIdx === -1) return;
+  const blk = emailBlocks.value[blkIdx];
+  const rows = normalizeTableListRows(blk.data?.rows || []);
+  rows[rowIdx].items.splice(itemIndex, 1);
+  updateBlockData(blockId, { rows });
+}
+
+function openTableListEditor(blockId) {
+  editingBlock.value = blockId;
+  const block = emailBlocks.value.find(b => b.id === blockId);
+  if (block) {
+    tableListRowCount.value = block.data?.rowCount || 3;
+    tableListGap.value = block.data?.gap || '10px';
+    tableListMaxHeight.value = block.data?.maxHeight || '60px';
+    tableListCol1Width.value = block.data?.col1Width || '50%';
+    tableListCol2Width.value = block.data?.col2Width || '50%';
+    showTableListEditor.value = true;
+  }
+}
+
+function saveTableListChanges() {
+  updateBlockData(editingBlock.value, {
+    rowCount: tableListRowCount.value,
+    gap: tableListGap.value,
+    maxHeight: tableListMaxHeight.value,
+    col1Width: tableListCol1Width.value,
+    col2Width: tableListCol2Width.value
+  });
+  showTableListEditor.value = false;
+  editingBlock.value = null;
+}
+
+function cancelTableListEdit() {
+  showTableListEditor.value = false;
+  editingBlock.value = null;
+}
+
+function openTableListNestedEditor(blockId, rowIdx, itemIndex) {
+  const item = getTableListItem(blockId, rowIdx, itemIndex);
+  if (!item) return;
+  editingTableListNested.value = { blockId, rowIdx, itemIndex };
+  if (item.type === 'text' || item.type === 'heading') {
+    textModalContent.value = item.data?.content || '';
+    textBackground.value = item.data?.background || 'transparent';
+    textColor.value = item.data?.color || (item.type === 'heading' ? '#333333' : '#666666');
+    showTextEditor.value = true;
+  } else if (item.type === 'image') {
+    imageCropSrc.value = item.data?.src || null;
+    imageFullWidth.value = item.data?.fullWidth || false;
+    showImageUpload.value = true;
+  } else if (item.type === 'button') {
+    buttonText.value = item.data?.text || 'Click Here';
+    buttonUrl.value = item.data?.url || '#';
+    buttonBackground.value = item.data?.background || '#c8102e';
+    showButtonEditor.value = true;
+  } else {
+    textModalContent.value = item.data?.content || item.content || '';
+    showTextEditor.value = true;
+  }
+}
+
+// Canvas table list drop zone handlers
+function onCanvasTableListDragOver(event, blockId, rowIdx) {
+  event.preventDefault();
+  canvasTableListHover.value = { blockId, rowIdx };
+}
+
+function onCanvasTableListDrop(event, blockId, rowIdx) {
+  event.preventDefault();
+  try {
+    const newBlock = createBlock(draggedBlock.value);
+    const blk = emailBlocks.value.find(b => b.id === blockId);
+    if (!blk) return;
+    const rows = normalizeTableListRows(blk.data?.rows || []);
+    const item = {
+      id: generateBlockId(),
+      type: newBlock.type,
+      data: newBlock.data,
+      content: newBlock.content
+    };
+    rows[rowIdx].items.push(item);
+    lastDroppedByBlock.value[blockId] = { rowIdx, itemIndex: rows[rowIdx].items.length - 1 };
+    updateBlockData(blockId, { rows });
+  } finally {
+    draggedBlock.value = null;
+    canvasTableListHover.value = { blockId: null, rowIdx: null };
+  }
+}
+
+// Table list drag handlers
+function onTableListNestedDragStart(event, blockId, rowIdx, index) {
+  tableListDragging.value = { blockId, rowIdx, index };
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function onTableListNestedDragEnd() {
+  tableListDragging.value = null;
+  tableListDragOver.value = null;
+}
+
+function onTableListNestedDragOver(event, blockId, rowIdx, index) {
+  event.preventDefault();
+  if (!tableListDragging.value) return;
+  tableListDragOver.value = { blockId, rowIdx, index };
+}
+
+function onTableListNestedDrop(event, blockId, rowIdx, index) {
+  event.preventDefault();
+  const dragging = tableListDragging.value;
+  if (dragging && dragging.blockId === blockId && dragging.rowIdx === rowIdx) {
+    moveTableListItem(blockId, rowIdx, dragging.index, index);
+  }
+  tableListDragging.value = null;
+  tableListDragOver.value = null;
+}
+
+function moveTableListItem(blockId, rowIdx, fromIndex, toIndex) {
+  const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
+  if (blkIdx === -1) return;
+  const blk = emailBlocks.value[blkIdx];
+  const rows = normalizeTableListRows(blk.data?.rows || []);
+  const arr = rows[rowIdx].items;
+  if (!arr || fromIndex < 0 || fromIndex >= arr.length || toIndex < 0 || toIndex > arr.length) return;
+  const [it] = arr.splice(fromIndex, 1);
+  arr.splice(toIndex, 0, it);
+  updateBlockData(blockId, { rows });
+}
+
+function tableListItems(block, rowIdx) {
+  try {
+    const rows = normalizeTableListRows(block?.data?.rows || []);
+    const arr = rows[rowIdx]?.items;
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function openLastTableListItem(block) {
+  try {
+    const last = lastDroppedByBlock.value?.[block.id];
+    if (last && last.rowIdx !== undefined) {
+      const items = tableListItems(block, last.rowIdx);
+      if (items && items[last.itemIndex]) {
+        openTableListNestedEditor(block.id, last.rowIdx, last.itemIndex);
+        return;
+      }
+    }
+    // Find last row with items
+    const rowCount = block.data?.rowCount || 3;
+    for (let i = rowCount - 1; i >= 0; i--) {
+      const items = tableListItems(block, i);
+      if (items.length > 0) {
+        openTableListNestedEditor(block.id, i, items.length - 1);
+        return;
+      }
+    }
+    // No items, open editor
+    openTableListEditor(block.id);
+  } catch (e) {}
+}
+
 // --- Padding Normalization Utilities ---
 const OLD_TEXT_PADDINGS = new Set(['15px 12px', '15px 50px']);
 const OLD_HEADING_PADDINGS = new Set(['15px 12px']);
@@ -944,6 +1164,28 @@ function normalizeAllPaddings() {
       }
       if (nestedChanged) {
         b.data = { ...(b.data || {}), columns: cols };
+        b.content = getBlockHtml(b.type, b.data || {});
+        changed = true;
+      }
+    }
+    // Normalize nested items inside table list
+    if (b.type === 'tablelist') {
+      const rows = normalizeTableListRows((b.data && b.data.rows) || []);
+      let nestedChanged = false;
+      for (let r = 0; r < rows.length; r++) {
+        const items = rows[r]?.items || [];
+        for (let j = 0; j < items.length; j++) {
+          const it = items[j];
+          const nd = normalizePaddingForBlockType(it.type, it.data || {});
+          if (JSON.stringify(nd) !== JSON.stringify(it.data || {})) {
+            it.data = nd;
+            it.content = getBlockHtml(it.type, it.data);
+            nestedChanged = true;
+          }
+        }
+      }
+      if (nestedChanged) {
+        b.data = { ...(b.data || {}), rows };
         b.content = getBlockHtml(b.type, b.data || {});
         changed = true;
       }
@@ -1340,6 +1582,22 @@ function createBlock(type) {
         { content: '<p>Column 2 content</p>' }
       ]
     },
+    tablelist: {
+      rowCount: 3,
+      gap: '10px',
+      padding: '10px 35px',
+      maxHeight: '60px',
+      col1Width: '50%',
+      col2Width: '50%',
+      rows: [
+        { items: [] },
+        { items: [] },
+        { items: [] },
+        { items: [] },
+        { items: [] },
+        { items: [] }
+      ]
+    },
     divider: { style: 'solid', color: '#e5e7eb', margin: '20px 0' },
     footer: {
       content: '<p>Thanks for reading! Forward this to someone who might find it useful.</p>',
@@ -1368,6 +1626,22 @@ function getBlockHtml(type, data) {
     if (blockData.fullWidth) return '0';
     return blockData.padding || '15px 12px';
   };
+  
+  const getBlockStyles = (blockData) => {
+    const styles = [];
+    if (blockData.margin) styles.push(`margin: ${blockData.margin}`);
+    if (blockData.border && blockData.border !== 'none') {
+      if (blockData.border === 'custom') {
+        const width = blockData.borderWidth || '1px';
+        const style = blockData.borderStyle || 'solid';
+        const color = blockData.borderColor || '#e5e7eb';
+        styles.push(`border: ${width} ${style} ${color}`);
+      } else {
+        styles.push(`border: ${blockData.border}`);
+      }
+    }
+    return styles.length > 0 ? styles.join('; ') + ';' : '';
+  };
 
   switch (type) {
     case 'header':
@@ -1379,22 +1653,28 @@ function getBlockHtml(type, data) {
       }
       const titleHtml = data.title ? `<h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title}</h1>` : '';
       const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle}</p>` : '';
-      return `<div class="header-block" style="background: ${data.background || '#c8102e'}; color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0;">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
+      const headerStyles = getBlockStyles(data);
+      return `<div class="header-block" style="background: ${data.background || '#c8102e'}; color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0; ${headerStyles}">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
     case 'text':
       data = data || {};
-      return `<div style="margin: 0; padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'};">${data.content || '<p>Click to edit this text...</p>'}</div>`;
+      const textStyles = getBlockStyles(data);
+      const textMargin = data.margin || '0';
+      return `<div style="margin: ${textMargin}; padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'}; ${textStyles}">${data.content || '<p>Click to edit this text...</p>'}</div>`;
     case 'heading':
       data = data || {};
-      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'};"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${data.content || 'Your Heading Here'}</h${data.level || 2}></div>`;
+      const headingStyles = getBlockStyles(data);
+      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'};">${data.content || 'Your Heading Here'}</h${data.level || 2}></div>`;
     case 'image':
       data = data || {};
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
       const imgPadding = data.fullWidth ? '0' : (data.padding || '0 35px');
+      const imageStyles = getBlockStyles(data);
       return data.src ?
-        `<div style="padding: ${imgPadding};"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
-        `<div style="padding: ${imgPadding};"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
+        `<div style="padding: ${imgPadding}; ${imageStyles}"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
+        `<div style="padding: ${imgPadding}; ${imageStyles}"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
     case 'button':
-      return `<div style="text-align: center; margin: 20px 0;"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${data.background}; color: ${data.color}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
+      const buttonStyles = getBlockStyles(data);
+      return `<div style="text-align: center; margin: 20px 0; ${buttonStyles}"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${data.background}; color: ${data.color}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
     case 'columns':
       data = data || {};
       const count = 2; // enforce two columns only
@@ -1436,6 +1716,35 @@ function getBlockHtml(type, data) {
         `<a href="${(link && link.url) || '#'}" style="color: ${(data && data.textColor) || '#ffffff'}; text-decoration: none;">${(link && link.text) || ''}</a>`
       ).join(' | ');
       return `<div style="background-color: ${(data && data.background) || '#c8102e'}; color: ${(data && data.textColor) || '#ffffff'}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;"><div>${(data && data.content) || ''}</div><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">${footerLinks}</p><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">&copy; ${(data && data.copyright) || ''}</p></div>`;
+    case 'tablelist':
+      data = data || {};
+      const rowCount = data.rowCount || 3;
+      const rowGap = data.gap || '10px';
+      const maxHeight = data.maxHeight || '60px';
+      const col1Width = data.col1Width || '50%';
+      const col2Width = data.col2Width || '50%';
+      const rows = Array.isArray(data.rows) ? data.rows : [];
+      const getRowInner = (row) => {
+        const items = Array.isArray(row?.items) ? row.items : [];
+        return items.length
+          ? items.map(it => (it && (it.content || getBlockHtml(it.type || 'text', it.data || {})))).join('')
+          : ((row && row.content) || '');
+      };
+      const tableRows = [];
+      for (let i = 0; i < rowCount; i++) {
+        const col1Content = getRowInner(rows[i * 2] || {});
+        const col2Content = getRowInner(rows[i * 2 + 1] || {});
+        tableRows.push(
+          `<tr><td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; max-height: ${maxHeight}; width: ${col1Width};">${col1Content || `<p style="margin: 0; font-size: 14px; color: #666;">Cell ${i * 2 + 1}</p>`}</td><td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; max-height: ${maxHeight}; width: ${col2Width};">${col2Content || `<p style="margin: 0; font-size: 14px; color: #666;">Cell ${i * 2 + 2}</p>`}</td></tr>`
+        );
+      }
+      return [
+        `<div style="padding: ${getPadding(data)};">`,
+        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; margin-bottom: ${rowGap};">`,
+        tableRows.join(''),
+        `</table>`,
+        `</div>`
+      ].join('');
     case 'spacer':
       return `<div style="height: ${data.height};"></div>`;
     default:
@@ -1444,6 +1753,44 @@ function getBlockHtml(type, data) {
 }
 
 // Block editing functions
+// Open block settings modal
+function openBlockSettings(blockId) {
+  editingBlock.value = blockId;
+  const block = emailBlocks.value.find(b => b.id === blockId);
+  if (block) {
+    // Load current styling values
+    blockMargin.value = block.data?.margin || '0';
+    blockPadding.value = block.data?.padding || '15px 35px';
+    blockBorder.value = block.data?.border || 'none';
+    blockBorderColor.value = block.data?.borderColor || '#e5e7eb';
+    blockBorderWidth.value = block.data?.borderWidth || '1px';
+    blockBorderStyle.value = block.data?.borderStyle || 'solid';
+    showBlockSettings.value = true;
+  }
+}
+
+function saveBlockSettings() {
+  const borderValue = blockBorder.value === 'custom' 
+    ? `${blockBorderWidth.value} ${blockBorderStyle.value} ${blockBorderColor.value}`
+    : blockBorder.value;
+  
+  updateBlockData(editingBlock.value, {
+    margin: blockMargin.value,
+    padding: blockPadding.value,
+    border: blockBorder.value,
+    borderColor: blockBorderColor.value,
+    borderWidth: blockBorderWidth.value,
+    borderStyle: blockBorderStyle.value,
+  });
+  showBlockSettings.value = false;
+  editingBlock.value = null;
+}
+
+function cancelBlockSettings() {
+  showBlockSettings.value = false;
+  editingBlock.value = null;
+}
+
 function editBlock(blockId) {
   editingBlock.value = blockId;
   const block = emailBlocks.value.find(b => b.id === blockId);
@@ -1473,6 +1820,14 @@ function editBlock(blockId) {
         mapped[1] ?? '<p>Column 2 content</p>',
       ];
       showColumnEditor.value = true;
+    } else if (block.type === 'tablelist') {
+      // Initialize table list editor state from block
+      tableListRowCount.value = block.data?.rowCount || 3;
+      tableListGap.value = block.data?.gap || '10px';
+      tableListMaxHeight.value = block.data?.maxHeight || '60px';
+      tableListCol1Width.value = block.data?.col1Width || '50%';
+      tableListCol2Width.value = block.data?.col2Width || '50%';
+      showTableListEditor.value = true;
     } else if (block.type === 'text') {
       // Use EmailEditor in a modal for text blocks, with background and padding settings
       textModalContent.value = block.data?.content || block.content || '';
@@ -1582,7 +1937,15 @@ async function cropAndSaveImage() {
       // Fallback normalization to absolute URL
       url = `${window.location.origin}${url}`;
     }
-    if (editingNested.value) {
+    if (editingTableListNested.value) {
+      const { blockId, rowIdx, itemIndex } = editingTableListNested.value;
+      updateTableListItem(blockId, rowIdx, itemIndex, {
+        src: url,
+        width: '100%',
+        height: 'auto',
+        fullWidth: imageFullWidth.value,
+      });
+    } else if (editingNested.value) {
       const { blockId, colIdx, itemIndex } = editingNested.value;
       updateNestedItem(blockId, colIdx, itemIndex, {
         src: url,
@@ -1603,6 +1966,7 @@ async function cropAndSaveImage() {
     showImageUpload.value = false;
     imageCropSrc.value = null;
     editingNested.value = null;
+    editingTableListNested.value = null;
     // Reset file input
     if (imageFileInput.value) {
       imageFileInput.value.value = '';
@@ -1751,6 +2115,7 @@ function closeImageEditor() {
   imageCropSrc.value = null;
   editingBlock.value = null;
   editingNested.value = null;
+  editingTableListNested.value = null;
   // Reset file input
   if (imageFileInput.value) {
     imageFileInput.value.value = '';
@@ -1873,7 +2238,16 @@ const buttonUrl = ref('');
 const buttonBackground = ref('');
 
 function saveButtonChanges() {
-  if (editingNested.value) {
+  if (editingTableListNested.value) {
+    const { blockId, rowIdx, itemIndex } = editingTableListNested.value;
+    updateTableListItem(blockId, rowIdx, itemIndex, {
+      text: buttonText.value,
+      url: buttonUrl.value,
+      background: buttonBackground.value,
+    });
+    showButtonEditor.value = false;
+    editingTableListNested.value = null;
+  } else if (editingNested.value) {
     const { blockId, colIdx, itemIndex } = editingNested.value;
     updateNestedItem(blockId, colIdx, itemIndex, {
       text: buttonText.value,
@@ -1923,7 +2297,23 @@ function cancelColumnEdit() {
 // Text editor save/cancel handlers
 function saveTextChanges() {
   // Save EmailEditor modal content. If text block, also save background and padding.
-  if (editingNested.value) {
+  if (editingTableListNested.value) {
+    const { blockId, rowIdx, itemIndex } = editingTableListNested.value;
+    const nested = getTableListItem(blockId, rowIdx, itemIndex);
+    const isHeading = nested?.type === 'heading';
+    const isText = nested?.type === 'text';
+    const payload = {
+      content: textModalContent.value,
+      background: textBackground.value,
+      color: textColor.value,
+    };
+    if (isText) {
+      payload.padding = '15px 35px';
+    }
+    updateTableListItem(blockId, rowIdx, itemIndex, payload);
+    showTextEditor.value = false;
+    editingTableListNested.value = null;
+  } else if (editingNested.value) {
     const { blockId, colIdx, itemIndex } = editingNested.value;
     const nested = getNestedItem(blockId, colIdx, itemIndex);
     const isHeading = nested?.type === 'heading';
@@ -1966,6 +2356,7 @@ function cancelTextEdit() {
   showTextEditor.value = false;
   editingBlock.value = null;
   editingNested.value = null;
+  editingTableListNested.value = null;
 }
 
 // Modal backdrop click handler
@@ -2404,11 +2795,12 @@ function insertTokenIntoEditor(token) {
                 v-for="(block, index) in emailBlocks"
                 :key="block.id"
                 class="group relative"
+                :class="{ 'py-4': block.type === 'divider' }"
                 @click="selectBlock(block.id)"
               >
                 <!-- Block Content (static render; dblclick to edit) -->
                 <div
-                  v-if="block.type !== 'columns'"
+                  v-if="block.type !== 'columns' && block.type !== 'tablelist'"
                   :class="`transition-all duration-200 ${
                     selectedBlockId === block.id
                       ? 'ring-2 ring-blue-500 ring-opacity-50'
@@ -2422,7 +2814,7 @@ function insertTokenIntoEditor(token) {
 
                 <!-- Interactive Columns Block Rendering on Canvas -->
                 <div
-                  v-else
+                  v-else-if="block.type === 'columns'"
                   :class="`transition-all duration-200 ${
                     selectedBlockId === block.id
                       ? 'ring-2 ring-blue-500 ring-opacity-50'
@@ -2501,11 +2893,120 @@ function insertTokenIntoEditor(token) {
                     </div>
                   </div>
                 </div>
+
+                <!-- Interactive Table List Block Rendering on Canvas -->
+                <div
+                  v-else-if="block.type === 'tablelist'"
+                  :class="`transition-all duration-200 ${
+                    selectedBlockId === block.id
+                      ? 'ring-2 ring-blue-500 ring-opacity-50'
+                      : 'hover:ring-1 hover:ring-gray-300'
+                  }`"
+                  class="cursor-pointer"
+                  @dblclick="openLastTableListItem(block)"
+                >
+                  <div
+                    class="w-full"
+                    :style="{ padding: block.data?.padding || '10px 35px' }"
+                  >
+                    <table class="w-full border-collapse" :style="{ marginBottom: block.data?.gap || '10px' }">
+                      <tbody>
+                        <tr
+                          v-for="rowIdx in (block.data?.rowCount || 3)"
+                          :key="`${block.id}-row-${rowIdx-1}`"
+                        >
+                          <!-- Column 1 (Cell index: rowIdx * 2 - 2) -->
+                          <td
+                            class="border-b border-gray-200 align-middle p-2"
+                            :style="{ 
+                              maxHeight: block.data?.maxHeight || '60px', 
+                              overflow: 'hidden',
+                              width: block.data?.col1Width || '50%'
+                            }"
+                            :class="{
+                              'ring-2 ring-blue-400': canvasTableListHover?.blockId === block.id && canvasTableListHover?.rowIdx === (rowIdx * 2 - 2)
+                            }"
+                            @dragover="onCanvasTableListDragOver($event, block.id, rowIdx * 2 - 2)"
+                            @drop="onCanvasTableListDrop($event, block.id, rowIdx * 2 - 2)"
+                            @dblclick.stop="openTableListEditor(block.id)"
+                          >
+                            <template v-if="tableListItems(block, rowIdx * 2 - 2).length === 0">
+                              <div class="text-xs text-gray-400">Cell {{ rowIdx * 2 - 1 }}</div>
+                            </template>
+
+                            <!-- Render nested items with controls -->
+                            <div v-for="(it, idx) in tableListItems(block, rowIdx * 2 - 2)" :key="it.id" class="group relative">
+                              <!-- Item content (dblclick to edit) -->
+                              <div class="max-w-full"
+                                   draggable="true"
+                                   @dragstart="onTableListNestedDragStart($event, block.id, rowIdx * 2 - 2, idx)"
+                                   @dragend="onTableListNestedDragEnd"
+                                   @dblclick.stop="openTableListNestedEditor(block.id, rowIdx * 2 - 2, idx)"
+                              >
+                                <div v-html="it.content"></div>
+                              </div>
+
+                              <!-- Item toolbar -->
+                              <div class="absolute top-1 right-1 flex gap-1 bg-white/90 dark:bg-gray-800/90 shadow rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto z-10">
+                                <button type="button" @click.stop="removeTableListItem(block.id, rowIdx * 2 - 2, idx)" class="p-0.5 text-[10px] text-red-600 hover:bg-red-50 rounded">Delete</button>
+                              </div>
+                            </div>
+                          </td>
+
+                          <!-- Column 2 (Cell index: rowIdx * 2 - 1) -->
+                          <td
+                            class="border-b border-gray-200 align-middle p-2"
+                            :style="{ 
+                              maxHeight: block.data?.maxHeight || '60px', 
+                              overflow: 'hidden',
+                              width: block.data?.col2Width || '50%'
+                            }"
+                            :class="{
+                              'ring-2 ring-blue-400': canvasTableListHover?.blockId === block.id && canvasTableListHover?.rowIdx === (rowIdx * 2 - 1)
+                            }"
+                            @dragover="onCanvasTableListDragOver($event, block.id, rowIdx * 2 - 1)"
+                            @drop="onCanvasTableListDrop($event, block.id, rowIdx * 2 - 1)"
+                            @dblclick.stop="openTableListEditor(block.id)"
+                          >
+                            <template v-if="tableListItems(block, rowIdx * 2 - 1).length === 0">
+                              <div class="text-xs text-gray-400">Cell {{ rowIdx * 2 }}</div>
+                            </template>
+
+                            <!-- Render nested items with controls -->
+                            <div v-for="(it, idx) in tableListItems(block, rowIdx * 2 - 1)" :key="it.id" class="group relative">
+                              <!-- Item content (dblclick to edit) -->
+                              <div class="max-w-full"
+                                   draggable="true"
+                                   @dragstart="onTableListNestedDragStart($event, block.id, rowIdx * 2 - 1, idx)"
+                                   @dragend="onTableListNestedDragEnd"
+                                   @dblclick.stop="openTableListNestedEditor(block.id, rowIdx * 2 - 1, idx)"
+                              >
+                                <div v-html="it.content"></div>
+                              </div>
+
+                              <!-- Item toolbar -->
+                              <div class="absolute top-1 right-1 flex gap-1 bg-white/90 dark:bg-gray-800/90 shadow rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto z-10">
+                                <button type="button" @click.stop="removeTableListItem(block.id, rowIdx * 2 - 1, idx)" class="p-0.5 text-[10px] text-red-600 hover:bg-red-50 rounded">Delete</button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
                 
                 <!-- Block Controls -->
                 <div
                   class="absolute top-2 right-2 flex gap-1 bg-white shadow-lg rounded-md p-1 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
                 >
+                  <button type="button"
+                    @click.stop="openBlockSettings(block.id)"
+                    class="p-1 text-xs text-purple-600 hover:bg-purple-50 rounded"
+                    title="Block Settings (Margin, Padding, Border)"
+                  >
+                    <font-awesome-icon :icon="['fas', 'gear']" class="w-4 h-4" />
+                  </button>
                   <button type="button"
                     @click.stop="editBlock(block.id)"
                     class="p-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
@@ -2710,6 +3211,129 @@ function insertTokenIntoEditor(token) {
       </div>
     </div>
 
+    <!-- Block Settings Modal -->
+    <div v-if="showBlockSettings" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-[32rem] max-w-full">
+        <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Block Settings</h3>
+        <div class="space-y-4">
+          <!-- Margin -->
+          <div>
+            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Margin</label>
+            <input
+              v-model="blockMargin"
+              type="text"
+              class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded"
+              placeholder="e.g., 0, 10px, 10px 20px"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Space outside the block (top right bottom left)</p>
+          </div>
+
+          <!-- Padding -->
+          <div>
+            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Padding</label>
+            <input
+              v-model="blockPadding"
+              type="text"
+              class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded"
+              placeholder="e.g., 15px 35px"
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Space inside the block (top right bottom left)</p>
+          </div>
+
+          <!-- Border Type -->
+          <div>
+            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Border</label>
+            <select
+              v-model="blockBorder"
+              class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded"
+            >
+              <option value="none">None</option>
+              <option value="custom">Custom</option>
+              <option value="1px solid #e5e7eb">1px Solid Gray</option>
+              <option value="2px solid #e5e7eb">2px Solid Gray</option>
+              <option value="1px dashed #e5e7eb">1px Dashed Gray</option>
+              <option value="1px solid #000000">1px Solid Black</option>
+            </select>
+          </div>
+
+          <!-- Custom Border Settings (shown when 'custom' is selected) -->
+          <div v-if="blockBorder === 'custom'" class="space-y-3 pl-4 border-l-2 border-purple-300">
+            <div>
+              <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Border Width</label>
+              <input
+                v-model="blockBorderWidth"
+                type="text"
+                class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded"
+                placeholder="e.g., 1px, 2px"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Border Style</label>
+              <select
+                v-model="blockBorderStyle"
+                class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded"
+              >
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+                <option value="double">Double</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Border Color</label>
+              <div class="flex gap-3">
+                <div class="flex-shrink-0">
+                  <ColorPicker v-model="blockBorderColor" :showAlpha="false" />
+                </div>
+                <div class="flex-1">
+                  <input
+                    v-model="blockBorderColor"
+                    type="text"
+                    class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded font-mono text-sm"
+                    placeholder="#e5e7eb"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div class="border-t pt-4">
+            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Preview</label>
+            <div 
+              class="bg-gray-50 dark:bg-gray-900 p-4 rounded"
+              :style="{
+                margin: blockMargin,
+                padding: blockPadding,
+                border: blockBorder === 'custom' 
+                  ? `${blockBorderWidth} ${blockBorderStyle} ${blockBorderColor}`
+                  : (blockBorder !== 'none' ? blockBorder : 'none')
+              }"
+            >
+              <div class="text-sm text-gray-600 dark:text-gray-400">Sample block content</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-6 justify-end">
+          <button type="button"
+            @click="cancelBlockSettings"
+            class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+          <button type="button"
+            @click="saveBlockSettings"
+            class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+          >
+            Apply Settings
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Text/Heading Editor Modal -->
     <div v-if="showTextEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="handleModalBackdropClick" @keydown.esc="cancelTextEdit">
       <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg p-6 w-[64rem] max-w-full max-h-full overflow-y-auto" @click.stop>
@@ -2823,6 +3447,49 @@ function insertTokenIntoEditor(token) {
         <div class="flex gap-2 mt-5 justify-end">
           <button type="button" @click="cancelColumnEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
           <button type="button" @click="saveColumnChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table List Editor Modal -->
+    <div v-if="showTableListEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-[40rem] max-w-full">
+        <h3 class="text-lg font-medium mb-4 dark:text-gray-100">Edit Table List</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-1 dark:text-gray-300">Number of Rows</label>
+            <input type="number" v-model.number="tableListRowCount" min="1" max="10" class="dark:bg-gray-700 dark:text-gray-100 w-full p-2 border border-gray-300 dark:border-gray-600 rounded" />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Each row contains 2 columns</p>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium mb-1 dark:text-gray-300">Column 1 Width</label>
+              <input type="text" v-model="tableListCol1Width" class="dark:bg-gray-700 dark:text-gray-100 w-full p-2 border border-gray-300 dark:border-gray-600 rounded" placeholder="50%" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1 dark:text-gray-300">Column 2 Width</label>
+              <input type="text" v-model="tableListCol2Width" class="dark:bg-gray-700 dark:text-gray-100 w-full p-2 border border-gray-300 dark:border-gray-600 rounded" placeholder="50%" />
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 -mt-2">Use percentages (e.g., 30%, 70%) or pixels (e.g., 200px, 400px)</p>
+          
+          <div>
+            <label class="block text-sm font-medium mb-1 dark:text-gray-300">Row Gap (e.g., 10px)</label>
+            <input type="text" v-model="tableListGap" class="dark:bg-gray-700 dark:text-gray-100 w-full p-2 border border-gray-300 dark:border-gray-600 rounded" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1 dark:text-gray-300">Max Cell Height (e.g., 60px)</label>
+            <input type="text" v-model="tableListMaxHeight" class="dark:bg-gray-700 dark:text-gray-100 w-full p-2 border border-gray-300 dark:border-gray-600 rounded" />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum height for each cell to keep content compact</p>
+          </div>
+          <div class="text-xs text-gray-500 dark:text-gray-400 border-t pt-3">
+            <strong>Tip:</strong> Drag blocks from the left panel directly into each cell on the email canvas. This creates a compact, 2-column table layout with controlled height and custom widths.
+          </div>
+        </div>
+        <div class="flex gap-2 mt-5 justify-end">
+          <button type="button" @click="cancelTableListEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
+          <button type="button" @click="saveTableListChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
         </div>
       </div>
     </div>
