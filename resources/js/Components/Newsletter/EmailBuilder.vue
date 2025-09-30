@@ -405,8 +405,8 @@ const imageMaxWidth = computed(() => {
 });
 
 const finalHtmlContent = computed(() => {
-  // Add "View in browser" link at the top
-  const viewInBrowserLink = '<div style="text-align: center; padding: 10px 0; font-size: 12px; color: #666; font-family: Arial, sans-serif;">' +
+  // Add "View in browser" link at the top - outside newsletter container
+  const viewInBrowserLink = '<div style="text-align: center; padding: 10px 20px; font-size: 12px; color: #666; font-family: Arial, sans-serif; background-color: #e7f7f7;">' +
                             '<a href="{{browser_url}}" style="color: #007bff; text-decoration: underline;">View in browser</a>' +
                             '</div>';
   
@@ -439,8 +439,8 @@ const finalHtmlContent = computed(() => {
       </style>
     </head>
     <body>
+      ${viewInBrowserLink}
       <div class="newsletter-container">
-        ${viewInBrowserLink}
         ${emailBlocks.value.map(block => block.content).join('')}
       </div>
     </body>
@@ -450,8 +450,8 @@ const finalHtmlContent = computed(() => {
 
 // Preview-only HTML (no full document wrapper)
 const previewInnerHtml = computed(() => {
-  // Add "View in browser" link at the top for preview as well
-  const viewInBrowserLink = '<div style="text-align: center; padding: 10px 0; font-size: 12px; color: #666; font-family: Arial, sans-serif;">' +
+  // Add "View in browser" link at the top for preview as well - outside newsletter container
+  const viewInBrowserLink = '<div style="text-align: center; padding: 10px 20px; font-size: 12px; color: #666; font-family: Arial, sans-serif; background-color: #e7f7f7;">' +
                             '<a href="{{browser_url}}" style="color: #007bff; text-decoration: underline;">View in browser</a>' +
                             '</div>';
   return viewInBrowserLink + emailBlocks.value.map(block => block.content).join('');

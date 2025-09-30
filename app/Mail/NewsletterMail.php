@@ -99,12 +99,6 @@ class NewsletterMail extends Mailable
             $htmlContent = preg_replace($patternEntity, $value, $htmlContent);
         }
 
-        // THIRD: Handle mixed encoding (opening braces encoded, closing braces not)
-        foreach ($tokenMap as $token => $value) {
-            $patternMixed = '/&#123;&#123;\s*' . preg_quote($token, '/') . '\s*\}\}/i';
-            $htmlContent = preg_replace($patternMixed, $value, $htmlContent);
-        }
-
         // THEN: Escape any remaining Blade directives to prevent evaluation during view rendering
         $htmlContent = str_replace(['{!!', '{{'], ['&#123;&#123;!', '&#123;&#123;'], $htmlContent);
 
