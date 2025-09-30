@@ -1736,23 +1736,23 @@ function getBlockHtml(type, data) {
       data = data || {};
       const headingStyles = getBlockStyles(data);
       let headingContent = data.content || 'Your Heading Here';
-      // Remove wrapping <p> tags from heading content if present (common TipTap output)
-      headingContent = headingContent.replace(/^<p[^>]*>(.*)<\/p>$/is, '$1');
-      // Remove underlines from links in headings
+      
+      // Remove ALL wrapping <p> tags recursively (TipTap often nests them)
+      while (/<p[^>]*>.*<\/p>/is.test(headingContent)) {
+        headingContent = headingContent.replace(/<p[^>]*>(.*?)<\/p>/gis, '$1');
+      }
+      
+      // Remove class attributes that add underlines (like "hover:underline")
+      headingContent = headingContent.replace(/class\s*=\s*["'][^"']*["']/gi, '');
+      
+      // Remove ALL underlines from links and add text-decoration: none
       headingContent = headingContent.replace(/<a\s+([^>]*?)>/gi, (match, attrs) => {
-        if (!/style\s*=/i.test(attrs)) {
-          return `<a ${attrs} style="text-decoration: none;">`;
-        } else {
-          return match.replace(/style\s*=\s*["']([^"']*)["']/i, (m, styles) => {
-            const hasTextDecoration = /text-decoration\s*:/i.test(styles);
-            if (hasTextDecoration) {
-              return `style="${styles.replace(/text-decoration\s*:[^;]+;?/gi, 'text-decoration: none;')}"`;
-            } else {
-              return `style="${styles}${styles.endsWith(';') ? '' : ';'} text-decoration: none;"`;
-            }
-          });
-        }
+        // Remove existing style attribute
+        let cleanAttrs = attrs.replace(/style\s*=\s*["'][^"']*["']/gi, '');
+        // Add our style with no underline
+        return `<a ${cleanAttrs} style="text-decoration: none; color: inherit;">`;
       });
+      
       return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'}; line-height: 1.3;">${headingContent}</h${data.level || 2}></div>`;
     case 'image':
       data = data || {};
