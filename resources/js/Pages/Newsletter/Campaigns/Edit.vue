@@ -203,8 +203,11 @@ const getUniqueSubscribersCount = async (groupIds) => {
     const url = route('newsletter.groups.unique-subscribers');
     const token = document.head.querySelector('meta[name="csrf-token"]')?.content;
     
+    // Convert all group IDs to strings to match backend validation
+    const stringGroupIds = groupIds.map(id => String(id));
+    
     const response = await axios.post(url, {
-      group_ids: groupIds
+      group_ids: stringGroupIds
     }, {
       headers: {
         'Content-Type': 'application/json',
