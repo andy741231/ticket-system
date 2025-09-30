@@ -1667,6 +1667,11 @@ function getBlockHtml(type, data) {
     }
     return styles.length > 0 ? styles.join('; ') + ';' : '';
   };
+  
+  // Helper to add child element reset styles
+  const getChildResetClass = () => {
+    return 'block-content-reset';
+  };
 
   switch (type) {
     case 'header':
@@ -3689,11 +3694,34 @@ function insertTokenIntoEditor(token) {
   outline: none;
 }
 
+/* Reset child element margins/paddings to respect block-level padding settings */
+/* This prevents element default margins from showing when block padding is smaller */
+.email-canvas > div > div > *:first-child,
+.email-preview > div > div > *:first-child {
+  margin-top: 0 !important;
+}
+
+.email-canvas > div > div > *:last-child,
+.email-preview > div > div > *:last-child {
+  margin-bottom: 0 !important;
+}
+
 /* Ensure paragraphs have an extra row of space in both the canvas and preview */
+/* But respect the first/last child rules above */
 .email-canvas p,
 .email-preview p {
   margin-top: 0.75em;
   margin-bottom: 0.75em;
+}
+
+.email-canvas p:first-child,
+.email-preview p:first-child {
+  margin-top: 0;
+}
+
+.email-canvas p:last-child,
+.email-preview p:last-child {
+  margin-bottom: 0;
 }
 
 /* Disable clicks on header logo links inside the editing canvas to prevent misclicks */
