@@ -714,6 +714,8 @@ class CampaignController extends Controller
         $newCampaign->sent_count = 0;
         $newCampaign->failed_count = 0;
         $newCampaign->created_by = auth()->id();
+        // Clear html_content to force regeneration with latest template format
+        $newCampaign->html_content = null;
         $newCampaign->save();
 
         return redirect()->route('newsletter.campaigns.edit', $newCampaign)
