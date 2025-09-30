@@ -926,6 +926,8 @@ function getTableListItem(blockId, rowIdx, itemIndex) {
   const blk = emailBlocks.value.find(b => b.id === blockId);
   if (!blk) return null;
   const rows = normalizeTableListRows(blk.data?.rows || []);
+  // Ensure the row exists
+  if (!rows[rowIdx]) return null;
   return (rows[rowIdx]?.items || [])[itemIndex] || null;
 }
 
@@ -934,6 +936,7 @@ function updateTableListItem(blockId, rowIdx, itemIndex, newDataPartial) {
   if (blkIdx === -1) return;
   const blk = emailBlocks.value[blkIdx];
   const rows = normalizeTableListRows(blk.data?.rows || []);
+  if (!rows[rowIdx]) return;
   const items = rows[rowIdx].items;
   if (!items || !items[itemIndex]) return;
   const item = items[itemIndex];
@@ -947,6 +950,7 @@ function removeTableListItem(blockId, rowIdx, itemIndex) {
   if (blkIdx === -1) return;
   const blk = emailBlocks.value[blkIdx];
   const rows = normalizeTableListRows(blk.data?.rows || []);
+  if (!rows[rowIdx]) return;
   rows[rowIdx].items.splice(itemIndex, 1);
   updateBlockData(blockId, { rows });
 }
@@ -1018,6 +1022,19 @@ function onCanvasTableListDrop(event, blockId, rowIdx) {
     const blk = emailBlocks.value.find(b => b.id === blockId);
     if (!blk) return;
     const rows = normalizeTableListRows(blk.data?.rows || []);
+    
+    // Ensure the row exists - expand rows array if needed
+    const rowCount = blk.data?.rowCount || 3;
+    const totalCells = rowCount * 2; // 2 columns per row
+    while (rows.length < totalCells) {
+      rows.push({ items: [] });
+    }
+    
+    // Ensure the specific row index exists
+    if (!rows[rowIdx]) {
+      rows[rowIdx] = { items: [] };
+    }
+    
     const item = {
       id: generateBlockId(),
       type: newBlock.type,
@@ -1065,6 +1082,7 @@ function moveTableListItem(blockId, rowIdx, fromIndex, toIndex) {
   if (blkIdx === -1) return;
   const blk = emailBlocks.value[blkIdx];
   const rows = normalizeTableListRows(blk.data?.rows || []);
+  if (!rows[rowIdx]) return;
   const arr = rows[rowIdx].items;
   if (!arr || fromIndex < 0 || fromIndex >= arr.length || toIndex < 0 || toIndex > arr.length) return;
   const [it] = arr.splice(fromIndex, 1);
@@ -1075,6 +1093,12 @@ function moveTableListItem(blockId, rowIdx, fromIndex, toIndex) {
 function tableListItems(block, rowIdx) {
   try {
     const rows = normalizeTableListRows(block?.data?.rows || []);
+    // Ensure we have enough rows for the current rowCount
+    const rowCount = block?.data?.rowCount || 3;
+    const totalCells = rowCount * 2; // 2 columns per row
+    while (rows.length < totalCells) {
+      rows.push({ items: [] });
+    }
     const arr = rows[rowIdx]?.items;
     return Array.isArray(arr) ? arr : [];
   } catch (e) {
@@ -1092,9 +1116,10 @@ function openLastTableListItem(block) {
         return;
       }
     }
-    // Find last row with items
+    // Find last cell with items (iterate through all cells)
     const rowCount = block.data?.rowCount || 3;
-    for (let i = rowCount - 1; i >= 0; i--) {
+    const totalCells = rowCount * 2; // 2 columns per row
+    for (let i = totalCells - 1; i >= 0; i--) {
       const items = tableListItems(block, i);
       if (items.length > 0) {
         openTableListNestedEditor(block.id, i, items.length - 1);
