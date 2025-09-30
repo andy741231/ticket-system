@@ -87,12 +87,6 @@ class NewsletterMail extends Mailable
             'browser_url' => route('newsletter.public.campaign.view', $this->campaign->id),
         ];
 
-        // Add "View in browser" link at the top
-        $viewInBrowserLink = '<div style="text-align: center; padding: 10px 0; font-size: 12px; color: #666; font-family: Arial, sans-serif;">' .
-                            '<a href="' . htmlspecialchars($tokenMap['view_in_browser_url'], ENT_QUOTES, 'UTF-8') . '" style="color: #007bff; text-decoration: underline;">View in browser</a>' .
-                            '</div>';
-        $htmlContent = $viewInBrowserLink . $htmlContent;
-
         // FIRST: Replace tokens while they're still in regular {{ }} format
         foreach ($tokenMap as $token => $value) {
             $pattern = '/\{\{\s*' . preg_quote($token, '/') . '\s*\}\}/i';
