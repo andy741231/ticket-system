@@ -122,6 +122,7 @@ class CampaignController extends Controller
             'from_name' => 'required|string|max:255',
             'from_email' => 'required|email|max:255',
             'reply_to' => 'nullable|email|max:255',
+            'template_id' => 'nullable|exists:newsletter_templates,id',
             'send_type' => 'required|in:immediate,scheduled,recurring',
             'scheduled_at' => 'required_if:send_type,scheduled|date|after:now',
             'target_groups' => 'required_without:send_to_all|array',
