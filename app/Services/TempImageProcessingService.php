@@ -160,20 +160,33 @@ class TempImageProcessingService
                 @chmod($puppeteerCacheDir, 0755);
             }
 
+            // Set environment variables to ensure process uses our temp directory
+            putenv('TEMP=' . $tempDir);
+            putenv('TMP=' . $tempDir);
+            putenv('TMPDIR=' . $tempDir);
+            $_ENV['TEMP'] = $tempDir;
+            $_ENV['TMP'] = $tempDir;
+            $_ENV['TMPDIR'] = $tempDir;
+            $_SERVER['TEMP'] = $tempDir;
+            $_SERVER['TMP'] = $tempDir;
+            $_SERVER['TMPDIR'] = $tempDir;
+
             $scriptPath = base_path('scripts/screenshot-capture.js');
+
+            $env = array_merge($_SERVER, [
+                'PUPPETEER_CACHE_DIR' => $puppeteerCacheDir,
+                'TMPDIR' => $tempDir,
+                'TEMP' => $tempDir,
+                'TMP' => $tempDir,
+                'PATH' => $this->computedPath ?? getenv('PATH'),
+            ]);
 
             $process = new Process([
                 $this->nodeBinary,
                 $scriptPath,
                 $url,
                 $fullPath,
-            ], base_path(), [
-                'PUPPETEER_CACHE_DIR' => $puppeteerCacheDir,
-                'TMPDIR' => $tempDir,
-                'TEMP' => $tempDir,
-                'TMP' => $tempDir,
-                'PATH' => $this->computedPath ?? getenv('PATH'),
-            ], null, 120);
+            ], base_path(), $env, null, 120);
 
             $process->run();
 
@@ -281,7 +294,12 @@ class TempImageProcessingService
 
     protected function writeHtmlToTempFile(string $html, int $tempImageId): string
     {
-        $tempDir = sys_get_temp_dir();
+        // Use our own temp directory instead of system temp to avoid cross-platform issues
+        $tempDir = base_path('public/storage/temp/' . floor($tempImageId / 100));
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+        
         $tempFile = $tempDir . '/temp_newsletter_' . $tempImageId . '_' . time() . '.html';
         file_put_contents($tempFile, $html);
         return $tempFile;
