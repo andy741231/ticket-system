@@ -106,7 +106,7 @@ class ImageProcessingService
             }
 
             // Puppeteer cache dir (to avoid using system profile cache)
-            $puppeteerCacheDir = base_path('public/storage/temp/puppeteer');
+            $puppeteerCacheDir = storage_path('app/puppeteer');
             if (!is_dir($puppeteerCacheDir)) {
                 mkdir($puppeteerCacheDir, 0755, true);
             }
