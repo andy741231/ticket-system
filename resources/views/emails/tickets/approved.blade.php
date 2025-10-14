@@ -18,8 +18,8 @@
 <body>
 <div class="container">
     <div class="card">
-        <h1>Ticket #{{ $ticketId }} Approved</h1>
-        <p>A ticket you are assigned to has been approved in The Hub.</p>
+        <h1>Ticket #{{ $ticketId }} Assigned</h1>
+        <p>A ticket has been assigned to you in The Hub.</p>
 
         <div class="meta">
             <p><strong>Title:</strong> {{ $title }}</p>

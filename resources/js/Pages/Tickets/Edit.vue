@@ -28,7 +28,7 @@ const props = defineProps({
     },
     statuses: {
         type: Array,
-        default: () => ['Received', 'Approved', 'Rejected', 'Completed'],
+        default: () => ['Received', 'Rejected', 'Completed'],
     },
     users: {
         type: Array,

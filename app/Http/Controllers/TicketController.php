@@ -592,6 +592,7 @@ class TicketController extends Controller
 
         $validated = $request->validate([
             'status' => 'required|in:' . $allowed,
+            'rejection_message' => 'nullable|string|max:500',
         ]);
 
         $ticket->status = $validated['status'];
@@ -750,6 +751,7 @@ class TicketController extends Controller
                 if ($submitter && filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $ticketUrl = route('tickets.show', $ticket);
                     $reviewerName = auth()->user()->name ?? 'Reviewer';
+                    $rejectionMessage = $validated['rejection_message'] ?? null;
 
                     try {
                         Mail::to(new Address($email, $name))
@@ -761,6 +763,7 @@ class TicketController extends Controller
                                     status: $ticket->status,
                                     reviewerName: $reviewerName,
                                     ticketUrl: $ticketUrl,
+                                    rejectionMessage: $rejectionMessage,
                                 ))->mailer('campus_smtp')
                             );
                     } catch (\Throwable $t) {

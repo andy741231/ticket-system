@@ -1,6 +1,6 @@
-Ticket #{{ $ticketId }} Approved
+Ticket #{{ $ticketId }} Assigned
 
-A ticket you are assigned to has been approved in The Hub.
+A ticket has been assigned to you in The Hub.
 
 Title: {{ $title }}
 Priority: {{ $priority }}

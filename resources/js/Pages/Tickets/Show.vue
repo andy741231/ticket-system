@@ -49,7 +49,6 @@ console.log('Attachments:', props.ticket.attachments);
 
 const statusClasses = {
     'Received': 'dark:text-uh-cream bg-uh-teal/20 text-uh-forest',
-    'Approved': 'dark:text-uh-cream bg-uh-gold/20 text-uh-ocher',
     'Rejected': 'dark:text-uh-cream bg-uh-red/20 text-uh-brick',
     'Completed': 'dark:text-uh-cream bg-uh-green/20 text-uh-forest',
 };
@@ -71,7 +70,6 @@ const priorityClasses = {
 };
 
 const statusOptions = {
-    'Approved': 'Approve',
     'Rejected': 'Reject',
     'Completed': 'Mark as Completed',
 };
@@ -112,12 +110,20 @@ const confirmDelete = () => {
 // Modal state for status changes
 const showStatusModal = ref(false);
 const pendingStatus = ref('');
+const rejectionMessage = ref('');
 
 const updateStatus = (status) => {
+    const data = {};
+    
+    // Include rejection message if status is Rejected and message is provided
+    if (status === 'Rejected' && rejectionMessage.value.trim()) {
+        data.rejection_message = rejectionMessage.value.trim();
+    }
+    
     router.put(route('tickets.status.update', {
         ticket: props.ticket.id,
         status: status
-    }), {}, {
+    }), data, {
         preserveScroll: true,
         onSuccess: () => {
             // Refresh the page to show updated status
@@ -205,7 +211,7 @@ const copyTicketUrl = async () => {
 };
 
 // Local UI state for status changes from the description header toolbar
-const selectedStatus = ref(props.ticket.status === 'Received' ? 'Approved' : props.ticket.status);
+const selectedStatus = ref('');
 const applyStatus = () => {
     if (selectedStatus.value) {
         pendingStatus.value = selectedStatus.value;
@@ -215,6 +221,7 @@ const applyStatus = () => {
 
 const cancelStatusChange = () => {
     showStatusModal.value = false;
+    rejectionMessage.value = '';
 };
 
 const confirmStatusChange = () => {
@@ -222,6 +229,7 @@ const confirmStatusChange = () => {
         updateStatus(pendingStatus.value);
         selectedStatus.value = '';
         pendingStatus.value = '';
+        rejectionMessage.value = '';
     }
     showStatusModal.value = false;
 };
@@ -539,22 +547,86 @@ const closeProofModal = () => {
 
         <div class="py-6">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                <!-- Status Update Bar (for admins) -->
-                <div v-if="can.changeStatus" class="flex justify-between items-center p-5 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <!-- Header with Title and Back Button -->
+                <div class="flex justify-between items-center p-5 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                     <div>
-                    <h2 class="max-w-3xl p-2 font-semibold text-2xl text-gray-800 dark:text-gray-200 leading-tight">
-                        {{ ticket.title }}
-                    </h2>
+                        <h2 class="max-w-3xl p-2 font-semibold text-2xl text-gray-800 dark:text-gray-200 leading-tight">
+                            {{ ticket.title }}
+                        </h2>
                     </div>
                     <!-- Back to Tickets Button -->
-                <div class="">
-                    <Link 
-                        :href="route('tickets.index')" 
-                        class="inline-flex items-center px-4 py-2 bg-uh-slate border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-gray focus:bg-uh-gray active:bg-uh-black focus:outline-none focus:ring-2 focus:ring-uh-slate focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                    >
-                        &larr; Back to Tickets
-                    </Link>
+                    <div>
+                        <Link 
+                            :href="route('tickets.index')" 
+                            class="inline-flex items-center px-4 py-2 bg-uh-slate border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-gray focus:bg-uh-gray active:bg-uh-black focus:outline-none focus:ring-2 focus:ring-uh-slate focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
+                        >
+                            &larr; Back to Tickets
+                        </Link>
+                    </div>
                 </div>
+
+                <!-- Prominent Status Card -->
+                <div class="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 overflow-hidden shadow-lg sm:rounded-lg border-l-4" :class="{
+                    'border-uh-teal': ticket.status === 'Received',
+                    'border-uh-red': ticket.status === 'Rejected',
+                    'border-uh-green': ticket.status === 'Completed'
+                }">
+                    <div class="p-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <!-- Current Status Display -->
+                            <div class="flex-1">
+                                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Current Status</h3>
+                                <div class="flex items-center gap-3">
+                                    <span :class="[statusClasses[ticket.status], 'px-4 py-2 rounded-lg text-lg font-bold inline-flex items-center gap-2']">
+                                        <font-awesome-icon 
+                                            :icon="ticket.status === 'Received' ? 'inbox' : ticket.status === 'Rejected' ? 'times-circle' : 'check-double'" 
+                                            class="w-5 h-5"
+                                        />
+                                        {{ ticket.status }}
+                                    </span>
+                                    <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <font-awesome-icon icon="flag" class="w-4 h-4" />
+                                        <span :class="[priorityClasses[ticket.priority], 'px-2 py-1 rounded-full text-xs font-medium']">
+                                            {{ ticket.priority }} Priority
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Status Change Controls -->
+                            <div v-if="can.changeStatus" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                    <label for="status-select" class="text-sm font-medium text-gray-700 dark:text-gray-300 sm:sr-only">Change Status</label>
+                                    <select
+                                        id="status-select"
+                                        v-model="selectedStatus"
+                                        class="min-w-[180px] font-semibold pl-3 pr-8 py-2.5 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal shadow-sm"
+                                    >
+                                        <option value="" disabled>Select New Status</option>
+                                        <option v-for="(label, status) in filteredStatusOptions" :key="status" :value="status">{{ label }}</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        @click="applyStatus"
+                                        :disabled="!selectedStatus"
+                                        class="px-6 py-2.5 font-semibold rounded-lg text-white bg-uh-teal hover:bg-uh-green disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg disabled:shadow-none inline-flex items-center justify-center gap-2"
+                                        title="Apply selected status"
+                                        aria-label="Apply status"
+                                    >
+                                        <font-awesome-icon icon="check" class="w-4 h-4" />
+                                        Apply Change
+                                    </button>
+                                </div>
+                            </div>
+                            <div
+                                v-else-if="ticket.status !== 'Received' && authUserId && ticket.user && authUserId === ticket.user.id"
+                                class="flex items-center gap-2 p-3 text-gray-700 dark:text-gray-200 rounded-lg bg-gray-200 dark:bg-gray-600/60 border border-gray-300 dark:border-gray-500"
+                            >
+                                <font-awesome-icon icon="ban" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                <span class="text-sm">Ticket locked after status change</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Ticket Details -->
@@ -564,44 +636,14 @@ const closeProofModal = () => {
                         
                             <!-- Main Content -->
                             <div class="md:col-span-2">
-                            <div class="flex justify-end items-center">
-                
-            </div>
                                 <!-- Description Section -->
                                 <div class="relative">
-                                    <!-- Description Card Header Toolbar -->
-                                    <div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-600/60 backdrop-blur px-3 py-2">
-                                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Change Status</h3>
-                                        <div class="flex items-center gap-2">
-                                            <div v-if="can.changeStatus" class="flex items-center gap-2">
-                                                <label for="status-select" class="sr-only">Select Status</label>
-                                                <select
-                                                    id="status-select"
-                                                    v-model="selectedStatus"
-                                                    class="font-bold pl-3 rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py- focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal"
-                                                >
-                                                    <option value="" disabled>Select Status</option>
-                                                    <option v-for="(label, status) in filteredStatusOptions" :key="status" :value="status">{{ label }}</option>
-                                                </select>
-                                                <button
-                                                    type="button"
-                                                    @click="applyStatus"
-                                                    :disabled="!selectedStatus"
-                                                    class="px-3 py-2 font-medium rounded-md text-white bg-uh-red hover:bg-uh-green disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    title="Apply selected status"
-                                                    aria-label="Apply status"
-                                                >
-                                                    Apply
-                                                </button>
-                                            </div>
-                                            <div
-                                                v-else-if="ticket.status !== 'Received' && authUserId && ticket.user && authUserId === ticket.user.id"
-                                                class="flex items-center gap-2 p-2 px-3 text-gray-700 dark:text-gray-200 rounded-md bg-gray-100 dark:bg-gray-600/40"
-                                            >
-                                                <font-awesome-icon icon="ban" class="w-5 h-5" />
-                                                <span>Ticket cannot be edited once status changed.</span>
-                                            </div>
-                                        </div>
+                                    <!-- Description Card Header -->
+                                    <div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-700/60 backdrop-blur px-4 py-3 border border-gray-200 dark:border-gray-600">
+                                        <h3 class="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                            <font-awesome-icon icon="file-alt" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                            Description
+                                        </h3>
                                     </div>
                                     <div class="relative p-8 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg min-h-[500px] prose dark:prose-invert max-w-none break-words">
                                         <div v-if="can.update" class="absolute mr-1 top-2 right-2 z-10">
@@ -632,6 +674,24 @@ const closeProofModal = () => {
                                             <span class="font-semibold">{{ (statusOptions[pendingStatus] || pendingStatus).toLowerCase() }}</span>
                                             this ticket?
                                         </p>
+
+                                        <!-- Rejection Message Input (only shown when rejecting) -->
+                                        <div v-if="pendingStatus === 'Rejected'" class="mt-4">
+                                            <label for="rejection-message" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Rejection Message (Optional)
+                                            </label>
+                                            <textarea
+                                                id="rejection-message"
+                                                v-model="rejectionMessage"
+                                                rows="3"
+                                                placeholder="Provide a brief explanation for the rejection..."
+                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-uh-teal focus:border-uh-teal bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                                                maxlength="500"
+                                            ></textarea>
+                                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {{ rejectionMessage.length }}/500 characters
+                                            </p>
+                                        </div>
 
                                         <div class="mt-6 flex justify-end space-x-3">
                                             <button
@@ -727,8 +787,11 @@ const closeProofModal = () => {
                             <!-- Sidebar -->
                             <div class="space-y-6">
                                 <!-- Ticket Info -->
-                                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Ticket Details</h3>
+                                <div class="bg-gray-50 dark:bg-gray-700 p-5 rounded-lg border border-gray-200 dark:border-gray-600">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <font-awesome-icon icon="info-circle" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                        Ticket Details
+                                    </h3>
                                     
                                     <div class="space-y-3">
                                         <div>
@@ -755,23 +818,7 @@ const closeProofModal = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        <div class="flex justify-start items-center">
-                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Status:</p>
-                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
-                                                <span :class="[statusClasses[ticket.status], 'px-2 py-1 rounded-full text-xs font-medium']">
-                                                    {{ ticket.status }}
-                                                </span>
-                                            </p>
-                                        </div>
-                                        
-                                        <div class="flex justify-start items-center">
-                                            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Priority:</p>
-                                            <p class="ml-2 text-sm text-gray-900 dark:text-white">
-                                                <span :class="[priorityClasses[ticket.priority], 'px-2 py-1 rounded-full text-xs font-medium']">
-                                                    {{ ticket.priority }}
-                                                </span>
-                                            </p>
-                                        </div>
+                                        <!-- Status and Priority moved to prominent card above -->
                                         <div class="flex justify-start items-center" v-if="ticket.due_date">
                                              <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Due Date:</p>
                                              <p class="ml-2 text-sm text-gray-900 dark:text-white">
@@ -835,8 +882,9 @@ const closeProofModal = () => {
                                 </div>
 
                                 <!-- User Info -->
-                                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                                <div class="bg-gray-50 dark:bg-gray-700 p-5 rounded-lg border border-gray-200 dark:border-gray-600">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <font-awesome-icon icon="users" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
                                         Assignees
                                     </h3>
                                     <div class="flex items-center gap-1 flex-wrap">

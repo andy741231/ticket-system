@@ -2,6 +2,11 @@ Ticket #{{ $ticketId }} Rejected
 
 Your ticket has been reviewed and was not approved.
 
+@if(!empty($rejectionMessage))
+Reason:
+{{ $rejectionMessage }}
+
+@endif
 Title: {{ $title }}
 Priority: {{ $priority }}
 Status: {{ $status }}
