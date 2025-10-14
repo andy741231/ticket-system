@@ -236,8 +236,12 @@ class TicketController extends Controller
             }
         }
 
-        // Notify Tickets app admins with a link to the new ticket (non-blocking if mail fails)
+        // Notify Tickets app admins AND assignees with a link to the new ticket (non-blocking if mail fails)
         $mailWarning = null;
+        $adminWarnings = [];
+        $assigneeWarnings = [];
+        
+        // 1. Notify Ticket Admins
         try {
             // Resolve current team/app context from request attributes (set by SetAppContext middleware)
             $teamId = $request->attributes->get('current_team_id');
@@ -305,18 +309,18 @@ class TicketController extends Controller
                         }
 
                         if ($queuedCount === 0) {
-                            $mailWarning = 'Ticket created, but no valid admin email addresses were available to notify.'
+                            $adminWarnings[] = 'No valid admin email addresses were available to notify.'
                                 . (!empty($failed) ? ' Invalid: ' . implode(', ', $failed) : '');
                         } elseif (!empty($failed)) {
-                            $mailWarning = 'Ticket created, but failed to enqueue notification for some admin(s): ' . implode(', ', $failed);
+                            $adminWarnings[] = 'Failed to enqueue notification for some admin(s): ' . implode(', ', $failed);
                         }
                     }
                     else {
-                        $mailWarning = 'Ticket created, but no ticket admins with email were found to notify.';
+                        $adminWarnings[] = 'No ticket admins with email were found to notify.';
                     }
                 }
                 else {
-                    $mailWarning = 'Ticket created, but no Tickets admin role was found for the current app context.';
+                    $adminWarnings[] = 'No Tickets admin role was found for the current app context.';
                 }
             }
         } catch (\Throwable $e) {
@@ -327,7 +331,82 @@ class TicketController extends Controller
                     'error' => $e->getMessage(),
                 ]);
             }
-            $mailWarning = $mailWarning ?: 'Ticket created, but failed to enqueue admin notification due to a mail error.';
+            $adminWarnings[] = 'Failed to enqueue admin notification due to a mail error.';
+        }
+
+        // 2. Notify Assignees immediately (no approval required)
+        try {
+            $assignees = $ticket->assignees()->whereNotNull('email')->get();
+            if ($assignees->isNotEmpty()) {
+                $ticketUrl = route('tickets.show', $ticket);
+                $submitterName = auth()->user()->name ?? 'Unknown';
+
+                $failed = [];
+                $queuedCount = 0;
+                foreach ($assignees as $assignee) {
+                    $email = trim((string) ($assignee->email ?? ''));
+                    $name = trim((string) ($assignee->name ?? ''));
+                    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                        $failed[] = $email !== '' ? $email : 'invalid-email';
+                        logger()->warning('Skipping assignee notification due to invalid email', [
+                            'ticket_id' => $ticket->id,
+                            'recipient_id' => $assignee->id ?? null,
+                            'raw_email' => $assignee->email ?? null,
+                        ]);
+                        continue;
+                    }
+
+                    try {
+                        Mail::to(new Address($email, $name))
+                            ->queue(
+                                (new TicketApproved(
+                                    ticketId: $ticket->id,
+                                    title: $ticket->title,
+                                    priority: $ticket->priority,
+                                    status: $ticket->status,
+                                    submitterName: $submitterName,
+                                    ticketUrl: $ticketUrl,
+                                ))->mailer('campus_smtp')
+                            );
+                        $queuedCount++;
+                    } catch (\Throwable $t) {
+                        $failed[] = $assignee->email ?? 'unknown';
+                        $context = [
+                            'ticket_id' => $ticket->id,
+                            'recipient_id' => $assignee->id ?? null,
+                            'recipient_email' => $assignee->email ?? null,
+                            'recipient_name' => $assignee->name ?? null,
+                            'exception' => get_class($t),
+                            'message' => $t->getMessage(),
+                        ];
+                        if (config('app.debug')) {
+                            $context['trace'] = $t->getTraceAsString();
+                        }
+                        logger()->error('Failed dispatching assignee notification to queue', $context);
+                    }
+                }
+
+                if ($queuedCount === 0 && !empty($failed)) {
+                    $assigneeWarnings[] = 'No valid assignee email addresses were available to notify.'
+                        . ' Invalid: ' . implode(', ', $failed);
+                } elseif (!empty($failed)) {
+                    $assigneeWarnings[] = 'Failed to enqueue notification for some assignee(s): ' . implode(', ', $failed);
+                }
+            }
+        } catch (\Throwable $e) {
+            if (config('app.debug')) {
+                logger()->warning('Assignee notification enqueue failed', [
+                    'ticket_id' => $ticket->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            $assigneeWarnings[] = 'Failed to enqueue assignee notifications due to a mail error.';
+        }
+
+        // Combine warnings
+        $allWarnings = array_merge($adminWarnings, $assigneeWarnings);
+        if (!empty($allWarnings)) {
+            $mailWarning = 'Ticket created. ' . implode(' ', $allWarnings);
         }
 
         $redirect = redirect()

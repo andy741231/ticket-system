@@ -10,9 +10,11 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class TicketFileController extends Controller
 {
+    use AuthorizesRequests;
     /**
      * Maximum file size in kilobytes.
      */
@@ -39,6 +41,9 @@ class TicketFileController extends Controller
      */
     public function store(Request $request, Ticket $ticket): JsonResponse
     {
+        // Ensure user has access to view the ticket
+        $this->authorize('view', $ticket);
+        
         $request->validate([
             'files.*' => [
                 'required',
@@ -91,6 +96,9 @@ class TicketFileController extends Controller
      */
     public function destroy(Ticket $ticket, TicketFile $file): JsonResponse
     {
+        // Ensure user has access to view the ticket
+        $this->authorize('view', $ticket);
+        
         // Verify the file belongs to the ticket
         if ($file->ticket_id !== $ticket->id) {
             return response()->json([

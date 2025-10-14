@@ -140,7 +140,7 @@ class AnnotationController extends Controller
      */
     public function store(Request $request, Ticket $ticket, TicketImage $ticketImage): JsonResponse
     {
-        $this->authorize('update', $ticket);
+        $this->authorize('view', $ticket);
 
         if ($ticketImage->ticket_id !== $ticket->id) {
             return response()->json([
@@ -224,7 +224,7 @@ class AnnotationController extends Controller
      */
     public function update(Request $request, Ticket $ticket, TicketImage $ticketImage, Annotation $annotation): JsonResponse
     {
-        $this->authorize('update', $ticket);
+        $this->authorize('view', $ticket);
 
         if ($ticketImage->ticket_id !== $ticket->id || $annotation->ticket_image_id !== $ticketImage->id) {
             return response()->json([
@@ -278,7 +278,7 @@ class AnnotationController extends Controller
      */
     public function destroy(Ticket $ticket, TicketImage $ticketImage, Annotation $annotation): JsonResponse
     {
-        $this->authorize('update', $ticket);
+        $this->authorize('view', $ticket);
 
         if ($ticketImage->ticket_id !== $ticket->id || $annotation->ticket_image_id !== $ticketImage->id) {
             return response()->json([

@@ -26,8 +26,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['web', 'auth'])->group(function () {
     // Temporary file upload endpoints (before ticket exists)
     Route::prefix('temp-files')->group(function () {
-        Route::post('/', [TempFileController::class, 'store'])->middleware('perm:tickets.file.upload');
-        Route::delete('/{file}', [TempFileController::class, 'destroy'])->middleware('perm:tickets.file.upload');
+        Route::post('/', [TempFileController::class, 'store']);
+        Route::delete('/{file}', [TempFileController::class, 'destroy']);
     });
 
     // Temporary proof image endpoints (before ticket exists)
@@ -47,10 +47,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     // File upload endpoints
     Route::prefix('tickets/{ticket}')->group(function () {
         // Upload files to a ticket
-        Route::post('/files', [TicketFileController::class, 'store'])->middleware('perm:tickets.file.upload');
+        Route::post('/files', [TicketFileController::class, 'store']);
         
         // Delete a file from a ticket
-        Route::delete('/files/{file}', [TicketFileController::class, 'destroy'])->middleware('perm:tickets.file.upload');
+        Route::delete('/files/{file}', [TicketFileController::class, 'destroy']);
         
         // Get mentionable users for a ticket
         Route::get('/mentionable-users', [\App\Http\Controllers\TicketCommentController::class, 'mentionableUsers']);
