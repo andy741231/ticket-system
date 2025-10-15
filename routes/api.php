@@ -107,6 +107,7 @@ Route::put('/subscriber/{token}', [NewsletterPublicController::class, 'updatePre
 
 // Image upload endpoint (used by newsletter builder)
 Route::post('/image-upload', [ImageUploadController::class, 'store'])->name('image.upload');
+Route::delete('/image-delete', [ImageUploadController::class, 'destroy'])->name('image.delete');
 
 // Public Directory API (no auth) with CORS support
 Route::options('/directory/team', [DirectoryPublicController::class, 'options']);

@@ -825,44 +825,91 @@ function safeParseJson(str) {
           </div>
 
           <!-- Action Buttons -->
-          <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
-            <div class="px-6 py-4 flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
-              <SecondaryButton 
-                @click.prevent="saveDraft" 
-                :class="{ 'opacity-25': isDraftSaving }" 
-                :disabled="isDraftSaving" 
-                type="button"
-                class="inline-flex items-center justify-center"
-              >
-                <DocumentTextIcon class="-ml-1 mr-2 h-5 w-5" />
-                <span v-if="isDraftSaving">Saving...</span>
-                <span v-else>Save Draft</span>
-              </SecondaryButton>
-              
-              <!-- Send Draft button - only visible for draft campaigns -->
-              <SecondaryButton
-                v-if="campaign.status === 'draft'"
-                @click.prevent="sendDraftCampaign"
-                :class="{ 'opacity-25': form.processing }"
-                :disabled="form.processing"
-                type="button"
-                class="inline-flex items-center justify-center bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
-              >
-                <PaperAirplaneIcon class="-ml-1 mr-2 h-5 w-5" />
-                Send Draft
-              </SecondaryButton>
-              
-              <PrimaryButton 
-              type="submit"
-                :class="{ 'opacity-25': form.processing || isValidating }" 
-                :disabled="form.processing || isValidating"
-                class="inline-flex items-center justify-center bg-uh-red hover:bg-uh-brick focus:ring-uh-red"
-              >
-                <PaperAirplaneIcon class="-ml-1 mr-2 h-5 w-5" />
-                <span v-if="form.processing">Sending...</span>
-                <span v-else-if="isValidating">Validating...</span>
-                <span v-else>Send Campaign</span>
-              </PrimaryButton>
+          <div class="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-lg sm:rounded-xl border border-gray-200 dark:border-gray-700">
+            <div class="px-6 py-5">
+              <!-- Action Buttons Container -->
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <!-- Left side: Save Draft -->
+                <button
+                  @click.prevent="saveDraft"
+                  :disabled="isDraftSaving"
+                  type="button"
+                  class="group relative inline-flex items-center justify-center px-5 py-2.5 rounded-lg font-medium text-sm
+                         bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200
+                         border-2 border-gray-300 dark:border-gray-600
+                         hover:border-gray-400 dark:hover:border-gray-500
+                         hover:shadow-md active:scale-95
+                         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100
+                         transition-all duration-200 ease-in-out
+                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 dark:focus:ring-gray-500"
+                >
+                  <DocumentTextIcon 
+                    :class="[
+                      'h-5 w-5 mr-2 transition-transform duration-200',
+                      isDraftSaving ? 'animate-pulse' : 'group-hover:scale-110'
+                    ]" 
+                  />
+                  <span class="font-semibold">
+                    {{ isDraftSaving ? 'Saving...' : 'Save Draft' }}
+                  </span>
+                </button>
+
+                <!-- Right side: Action Buttons -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                  <!-- Send Draft button - only visible for draft campaigns -->
+                  <button
+                    v-if="campaign.status === 'draft'"
+                    @click.prevent="sendDraftCampaign"
+                    :disabled="form.processing"
+                    type="button"
+                    class="group relative inline-flex items-center justify-center px-6 py-2.5 rounded-lg font-medium text-sm
+                           bg-gradient-to-r from-uh-mustard to-uh-gold
+                           text-white dark:text-gray-900
+                           border-2 border-uh-ocher dark:border-uh-gold
+                           hover:from-uh-ocher hover:to-uh-mustard
+                           hover:shadow-lg hover:shadow-uh-gold/30
+                           active:scale-95
+                           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100
+                           transition-all duration-200 ease-in-out
+                           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-gold dark:focus:ring-uh-mustard"
+                  >
+                    <PaperAirplaneIcon 
+                      class="h-5 w-5 mr-2 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" 
+                    />
+                    <span class="font-semibold">Send Draft</span>
+                    <span class="absolute inset-0 rounded-lg bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></span>
+                  </button>
+                  
+                  <!-- Send Campaign button -->
+                  <button
+                    type="submit"
+                    :disabled="form.processing || isValidating"
+                    class="group relative inline-flex items-center justify-center px-6 py-2.5 rounded-lg font-medium text-sm
+                           bg-gradient-to-r from-uh-red to-uh-brick
+                           text-white
+                           border-2 border-uh-chocolate dark:border-uh-red
+                           hover:from-uh-brick hover:to-uh-chocolate
+                           hover:shadow-lg hover:shadow-uh-red/30
+                           active:scale-95
+                           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:active:scale-100
+                           transition-all duration-200 ease-in-out
+                           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-red dark:focus:ring-uh-brick"
+                  >
+                    <PaperAirplaneIcon 
+                      :class="[
+                        'h-5 w-5 mr-2 transition-transform duration-200',
+                        form.processing || isValidating ? 'animate-pulse' : 'group-hover:translate-x-0.5 group-hover:-translate-y-0.5'
+                      ]" 
+                    />
+                    <span class="font-semibold">
+                      <span v-if="form.processing">Sending...</span>
+                      <span v-else-if="isValidating">Validating...</span>
+                      <span v-else>Send Campaign</span>
+                    </span>
+                    <span class="absolute inset-0 rounded-lg bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </form>

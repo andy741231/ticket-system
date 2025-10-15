@@ -555,9 +555,17 @@ function addBlock(blockType, insertIndex = null) {
   updateContent();
 }
 
-function removeBlock(blockId) {
+async function removeBlock(blockId) {
   const index = emailBlocks.value.findIndex(b => b.id === blockId);
   if (index > -1) {
+    const block = emailBlocks.value[index];
+    
+    // Extract and delete all images associated with this block
+    const imageUrls = extractImageUrls(block);
+    for (const url of imageUrls) {
+      await deleteImageFromServer(url);
+    }
+    
     // Allow deletion of footer blocks - remove the locked check
     emailBlocks.value.splice(index, 1);
     // Clean up any editor instance tied to this block
@@ -773,11 +781,19 @@ function updateNestedItem(blockId, colIdx, itemIndex, newDataPartial) {
   updateBlockData(blockId, { columns: cols });
 }
 
-function removeNestedItem(blockId, colIdx, itemIndex) {
+async function removeNestedItem(blockId, colIdx, itemIndex) {
   const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
   if (blkIdx === -1) return;
   const blk = emailBlocks.value[blkIdx];
   const cols = normalizeColumnsItems(blk.data?.columns || []);
+  
+  // Extract and delete image if this item is an image
+  const item = cols[colIdx].items[itemIndex];
+  const imageUrl = extractItemImageUrl(item);
+  if (imageUrl) {
+    await deleteImageFromServer(imageUrl);
+  }
+  
   cols[colIdx].items.splice(itemIndex, 1);
   updateBlockData(blockId, { columns: cols });
 }
@@ -955,12 +971,20 @@ function updateTableListItem(blockId, rowIdx, itemIndex, newDataPartial) {
   updateBlockData(blockId, { rows });
 }
 
-function removeTableListItem(blockId, rowIdx, itemIndex) {
+async function removeTableListItem(blockId, rowIdx, itemIndex) {
   const blkIdx = emailBlocks.value.findIndex(b => b.id === blockId);
   if (blkIdx === -1) return;
   const blk = emailBlocks.value[blkIdx];
   const rows = normalizeTableListRows(blk.data?.rows || []);
   if (!rows[rowIdx]) return;
+  
+  // Extract and delete image if this item is an image
+  const item = rows[rowIdx].items[itemIndex];
+  const imageUrl = extractItemImageUrl(item);
+  if (imageUrl) {
+    await deleteImageFromServer(imageUrl);
+  }
+  
   rows[rowIdx].items.splice(itemIndex, 1);
   updateBlockData(blockId, { rows });
 }
@@ -1999,6 +2023,98 @@ function handleImageUpload(event) {
       });
     };
     reader.readAsDataURL(file);
+  }
+}
+
+// Helper function to extract image URLs from block data
+function extractImageUrls(block) {
+  const urls = [];
+  
+  if (!block) return urls;
+  
+  // Check if this is an image block
+  if (block.type === 'image' && block.data?.src) {
+    urls.push(block.data.src);
+  }
+  
+  // Check if this is a header with a logo
+  if (block.type === 'header' && block.data?.logo) {
+    urls.push(block.data.logo);
+  }
+  
+  // Check for columns with nested items
+  if (block.type === 'columns' && block.data?.columns) {
+    const cols = normalizeColumnsItems(block.data.columns);
+    cols.forEach(col => {
+      if (col.items) {
+        col.items.forEach(item => {
+          if (item.type === 'image' && item.data?.src) {
+            urls.push(item.data.src);
+          }
+        });
+      }
+    });
+  }
+  
+  // Check for table list with nested items
+  if (block.type === 'tablelist' && block.data?.rows) {
+    const rows = normalizeTableListRows(block.data.rows);
+    rows.forEach(row => {
+      if (row.items) {
+        row.items.forEach(item => {
+          if (item.type === 'image' && item.data?.src) {
+            urls.push(item.data.src);
+          }
+        });
+      }
+    });
+  }
+  
+  return urls;
+}
+
+// Helper function to extract image URL from a nested item
+function extractItemImageUrl(item) {
+  if (!item) return null;
+  if (item.type === 'image' && item.data?.src) {
+    return item.data.src;
+  }
+  return null;
+}
+
+// Helper function to delete an image from the server
+async function deleteImageFromServer(imageUrl) {
+  if (!imageUrl) return;
+  
+  // Only delete images from campaign or temp folders
+  if (!imageUrl.includes('/newsletters/campaign-') && !imageUrl.includes('/newsletters/tmp/')) {
+    return;
+  }
+  
+  try {
+    const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
+    const deleteUrl = (typeof route === 'function')
+      ? route('image.delete')
+      : (typeof window !== 'undefined' && typeof window.route === 'function')
+        ? window.route('image.delete')
+        : '/api/image-delete';
+    
+    const payload = { url: imageUrl };
+    if (props.campaignId) {
+      payload.campaign_id = props.campaignId;
+    } else if (props.tempKey) {
+      payload.temp_key = props.tempKey;
+    }
+    
+    await axios.delete(deleteUrl, {
+      data: payload,
+      headers: {
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+        Accept: 'application/json',
+      },
+    });
+  } catch (e) {
+    console.warn('Failed to delete image from server:', e);
   }
 }
 
