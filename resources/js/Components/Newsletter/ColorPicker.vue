@@ -447,12 +447,12 @@ function setPreset(val) {
             </div>
           </div>
 
-          <!-- Input: any CSS color -->
+          <!-- Input: any HTML color -->
           <div class="grid grid-cols-7 gap-2 items-end">
             <div class="col-span-7">
-              <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">CSS</label>
-              <input v-model="cssInput" @change="onCssChange" type="text" placeholder="Any CSS color (e.g., rgba(0,0,0,.5), hsl(...), transparent)"
-                     class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-900" />
+              <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">HTML Color</label>
+              <input v-model="cssInput" @change="onCssChange" type="text" placeholder="Any HTML color (e.g., rgba(0,0,0,.5), hsl(...), transparent)"
+                     class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-900 dark:text-gray-100" />
             </div>
           </div>
 

@@ -202,7 +202,13 @@ const showImageUpload = ref(false);
 const imageFileInput = ref(null);
 const imageCropper = ref(null);
 const imageCropSrc = ref(null);
+const originalImageFile = ref(null);
 const imageFullWidth = ref(false);
+const imageCropModified = ref(false);
+const enableCropTool = ref(false);
+const cropPreviewSrc = ref(null);
+const showCropPreview = ref(false);
+const cropEventHandler = ref(null);
 const showButtonEditor = ref(false);
 const showColumnEditor = ref(false);
 const showTextEditor = ref(false);
@@ -257,6 +263,7 @@ const showTokensDropdown = ref(null);
 const showBlockSettings = ref(false);
 const blockMargin = ref('0');
 const blockPadding = ref('15px 35px');
+const blockBackground = ref('transparent');
 const blockBorder = ref('none');
 const blockBorderColor = ref('#e5e7eb');
 const blockBorderWidth = ref('1px');
@@ -281,7 +288,6 @@ const emailBlocks = ref([
     data: {
       title: 'Newsletter Title',
       subtitle: 'Your weekly dose of updates',
-      background: '#c8102e',
       textColor: '#ffffff',
       padding: '30px 12px',
       fullWidth: false,
@@ -290,12 +296,12 @@ const emailBlocks = ref([
       logoUrl: '',
       logoAlignment: 'center',
       logoSize: '150px',
-      logoPadding: '10px'
+      logoPadding: '10px',
+      blockBackground: '#c8102e'
     },
     content: getBlockHtml('header', {
       title: 'Newsletter Title',
       subtitle: 'Your weekly dose of updates',
-      background: '#c8102e',
       textColor: '#ffffff',
       padding: '30px 12px',
       fullWidth: false,
@@ -304,7 +310,8 @@ const emailBlocks = ref([
       logoUrl: '',
       logoAlignment: 'center',
       logoSize: '150px',
-      logoPadding: '10px'
+      logoPadding: '10px',
+      blockBackground: '#c8102e'
     }),
     editable: true,
     locked: false,
@@ -315,18 +322,14 @@ const emailBlocks = ref([
     data: {
       content: '<p>Click to edit this text...</p>',
       fontSize: '16px',
-      color: '#666666',
       lineHeight: '1.6',
-      background: 'transparent',
       padding: '15px 50px',
       fullWidth: false
     },
     content: getBlockHtml('text', {
       content: '<p>Click to edit this text...</p>',
       fontSize: '16px',
-      color: '#666666',
       lineHeight: '1.6',
-      background: 'transparent',
       padding: '15px 50px',
       fullWidth: false
     }),
@@ -344,8 +347,8 @@ const emailBlocks = ref([
         { text: 'View in browser', url: '{{browser_url}}' }
       ],
       copyright: '2025 UH Population Health. All rights reserved.',
-      background: '#c8102e',
-      textColor: '#ffffff'
+      textColor: '#ffffff',
+      blockBackground: '#c8102e'
     },
     content: getBlockHtml('footer', {
       content: 'Thanks for reading! Forward this to someone who might find it useful.',
@@ -355,8 +358,8 @@ const emailBlocks = ref([
         { text: 'View in browser', url: '{{browser_url}}' }
       ],
       copyright: '2025 UH Population Health. All rights reserved.',
-      background: '#c8102e',
-      textColor: '#ffffff'
+      textColor: '#ffffff',
+      blockBackground: '#c8102e'
     }),
     editable: true,
     locked: true,
@@ -467,7 +470,6 @@ function getDefaultEmailStructure() {
         data: {
           title: 'Newsletter Title',
           subtitle: 'Your weekly dose of updates',
-          background: '#c8102e',
           textColor: '#ffffff',
           padding: '30px 12px',
           fullWidth: false,
@@ -476,7 +478,8 @@ function getDefaultEmailStructure() {
           logoUrl: '',
           logoAlignment: 'center',
           logoSize: '150px',
-          logoPadding: '10px'
+          logoPadding: '10px',
+          blockBackground: '#c8102e'
         },
         editable: true,
         locked: false
@@ -487,9 +490,7 @@ function getDefaultEmailStructure() {
         data: {
           content: '<p>Start writing your email content here...</p>',
           fontSize: '16px',
-          color: '#666666',
           lineHeight: '1.6',
-          background: 'transparent',
           padding: '15px 50px',
           fullWidth: false
         },
@@ -507,8 +508,8 @@ function getDefaultEmailStructure() {
             { text: 'View in browser', url: '{{browser_url}}' }
           ],
           copyright: '2025 UH Population Health. All rights reserved.',
-          background: '#c8102e',
-          textColor: '#ffffff'
+          textColor: '#ffffff',
+          blockBackground: '#c8102e'
         },
         editable: true,
         locked: true
@@ -867,17 +868,20 @@ function openNestedEditor(blockId, colIdx, itemIndex) {
   editingNested.value = { blockId, colIdx, itemIndex };
   if (item.type === 'text' || item.type === 'heading') {
     textModalContent.value = item.data?.content || '';
-    textBackground.value = item.data?.background || 'transparent';
-    textColor.value = item.data?.color || (item.type === 'heading' ? '#333333' : '#666666');
     showTextEditor.value = true;
   } else if (item.type === 'image') {
     imageCropSrc.value = item.data?.src || null;
     imageFullWidth.value = item.data?.fullWidth || false;
+    originalImageFile.value = null; // No original file when editing existing image
+    imageCropModified.value = false;
+    enableCropTool.value = false; // Disable crop tool by default when editing
+    cropPreviewSrc.value = null;
+    showCropPreview.value = false;
     showImageUpload.value = true;
   } else if (item.type === 'button') {
     buttonText.value = item.data?.text || 'Click Here';
     buttonUrl.value = item.data?.url || '#';
-    buttonBackground.value = item.data?.background || '#c8102e';
+    buttonTextColor.value = item.data?.color || '#ffffff';
     showButtonEditor.value = true;
   } else {
     // Fallback: treat as text content
@@ -1025,17 +1029,20 @@ function openTableListNestedEditor(blockId, rowIdx, itemIndex) {
   editingTableListNested.value = { blockId, rowIdx, itemIndex };
   if (item.type === 'text' || item.type === 'heading') {
     textModalContent.value = item.data?.content || '';
-    textBackground.value = item.data?.background || 'transparent';
-    textColor.value = item.data?.color || (item.type === 'heading' ? '#333333' : '#666666');
     showTextEditor.value = true;
   } else if (item.type === 'image') {
     imageCropSrc.value = item.data?.src || null;
     imageFullWidth.value = item.data?.fullWidth || false;
+    originalImageFile.value = null; // No original file when editing existing image
+    imageCropModified.value = false;
+    enableCropTool.value = false; // Disable crop tool by default when editing
+    cropPreviewSrc.value = null;
+    showCropPreview.value = false;
     showImageUpload.value = true;
   } else if (item.type === 'button') {
     buttonText.value = item.data?.text || 'Click Here';
     buttonUrl.value = item.data?.url || '#';
-    buttonBackground.value = item.data?.background || '#c8102e';
+    buttonTextColor.value = item.data?.color || '#ffffff';
     showButtonEditor.value = true;
   } else {
     textModalContent.value = item.data?.content || item.content || '';
@@ -1584,7 +1591,6 @@ function createBlock(type) {
     header: { 
       title: 'Newsletter Title', 
       subtitle: 'Your weekly dose of updates',
-      background: '#c8102e',
       textColor: '#ffffff',
       padding: '30px 12px',
       fullWidth: false,
@@ -1593,14 +1599,13 @@ function createBlock(type) {
       logoUrl: '',
       logoAlignment: 'center',
       logoSize: '250px',
-      logoPadding: '10px'
+      logoPadding: '10px',
+      blockBackground: '#c8102e'
     },
     text: { 
       content: '<p>Click to edit this text...</p>',
       fontSize: '16px',
-      color: '#666666',
       lineHeight: '1.6',
-      background: 'transparent',
       padding: '15px 50px',
       fullWidth: false
     },
@@ -1608,9 +1613,7 @@ function createBlock(type) {
       content: 'Your Heading Here', 
       level: 2,
       fontSize: '22px',
-      color: '#333333',
       fontWeight: '600',
-      background: 'transparent',
       padding: '15px 12px',
       fullWidth: false
     },
@@ -1626,10 +1629,10 @@ function createBlock(type) {
     button: { 
       text: 'Click Here', 
       url: '#', 
-      background: '#c8102e',
       color: '#ffffff',
       borderRadius: '25px',
-      padding: '12px 25px'
+      padding: '12px 25px',
+      blockBackground: '#c8102e'
     },
     columns: {
       count: 2,
@@ -1666,8 +1669,8 @@ function createBlock(type) {
         { text: 'View in browser', url: '{{browser_url}}' }
       ],
       copyright: '2025 Your Company Name. All rights reserved.',
-      background: '#c8102e',
-      textColor: '#ffffff'
+      textColor: '#ffffff',
+      blockBackground: '#c8102e'
     },
     spacer: { height: '20px' }
   };
@@ -1688,6 +1691,7 @@ function getBlockHtml(type, data) {
   
   const getBlockStyles = (blockData) => {
     const styles = [];
+    if (blockData.blockBackground) styles.push(`background: ${blockData.blockBackground}`);
     if (blockData.margin) styles.push(`margin: ${blockData.margin}`);
     if (blockData.border && blockData.border !== 'none') {
       if (blockData.border === 'custom') {
@@ -1759,13 +1763,13 @@ function getBlockHtml(type, data) {
       const titleHtml = data.title ? `<h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title}</h1>` : '';
       const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle}</p>` : '';
       const headerStyles = getBlockStyles(data);
-      return `<div class="header-block" style="background: ${data.background || '#c8102e'}; color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0; ${headerStyles}">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
+      return `<div class="header-block" style="color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0; ${headerStyles}">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
     case 'text':
       data = data || {};
       const textStyles = getBlockStyles(data);
       const textMargin = data.margin || '0';
       const textContent = addMarginResets(data.content || '<p>Click to edit this text...</p>');
-      return `<div style="margin: ${textMargin}; padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${data.color || '#666666'}; ${textStyles}">${textContent}</div>`;
+      return `<div style="margin: ${textMargin}; padding: ${data.padding || '15px 35px'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; ${textStyles}">${textContent}</div>`;
     case 'heading':
       data = data || {};
       const headingStyles = getBlockStyles(data);
@@ -1800,7 +1804,7 @@ function getBlockHtml(type, data) {
           });
         }
       });
-      return `<div style="padding: ${data.padding || '15px 35px'}; background-color: ${data.background || 'transparent'}; text-align: ${textAlign}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; color: ${data.color || '#333333'}; line-height: 1.3;">${headingContent}</h${data.level || 2}></div>`;
+      return `<div style="padding: ${data.padding || '15px 35px'}; text-align: ${textAlign}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; line-height: 1.3;">${headingContent}</h${data.level || 2}></div>`;
     case 'image':
       data = data || {};
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
@@ -1810,8 +1814,8 @@ function getBlockHtml(type, data) {
         `<div style="padding: ${imgPadding}; ${imageStyles}"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
         `<div style="padding: ${imgPadding}; ${imageStyles}"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
     case 'button':
-      const buttonStyles = getBlockStyles(data);
-      return `<div style="text-align: center; margin: 20px 0; ${buttonStyles}"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${data.background}; color: ${data.color}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
+      const buttonBg = data.blockBackground || '#c8102e';
+      return `<div style="text-align: center; margin: 20px 0;"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${buttonBg}; color: ${data.color || '#ffffff'}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
     case 'columns':
       data = data || {};
       const count = 2; // enforce two columns only
@@ -1852,7 +1856,8 @@ function getBlockHtml(type, data) {
       const footerLinks = linksArr.map(link => 
         `<a href="${(link && link.url) || '#'}" style="color: ${(data && data.textColor) || '#ffffff'}; text-decoration: none;">${(link && link.text) || ''}</a>`
       ).join(' | ');
-      return `<div style="background-color: ${(data && data.background) || '#c8102e'}; color: ${(data && data.textColor) || '#ffffff'}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee;"><div>${(data && data.content) || ''}</div><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">${footerLinks}</p><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">&copy; ${(data && data.copyright) || ''}</p></div>`;
+      const footerStyles = getBlockStyles(data);
+      return `<div style="color: ${(data && data.textColor) || '#ffffff'}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee; ${footerStyles}"><div>${(data && data.content) || ''}</div><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">${footerLinks}</p><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">&copy; ${(data && data.copyright) || ''}</p></div>`;
     case 'tablelist':
       data = data || {};
       const rowCount = data.rowCount || 3;
@@ -1898,6 +1903,7 @@ function openBlockSettings(blockId) {
     // Load current styling values
     blockMargin.value = block.data?.margin || '0';
     blockPadding.value = block.data?.padding || '15px 35px';
+    blockBackground.value = block.data?.blockBackground || 'transparent';
     blockBorder.value = block.data?.border || 'none';
     blockBorderColor.value = block.data?.borderColor || '#e5e7eb';
     blockBorderWidth.value = block.data?.borderWidth || '1px';
@@ -1914,6 +1920,7 @@ function saveBlockSettings() {
   updateBlockData(editingBlock.value, {
     margin: blockMargin.value,
     padding: blockPadding.value,
+    blockBackground: blockBackground.value,
     border: blockBorder.value,
     borderColor: blockBorderColor.value,
     borderWidth: blockBorderWidth.value,
@@ -1936,12 +1943,17 @@ function editBlock(blockId) {
       // Preload current image and spacing settings
       imageCropSrc.value = block.data?.src || null;
       imageFullWidth.value = block.data?.fullWidth || false;
+      originalImageFile.value = null; // No original file when editing existing image
+      imageCropModified.value = false;
+      enableCropTool.value = false; // Disable crop tool by default when editing
+      cropPreviewSrc.value = null;
+      showCropPreview.value = false;
       showImageUpload.value = true;
     } else if (block.type === 'button') {
       // Pre-populate button editor with current values
       buttonText.value = block.data.text || 'Click Here';
       buttonUrl.value = block.data.url || '#';
-      buttonBackground.value = block.data.background || '#667eea';
+      buttonTextColor.value = block.data.color || '#ffffff';
       showButtonEditor.value = true;
     } else if (block.type === 'columns') {
       // Initialize columns editor state from block
@@ -1966,22 +1978,16 @@ function editBlock(blockId) {
       tableListCol2Width.value = block.data?.col2Width || '50%';
       showTableListEditor.value = true;
     } else if (block.type === 'text') {
-      // Use EmailEditor in a modal for text blocks, with background and padding settings
+      // Use EmailEditor in a modal for text blocks
       textModalContent.value = block.data?.content || block.content || '';
-      textBackground.value = block.data?.background || 'transparent';
-      textColor.value = block.data?.color || '#666666';
-      // Remove textFullWidth since we're removing the option
       showTextEditor.value = true;
     } else if (block.type === 'heading') {
       // Use EmailEditor in a modal for heading blocks
       textModalContent.value = block.data?.content || block.content || '';
-      textBackground.value = block.data?.background || 'transparent';
-      textColor.value = block.data?.color || '#333333';
       showTextEditor.value = true;
     } else if (block.type === 'header') {
       headerTitle.value = block.data?.title || '';
       headerSubtitle.value = block.data?.subtitle || '';
-      headerBackground.value = block.data?.background || '#c8102e';
       headerTextColor.value = block.data?.textColor || '#ffffff';
       headerLogo.value = block.data?.logo || '';
       headerLogoAlt.value = block.data?.logoAlt || '';
@@ -1992,7 +1998,6 @@ function editBlock(blockId) {
       showHeaderEditor.value = true;
     } else if (block.type === 'footer') {
       footerContent.value = block.data?.content || 'Thanks for reading! Forward this to someone who might find it useful.';
-      footerBackground.value = block.data?.background || '#c8102e';
       footerCopyright.value = block.data?.copyright || '2025 Your Company Name. All rights reserved.';
       footerTextColor.value = block.data?.textColor || '#ffffff';
       showFooterEditor.value = true;
@@ -2012,13 +2017,20 @@ function updateBlockData(blockId, newData) {
 function handleImageUpload(event) {
   const file = event.target.files[0];
   if (file) {
+    originalImageFile.value = file; // Store original file
     const reader = new FileReader();
     reader.onload = (e) => {
       imageCropSrc.value = e.target.result;
+      imageCropModified.value = false; // Reset crop state for new image
+      enableCropTool.value = false; // Disable crop tool by default for new uploads
+      cropPreviewSrc.value = null; // Reset preview
+      showCropPreview.value = false; // Hide preview
       // Force VueCropper to refresh with new image
       nextTick(() => {
         if (imageCropper.value) {
           imageCropper.value.replace(e.target.result);
+          // Setup event listeners (will be called again on ready event, but that's ok)
+          setupCropEventListeners();
         }
       });
     };
@@ -2118,18 +2130,109 @@ async function deleteImageFromServer(imageUrl) {
   }
 }
 
+// Generate crop preview
+async function generateCropPreview() {
+  if (!imageCropModified.value || !imageCropper.value) return;
+  
+  try {
+    const canvas = imageCropper.value.getCroppedCanvas({ width: imageMaxWidth.value });
+    if (canvas) {
+      cropPreviewSrc.value = canvas.toDataURL('image/jpeg', 0.92);
+      showCropPreview.value = true;
+    }
+  } catch (e) {
+    console.error('Failed to generate preview:', e);
+  }
+}
+
+// Setup crop event listeners
+function setupCropEventListeners() {
+  if (imageCropper.value) {
+    const cropperEl = imageCropper.value.$el;
+    if (cropperEl) {
+      // Remove existing listeners to avoid duplicates
+      if (cropEventHandler.value) {
+        ['crop', 'zoom', 'cropmove'].forEach(eventName => {
+          cropperEl.removeEventListener(eventName, cropEventHandler.value);
+        });
+      }
+      
+      // Create and store new handler
+      cropEventHandler.value = () => {
+        if (enableCropTool.value) {
+          imageCropModified.value = true;
+        }
+      };
+      
+      // Add event listeners
+      ['crop', 'zoom', 'cropmove'].forEach(eventName => {
+        cropperEl.addEventListener(eventName, cropEventHandler.value);
+      });
+    }
+  }
+}
+
+// Called when cropper is ready (for both new uploads and existing images)
+function onCropperReady() {
+  setupCropEventListeners();
+}
+
+// Toggle crop tool
+function toggleCropTool() {
+  enableCropTool.value = !enableCropTool.value;
+  if (!enableCropTool.value) {
+    // Reset crop when disabling
+    imageCropModified.value = false;
+    cropPreviewSrc.value = null;
+    showCropPreview.value = false;
+    if (imageCropper.value) {
+      imageCropper.value.reset();
+    }
+  }
+}
+
 async function cropAndSaveImage() {
   try {
-    const canvas = imageCropper.value?.getCroppedCanvas({ width: imageMaxWidth.value });
-    if (!canvas) return;
-
-    const blob = await new Promise((resolve, reject) => {
-      try {
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Failed to generate image blob.'))), 'image/jpeg', 0.92);
-      } catch (e) {
-        reject(e);
+    let blob;
+    
+    // If crop was modified, handle cropping workflow
+    if (imageCropModified.value) {
+      // Show preview before saving if cropped
+      if (!showCropPreview.value) {
+        await generateCropPreview();
+        return; // Don't save yet, show preview first
       }
-    });
+      
+      // Crop was modified and preview confirmed, convert preview to blob
+      if (cropPreviewSrc.value) {
+        // Convert data URL to blob
+        const response = await fetch(cropPreviewSrc.value);
+        blob = await response.blob();
+      } else {
+        console.error('No crop preview available');
+        return;
+      }
+    } else if (originalImageFile.value) {
+      // New upload without crop modifications - use original file
+      blob = originalImageFile.value;
+    } else if (imageCropSrc.value) {
+      // Editing existing image without crop - convert current image to blob
+      const canvas = imageCropper.value?.getCroppedCanvas({ 
+        width: imageCropper.value.getImageData().naturalWidth,
+        height: imageCropper.value.getImageData().naturalHeight
+      });
+      if (!canvas) return;
+
+      blob = await new Promise((resolve, reject) => {
+        try {
+          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Failed to generate image blob.'))), 'image/jpeg', 0.92);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    } else {
+      return; // No file to save
+    }
 
     // Upload to campaign-specific or temp folder via controller routing
     const slug = (props.campaignName || 'newsletter')
@@ -2191,11 +2294,16 @@ async function cropAndSaveImage() {
       });
     }
 
-    // Close modal
+    // Close modal and reset all states
     showImageUpload.value = false;
     imageCropSrc.value = null;
     editingNested.value = null;
     editingTableListNested.value = null;
+    imageCropModified.value = false;
+    enableCropTool.value = false;
+    cropPreviewSrc.value = null;
+    showCropPreview.value = false;
+    originalImageFile.value = null;
     // Reset file input
     if (imageFileInput.value) {
       imageFileInput.value.value = '';
@@ -2345,6 +2453,11 @@ function closeImageEditor() {
   editingBlock.value = null;
   editingNested.value = null;
   editingTableListNested.value = null;
+  imageCropModified.value = false;
+  enableCropTool.value = false;
+  cropPreviewSrc.value = null;
+  showCropPreview.value = false;
+  originalImageFile.value = null;
   // Reset file input
   if (imageFileInput.value) {
     imageFileInput.value.value = '';
@@ -2464,7 +2577,7 @@ function handlePreviewBackdropClick(event) {
 // Button editor data
 const buttonText = ref('');
 const buttonUrl = ref('');
-const buttonBackground = ref('');
+const buttonTextColor = ref('#ffffff');
 
 function saveButtonChanges() {
   if (editingTableListNested.value) {
@@ -2472,7 +2585,7 @@ function saveButtonChanges() {
     updateTableListItem(blockId, rowIdx, itemIndex, {
       text: buttonText.value,
       url: buttonUrl.value,
-      background: buttonBackground.value,
+      color: buttonTextColor.value,
     });
     showButtonEditor.value = false;
     editingTableListNested.value = null;
@@ -2481,7 +2594,7 @@ function saveButtonChanges() {
     updateNestedItem(blockId, colIdx, itemIndex, {
       text: buttonText.value,
       url: buttonUrl.value,
-      background: buttonBackground.value,
+      color: buttonTextColor.value,
     });
     showButtonEditor.value = false;
     editingNested.value = null;
@@ -2489,7 +2602,7 @@ function saveButtonChanges() {
     updateBlockData(editingBlock.value, {
       text: buttonText.value,
       url: buttonUrl.value,
-      background: buttonBackground.value
+      color: buttonTextColor.value
     });
     showButtonEditor.value = false;
     editingBlock.value = null;
@@ -2529,12 +2642,9 @@ function saveTextChanges() {
   if (editingTableListNested.value) {
     const { blockId, rowIdx, itemIndex } = editingTableListNested.value;
     const nested = getTableListItem(blockId, rowIdx, itemIndex);
-    const isHeading = nested?.type === 'heading';
     const isText = nested?.type === 'text';
     const payload = {
       content: textModalContent.value,
-      background: textBackground.value,
-      color: textColor.value,
     };
     if (isText) {
       payload.padding = '15px 35px';
@@ -2545,12 +2655,9 @@ function saveTextChanges() {
   } else if (editingNested.value) {
     const { blockId, colIdx, itemIndex } = editingNested.value;
     const nested = getNestedItem(blockId, colIdx, itemIndex);
-    const isHeading = nested?.type === 'heading';
     const isText = nested?.type === 'text';
     const payload = {
       content: textModalContent.value,
-      background: textBackground.value,
-      color: textColor.value,
     };
     if (isText) {
       payload.padding = '15px 35px';
@@ -2559,19 +2666,15 @@ function saveTextChanges() {
     showTextEditor.value = false;
     editingNested.value = null;
   } else {
-    const blk = currentEditingBlock.value;
+    const blk = emailBlocks.value.find(b => b.id === editingBlock.value);
     if (blk && blk.type === 'text') {
       updateBlockData(editingBlock.value, {
         content: textModalContent.value,
-        background: textBackground.value,
-        color: textColor.value,
         padding: '15px 35px',
       });
     } else if (blk && blk.type === 'heading') {
       updateBlockData(editingBlock.value, {
         content: textModalContent.value,
-        background: textBackground.value,
-        color: textColor.value,
       });
     } else {
       updateBlockData(editingBlock.value, { content: textModalContent.value });
@@ -2781,7 +2884,6 @@ function saveHeaderChanges() {
   updateBlockData(editingBlock.value, {
     title: headerTitle.value,
     subtitle: headerSubtitle.value,
-    background: headerBackground.value,
     textColor: headerTextColor.value,
     logo: headerLogo.value,
     logoAlt: headerLogoAlt.value,
@@ -2798,7 +2900,6 @@ function saveHeaderChanges() {
 function saveFooterChanges() {
   updateBlockData(editingBlock.value, {
     content: footerContent.value,
-    background: footerBackground.value,
     textColor: footerTextColor.value,
     copyright: footerCopyright.value,
   });
@@ -2999,9 +3100,10 @@ function insertTokenIntoEditor(token) {
           :class="`mx-auto transition-all duration-300 ${
             previewMode === 'mobile' ? 'max-w-sm' : 'max-w-2xl'
           }`"
+          style="padding-right: 60px;"
         >
           <div
-            class="bg-white shadow-lg rounded-lg overflow-hidden email-canvas"
+            class="bg-white shadow-lg rounded-lg overflow-visible relative email-canvas"
             ref="emailCanvasRef"
             @drop="onDrop($event)"
             @dragover="onDragOver($event)"
@@ -3225,48 +3327,53 @@ function insertTokenIntoEditor(token) {
                   </div>
                 </div>
                 
-                <!-- Block Controls -->
+                <!-- Block Controls - Positioned outside canvas on the right -->
                 <div
-                  class="absolute top-2 right-2 flex gap-1 bg-white shadow-lg rounded-md p-1 z-10 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity"
+                  class="absolute top-0 flex flex-col gap-1 bg-white dark:bg-gray-600 shadow-lg rounded-md p-1 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-20"
+                  style="left: calc(100% + 8px);"
                 >
+                  <!-- Invisible bridge to maintain hover state -->
+                  <div class="absolute right-full w-2 h-full" style="right: 100%; width: 8px;"></div>
                   <button type="button"
                     @click.stop="openBlockSettings(block.id)"
-                    class="p-1 text-xs text-purple-600 hover:bg-purple-50 rounded"
-                    title="Block Settings (Margin, Padding, Border)"
+                    class="p-1.5 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                    title="Block Settings"
                   >
                     <font-awesome-icon :icon="['fas', 'gear']" class="w-4 h-4" />
                   </button>
                   <button type="button"
                     @click.stop="editBlock(block.id)"
-                    class="p-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-                    title="Edit (Double-click block)"
+                    class="p-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
+                    title="Edit"
                   >
                     <font-awesome-icon :icon="['fas', 'pen']" class="w-4 h-4" />
                   </button>
                   <button type="button"
                     @click.stop="duplicateBlock(block.id)"
-                    class="p-1 text-xs text-green-600 hover:bg-green-50 rounded"
+                    class="p-1.5 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors"
                     title="Duplicate"
                   >
                     <font-awesome-icon :icon="['fas', 'copy']" class="w-4 h-4" />
                   </button>
+                  <div class="border-t border-gray-200 dark:border-gray-600 my-0.5"></div>
                   <button type="button"
                     @click.stop="moveBlockUp(block.id)"
-                    class="p-1 text-xs text-gray-600 hover:bg-gray-50 rounded"
+                    class="p-1.5 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
                     title="Move Up"
                   >
                     <font-awesome-icon :icon="['fas', 'arrow-up']" class="w-4 h-4" />
                   </button>
                   <button type="button"
                     @click.stop="moveBlockDown(block.id)"
-                    class="p-1 text-xs text-gray-600 hover:bg-gray-50 rounded"
+                    class="p-1.5 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
                     title="Move Down"
                   >
                     <font-awesome-icon :icon="['fas', 'arrow-down']" class="w-4 h-4" />
                   </button>
+                  <div class="border-t border-gray-200 dark:border-gray-600 my-0.5"></div>
                   <button type="button"
                     @click.stop="deleteBlock(block.id)"
-                    class="p-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                    class="p-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                     title="Delete"
                   >
                     <font-awesome-icon :icon="['fas', 'trash']" class="w-4 h-4" />
@@ -3351,7 +3458,7 @@ function insertTokenIntoEditor(token) {
     <!-- Block Editors -->
     <!-- Image Upload / Crop Modal -->
     <div v-if="showImageUpload" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-[44rem] max-w-full">
+      <div class="dark:bg-gray-700 bg-white rounded-lg p-6 w-[44rem] max-w-full">
         <h3 class="text-lg font-medium mb-4">Upload & Crop Image</h3>
         <div class="space-y-3">
           <input
@@ -3361,21 +3468,75 @@ function insertTokenIntoEditor(token) {
             @change="handleImageUpload"
             class="w-full p-2 border border-gray-300 rounded"
           />
-          <div v-if="imageCropSrc" class="border border-gray-200 rounded overflow-hidden">
-            <VueCropper
-              ref="imageCropper"
-              :src="imageCropSrc"
-              :view-mode="2"
-              :background="false"
-              :auto-crop-area="1"
-              style="max-height: 420px; width: 100%;"
-            />
+          <div v-if="imageCropSrc" class="space-y-2">
+            <!-- Crop Tool Toggle -->
+            <div class="flex items-center justify-between px-3 py-2 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+              <div class="flex items-center gap-2">
+                <font-awesome-icon 
+                  :icon="['fas', 'crop']" 
+                  class="w-4 h-4 text-gray-500 dark:text-gray-400"
+                />
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Enable Crop Tool
+                </span>
+              </div>
+              <button
+                type="button"
+                @click="toggleCropTool"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                :class="enableCropTool ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'"
+              >
+                <span
+                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  :class="enableCropTool ? 'translate-x-6' : 'translate-x-1'"
+                />
+              </button>
+            </div>
+            
+            <!-- Crop Preview -->
+            <div v-if="showCropPreview && cropPreviewSrc" class="space-y-2">
+              <div class="flex items-center justify-between px-3 py-2 rounded bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                <div class="flex items-center gap-2">
+                  <font-awesome-icon 
+                    :icon="['fas', 'eye']" 
+                    class="w-4 h-4 text-green-600 dark:text-green-400"
+                  />
+                  <span class="text-sm font-medium text-green-700 dark:text-green-300">
+                    Crop Preview
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  @click="showCropPreview = false; cropPreviewSrc = null"
+                  class="text-xs text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium"
+                >
+                  Edit Crop
+                </button>
+              </div>
+              <div class="border border-green-200 dark:border-green-800 rounded overflow-hidden bg-gray-50 dark:bg-gray-900 p-4">
+                <img :src="cropPreviewSrc" alt="Crop preview" class="max-w-full h-auto mx-auto" style="max-height: 400px;" />
+              </div>
+            </div>
+
+            <!-- Cropper (hide when showing preview) -->
+            <div v-if="!showCropPreview" class="border border-gray-200 dark:border-gray-600 rounded overflow-hidden" :class="!enableCropTool ? 'opacity-50 pointer-events-none' : ''">
+              <VueCropper
+                ref="imageCropper"
+                :src="imageCropSrc"
+                :view-mode="2"
+                :background="false"
+                :auto-crop="enableCropTool"
+                :auto-crop-area="1"
+                @ready="onCropperReady"
+                style="max-height: 420px; width: 100%;"
+              />
+            </div>
           </div>
           <!-- Spacing settings removed: margin and padding fields no longer displayed -->
           <div>
             <label class="flex items-center">
               <input type="checkbox" v-model="imageFullWidth" class="mr-2" />
-              <span class="text-sm text-gray-700">Full width (no padding)</span>
+              <span class="text-sm dark:text-gray-200 text-gray-700">Full width (no padding)</span>
             </label>
           </div>
         </div>
@@ -3388,9 +3549,15 @@ function insertTokenIntoEditor(token) {
           </button>
           <button type="button"
             @click="cropAndSaveImage"
-            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+            :disabled="!imageCropSrc"
           >
-            Crop & Save
+            <font-awesome-icon v-if="imageCropModified && showCropPreview" :icon="['fas', 'check']" class="w-4 h-4" />
+            <font-awesome-icon v-else-if="imageCropModified && !showCropPreview" :icon="['fas', 'eye']" class="w-4 h-4" />
+            <font-awesome-icon v-else :icon="['fas', 'upload']" class="w-4 h-4" />
+            <span v-if="imageCropModified && showCropPreview">Save Cropped Image</span>
+            <span v-else-if="imageCropModified && !showCropPreview">Preview Crop</span>
+            <span v-else>Save Image</span>
           </button>
         </div>
       </div>
@@ -3398,29 +3565,30 @@ function insertTokenIntoEditor(token) {
     
     <!-- Button Editor Modal -->
     <div v-if="showButtonEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-96">
-        <h3 class="text-lg font-medium mb-4">Edit Button</h3>
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-full">
+        <h3 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Edit Button</h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium mb-1">Button Text</label>
+            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Button Text</label>
             <input
               v-model="buttonText"
               type="text"
-              class="w-full p-2 border border-gray-300 rounded"
+              class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded"
               placeholder="Click Here"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Link URL</label>
+            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Link URL</label>
             <input
               v-model="buttonUrl"
               type="url"
-              class="w-full p-2 border border-gray-300 rounded"
+              class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded"
               placeholder="https://example.com"
             />
           </div>
           <div>
-            <ColorPicker v-model="buttonBackground" :showAlpha="true" label="Background Color" />
+            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Text Color</label>
+            <ColorPicker v-model="buttonTextColor" :showAlpha="false" />
           </div>
         </div>
         <div class="flex gap-2 mt-4">
@@ -3432,7 +3600,7 @@ function insertTokenIntoEditor(token) {
           </button>
           <button type="button"
             @click="showButtonEditor = false"
-            class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+            class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-400"
           >
             Cancel
           </button>
@@ -3467,6 +3635,25 @@ function insertTokenIntoEditor(token) {
               placeholder="e.g., 15px 35px"
             />
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Space inside the block (top right bottom left)</p>
+          </div>
+
+          <!-- Background Color -->
+          <div>
+            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Background Color</label>
+            <div class="flex gap-3 items-center">
+              <div class="flex-shrink-0">
+                <ColorPicker v-model="blockBackground" :showAlpha="true" />
+              </div>
+              <div class="flex-1">
+                <input
+                  v-model="blockBackground"
+                  type="text"
+                  class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded font-mono text-sm"
+                  placeholder="transparent"
+                />
+              </div>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Background color for the entire block</p>
           </div>
 
           <!-- Border Type -->
@@ -3536,6 +3723,7 @@ function insertTokenIntoEditor(token) {
               :style="{
                 margin: blockMargin,
                 padding: blockPadding,
+                background: blockBackground,
                 border: blockBorder === 'custom' 
                   ? `${blockBorderWidth} ${blockBorderStyle} ${blockBorderColor}`
                   : (blockBorder !== 'none' ? blockBorder : 'none')
@@ -3567,82 +3755,21 @@ function insertTokenIntoEditor(token) {
     <div v-if="showTextEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="handleModalBackdropClick" @keydown.esc="cancelTextEdit">
       <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg p-6 w-[64rem] max-w-full max-h-full overflow-y-auto" @click.stop>
         <h3 class="text-lg font-medium mb-4">Edit Content</h3>
-        <!-- Settings for Text block only -->
-        <div v-if="currentEditingBlock && currentEditingBlock.type === 'text'" class="space-y-3 mb-3">
-          <div>
-            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Background Color</label>
-            <div class="flex gap-3">
-              <div class="flex-shrink-0">
-                <ColorPicker v-model="textBackground" :showAlpha="true" />
-              </div>
-              <div class="flex-1">
-                <input 
-                  type="text" 
-                  v-model="textBackground" 
-                  class="w-full border dark:bg-gray-800 rounded px-3 py-2 font-mono text-sm" 
-                  placeholder="#ffffff or transparent"
-                  pattern="^(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|transparent|rgba?\(.+\)|hsla?\(.+\))$"
-                  title="Enter CSS color value"
-                />
-              </div>
-            </div>
-          </div>
-         
-          <!-- Personalization Tokens -->
-          <div class="border-t pt-3">
-            <div class="text-sm font-medium text-gray-700 dark:text-gray-400 mb-2">Insert Personalization Tokens:</div>
-            <div class="flex flex-wrap gap-2">
-              <button type="button"
-                v-for="token in personalizationTokens"
-                :key="token"
-                @click="insertTokenIntoEditor(token)"
-                class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors"
-              >
-                {{ token.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
-              </button>
-            </div>
+        <!-- Personalization Tokens for Text block only -->
+        <div v-if="currentEditingBlock && currentEditingBlock.type === 'text'" class="mb-4">
+          <div class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Insert Personalization Tokens:</div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button"
+              v-for="token in personalizationTokens"
+              :key="token"
+              @click="insertTokenIntoEditor(token)"
+              class="px-2 py-1 text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100 rounded hover:bg-yellow-200 dark:hover:bg-yellow-800 transition-colors"
+            >
+              {{ token.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
+            </button>
           </div>
         </div>
-        <!-- Settings for Heading block -->
-        <div v-if="currentEditingBlock && currentEditingBlock.type === 'heading'" class="space-y-3 mb-3">
-          <div>
-            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Background Color</label>
-            <div class="flex gap-3">
-              <div class="flex-shrink-0">
-                <ColorPicker v-model="textBackground" :showAlpha="true" />
-              </div>
-              <div class="flex-1">
-                <input 
-                  type="text" 
-                  v-model="textBackground" 
-                  class="w-full border rounded px-3 py-2 font-mono text-sm" 
-                  placeholder="#ffffff or transparent"
-                  pattern="^(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|transparent|rgba?\(.+\)|hsla?\(.+\))$"
-                  title="Enter CSS color value"
-                />
-              </div>
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm text-gray-600 dark:text-gray-400 mb-2">Text Color</label>
-            <div class="flex gap-3">
-              <div class="flex-shrink-0">
-                <ColorPicker v-model="textColor" :showAlpha="true" />
-              </div>
-              <div class="flex-1">
-                <input 
-                  type="text" 
-                  v-model="textColor" 
-                  class="w-full border rounded px-3 py-2 font-mono text-sm" 
-                  placeholder="#333333"
-                  pattern="^(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|transparent|rgba?\(.+\)|hsla?\(.+\))$"
-                  title="Enter CSS color value"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="border border-gray-300 rounded p-2 bg-white min-h-[200px] max-h-[400px] overflow-y-auto">
+        <div class="border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-900 min-h-[200px] max-h-[400px] overflow-y-auto">
           <EmailEditor v-model="textModalContent" label="" :campaign-id="campaignId" :temp-key="tempKey" />
         </div>
         <div class="flex gap-2 mt-4 justify-end">
@@ -3728,23 +3855,12 @@ function insertTokenIntoEditor(token) {
       <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg p-6 w-[40rem] max-w-full max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-medium mb-4">Edit Header</h3>
         <div class="space-y-4">
-          <!-- Colors first -->
-          <div class="flex gap-4">
-            <div class="flex-1">
-              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Background</label>
-              <div class="flex items-center gap-3">
-                <ColorPicker v-model="headerBackground" :showAlpha="true" />
-                <input v-model="headerBackground" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#c8102e or any CSS background" />
-              </div>
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Text Color</label>
-              <div class="flex items-center gap-3">
-                <ColorPicker v-model="headerTextColor" :showAlpha="false" />
-                <input v-model="headerTextColor" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#ffffff or any CSS color" />
-              </div>
-            </div>
+          <!-- Text Color at top -->
+          <div>
+            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Text Color</label>
+            <ColorPicker v-model="headerTextColor" :showAlpha="false" />
           </div>
+          
           <!-- Logo Upload Section -->
           <div class="border-b pb-4">
             <label class="block text-sm font-medium mb-2">Logo</label>
@@ -3851,23 +3967,12 @@ function insertTokenIntoEditor(token) {
       <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg p-6 w-[32rem] max-w-full max-h-[90vh] overflow-y-auto">
         <h3 class="text-lg font-medium mb-4">Edit Footer</h3>
         <div class="space-y-4">
-          <!-- Colors first -->
-          <div class="flex gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Background</label>
-              <div class="flex items-center gap-3">
-                <ColorPicker v-model="footerBackground" :showAlpha="true" />
-                <input v-model="footerBackground" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#c8102e or any CSS background" />
-              </div>
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Text Color</label>
-              <div class="flex items-center gap-3">
-                <ColorPicker v-model="footerTextColor" :showAlpha="false" />
-                <input v-model="footerTextColor" type="text" class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="#ffffff or any CSS color" />
-              </div>
-            </div>
+          <!-- Text Color at top -->
+          <div>
+            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Text Color</label>
+            <ColorPicker v-model="footerTextColor" :showAlpha="false" />
           </div>
+          
           <div>
             <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Content</label>
             <textarea v-model="footerContent" rows="3" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded"></textarea>
