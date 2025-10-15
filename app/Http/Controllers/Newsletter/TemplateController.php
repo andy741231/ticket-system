@@ -136,8 +136,6 @@ class TemplateController extends Controller
             'make_default' => ['sometimes', 'boolean'],
         ]);
 
-        file_put_contents('/tmp/debug.log', "After validation: " . json_encode($validated) . "\n", FILE_APPEND);
-
         if (array_key_exists('content', $validated) && is_string($validated['content'])) {
             $decoded = json_decode($validated['content'], true);
             if (json_last_error() === JSON_ERROR_NONE) {

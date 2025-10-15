@@ -62,6 +62,7 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
     // Newsletter Archive landing
     Route::get('/', function () {
         $query = \App\Models\Newsletter\Campaign::query()
+            ->where('status', 'sent') // Only show sent campaigns, exclude drafts
             ->orderByDesc('sent_at')
             ->orderByDesc('created_at');
 
@@ -131,6 +132,7 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
         Route::put('/{campaign}', [CampaignController::class, 'update'])->name('update');
         Route::delete('/{campaign}', [CampaignController::class, 'destroy'])->name('destroy');
         Route::post('/{campaign}/send', [CampaignController::class, 'send'])->name('send');
+        Route::post('/{campaign}/send-draft', [CampaignController::class, 'sendDraft'])->name('send-draft');
         Route::post('/{campaign}/test', [CampaignController::class, 'sendTest'])->name('test');
         Route::get('/{campaign}/preview', [CampaignController::class, 'preview'])->name('preview');
         Route::post('/{campaign}/pause', [CampaignController::class, 'pause'])->name('pause');

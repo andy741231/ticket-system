@@ -117,11 +117,22 @@ class SendCampaign implements ShouldQueue
             'total_recipients' => $createdCount
         ]);
 
+        // Check if this is a test send (draft campaign being tested)
+        $metadata = $this->campaign->metadata ?? [];
+        $isTestSend = $metadata['is_test_send'] ?? false;
+
         // Update campaign status and recipient count
+        // For test sends, status is already 'sending' from sendDraft method
         $this->campaign->update([
             'status' => 'sending',
             'total_recipients' => $createdCount,
             'last_error' => null
+        ]);
+        
+        \Log::info('Campaign status updated', [
+            'campaign_id' => $this->campaign->id,
+            'is_test_send' => $isTestSend,
+            'status' => 'sending'
         ]);
 
         // Dispatch the ProcessScheduledSends job to process the pending sends

@@ -23,7 +23,7 @@ const props = defineProps({
 
 const searchForm = useForm({
   search: props.filters.search || '',
-  status: props.filters.status || 'sent',
+  status: props.filters.status || 'in_progress',
   per_page: Number(props.filters.per_page) || 25,
 });
 

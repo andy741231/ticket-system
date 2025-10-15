@@ -107,11 +107,28 @@ class ProcessScheduledSends implements ShouldQueue
                     ->exists();
                     
                 if ($hasSentSends) {
-                    // If some sends were processed, mark as sent
-                    $campaign->markAsSent();
-                    Log::info("Marked campaign as sent as all sends were processed", [
-                        'campaign_id' => $campaign->id
-                    ]);
+                    // Check if this is a test send
+                    $campaign->refresh();
+                    $metadata = $campaign->metadata ?? [];
+                    $isTestSend = $metadata['is_test_send'] ?? false;
+                    
+                    if ($isTestSend) {
+                        // Restore draft status for test sends
+                        $metadata['is_test_send'] = false;
+                        $campaign->update([
+                            'status' => 'draft',
+                            'metadata' => $metadata,
+                        ]);
+                        Log::info("Restored draft status for test send campaign (stuck check)", [
+                            'campaign_id' => $campaign->id
+                        ]);
+                    } else {
+                        // Normal campaign - mark as sent
+                        $campaign->markAsSent();
+                        Log::info("Marked campaign as sent as all sends were processed", [
+                            'campaign_id' => $campaign->id
+                        ]);
+                    }
                 } else {
                     // If no sends were processed at all, mark as draft with error
                     $campaign->update([
@@ -144,11 +161,35 @@ class ProcessScheduledSends implements ShouldQueue
                 ->get();
 
             foreach ($campaignsToUpdate as $campaign) {
-                $campaign->update([
-                    'status' => 'sent',
-                    'sent_at' => now(),
+                // Refresh to get latest metadata
+                $campaign->refresh();
+                
+                // Check if this is a test send (draft campaign being tested)
+                $metadata = $campaign->metadata ?? [];
+                $isTestSend = $metadata['is_test_send'] ?? false;
+                
+                Log::info("Processing campaign completion", [
+                    'campaign_id' => $campaign->id,
+                    'metadata' => $metadata,
+                    'is_test_send' => $isTestSend
                 ]);
-                Log::info("Marked campaign #{$campaign->id} as sent");
+                
+                if ($isTestSend) {
+                    // Restore draft status for test sends and clear the test flag
+                    $metadata['is_test_send'] = false;
+                    $campaign->update([
+                        'status' => 'draft',
+                        'metadata' => $metadata,
+                    ]);
+                    Log::info("Restored draft status for test send campaign #{$campaign->id}");
+                } else {
+                    // Normal campaign - mark as sent
+                    $campaign->update([
+                        'status' => 'sent',
+                        'sent_at' => now(),
+                    ]);
+                    Log::info("Marked campaign #{$campaign->id} as sent");
+                }
             }
         }
     }

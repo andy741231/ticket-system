@@ -10,7 +10,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, useForm, Link } from '@inertiajs/vue3';
+import { Head, useForm, Link, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { 
@@ -106,8 +106,6 @@ const form = useForm({
   enable_tracking: props.campaign?.enable_tracking ?? true,
 });
 
-const isSending = ref(false);
-const sendError = ref(null);
 const recipientCount = ref(0);
 const isLoadingRecipients = ref(false);
 const clientErrors = ref({});
@@ -643,88 +641,80 @@ const submit = (status = 'pending') => {
   });
 };
 
-const saveDraft = async () => {
-  // Allow saving draft without full validation to avoid blocking users
-  // But we still sanitize minimal fields and scheduling
-  try {
-    isDraftSaving.value = true;
-    sendError.value = null;
-    sendStatus.value = { type: 'info', message: 'Saving draft...' };
+const saveDraft = () => {
+  // Save draft with minimal validation - just ensure we have basic required fields
+  form.clearErrors();
+  
+  // Combine date and time for scheduled sends
+  if (form.send_type === 'scheduled' && form.scheduled_date && form.scheduled_time) {
+    const [y, m, d] = String(form.scheduled_date).split('-').map(Number);
+    const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
+    const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+    
+    const pad2 = (n) => String(n).padStart(2, '0');
+    form.scheduled_at = `${y}-${pad2(m)}-${pad2(d)} ${pad2(hh)}:${pad2(mm)}:00`;
+  } else {
+    form.scheduled_at = null;
+  }
 
-    // Combine date and time for scheduled sends
-    let scheduled_at = null;
-    if (form.send_type === 'scheduled' && form.scheduled_date && form.scheduled_time) {
-      const [y, m, d] = String(form.scheduled_date).split('-').map(Number);
-      const [hh, mm] = String(form.scheduled_time).split(':').map(Number);
-      const scheduledDateTime = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
-      
-      // Send the local datetime in a format that the backend can interpret correctly
-      const pad2 = (n) => String(n).padStart(2, '0');
-      scheduled_at = `${y}-${pad2(m)}-${pad2(d)} ${pad2(hh)}:${pad2(mm)}:00`;
+  // Ensure html content respects tracking setting
+  if (!form.enable_tracking && form.html_content) {
+    form.html_content = stripTrackingFromHtml(form.html_content);
+  }
+
+  const payload = { ...form.data(), status: 'draft' };
+  
+  // Ensure content is an object
+  if (typeof payload.content === 'string') {
+    const parsed = safeParseJson(payload.content);
+    if (parsed) {
+      payload.content = parsed;
     }
-
-    // Prepare content object
-    let contentObj = form.content;
-    if (typeof contentObj === 'string') {
-      const parsed = safeParseJson(contentObj);
-      contentObj = parsed || {};
+  }
+  
+  // Only include recurring_config when send_type is recurring
+  if (payload.send_type !== 'recurring') {
+    delete payload.recurring_config;
+  }
+  
+  // Only include scheduled_at when scheduled
+  if (payload.send_type !== 'scheduled') {
+    delete payload.scheduled_at;
+  }
+  
+  isDraftSaving.value = true;
+  
+  form.transform(() => payload).put(route('newsletter.campaigns.update', { campaign: props.campaign.id }), {
+    preserveState: true, // Keep state when saving draft
+    preserveScroll: true, // Keep scroll position
+    only: [], // Don't reload any props
+    onSuccess: () => {
+      clientErrors.value = {};
+      isDraftSaving.value = false;
+    },
+    onError: (errors) => {
+      console.error('Error saving draft:', errors);
+      isDraftSaving.value = false;
+    },
+    onFinish: () => {
+      form.transform((data) => data);
+      isDraftSaving.value = false;
     }
+  });
+};
 
-    // Respect tracking setting for html_content
-    let htmlContent = form.html_content ?? '';
-    if (!form.enable_tracking && htmlContent) {
-      htmlContent = stripTrackingFromHtml(htmlContent);
-    }
-
-    // Build payload for draft status
-    const payload = {
-      name: form.name,
-      subject: form.subject,
-      from_name: form.from_name,
-      from_email: form.from_email,
-      reply_to: form.reply_to || form.from_email,
-      content: contentObj,
-      html_content: typeof htmlContent === 'string' ? htmlContent : '',
-      template_id: form.template_id || undefined,
-      send_type: form.send_type,
-      send_to_all: !!form.send_to_all,
-      target_groups: form.send_to_all ? [] : (Array.isArray(form.target_groups) ? form.target_groups : []),
-      scheduled_at: scheduled_at || undefined,
-      enable_tracking: !!form.enable_tracking,
-      status: 'draft',
-    };
-
-    const isUpdate = !!(props?.campaign && props.campaign.id);
-    const url = isUpdate
-      ? route('newsletter.campaigns.update', { campaign: props.campaign.id })
-      : route('newsletter.campaigns.store');
-    const method = isUpdate ? 'put' : 'post';
-    console.log('[saveDraft] method:', method, 'url:', url);
-
-    if (isUpdate) {
-      await axios.put(
-        url,
-        payload,
-        { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
-      );
-    } else {
-      await axios.post(
-        url,
-        payload,
-        { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
-      );
-    }
-
-    sendStatus.value = { type: 'success', message: 'Draft saved successfully.' };
-  } catch (e) {
-    const errors = e?.response?.data?.errors || {};
-    const errorMessages = [];
-    Object.entries(errors).forEach(([key, value]) => {
-      errorMessages.push(Array.isArray(value) ? value[0] : String(value));
+const sendDraftCampaign = () => {
+  if (confirm(`Send this draft campaign to ${recipientCount.value} recipients for testing? The campaign will remain as a draft.`)) {
+    router.post(route('newsletter.campaigns.send-draft', props.campaign.id), {}, {
+      preserveState: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        // Success handled by flash message
+      },
+      onError: (errors) => {
+        console.error('Error sending draft:', errors);
+      }
     });
-    sendError.value = errorMessages.length ? errorMessages.join(' ') : (e?.response?.data?.message || 'Failed to save draft.');
-  } finally {
-    isDraftSaving.value = false;
   }
 };
 
@@ -849,6 +839,19 @@ function safeParseJson(str) {
                 <span v-else>Save Draft</span>
               </SecondaryButton>
               
+              <!-- Send Draft button - only visible for draft campaigns -->
+              <SecondaryButton
+                v-if="campaign.status === 'draft'"
+                @click.prevent="sendDraftCampaign"
+                :class="{ 'opacity-25': form.processing }"
+                :disabled="form.processing"
+                type="button"
+                class="inline-flex items-center justify-center bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
+              >
+                <PaperAirplaneIcon class="-ml-1 mr-2 h-5 w-5" />
+                Send Draft
+              </SecondaryButton>
+              
               <PrimaryButton 
               type="submit"
                 :class="{ 'opacity-25': form.processing || isValidating }" 
@@ -856,9 +859,9 @@ function safeParseJson(str) {
                 class="inline-flex items-center justify-center bg-uh-red hover:bg-uh-brick focus:ring-uh-red"
               >
                 <PaperAirplaneIcon class="-ml-1 mr-2 h-5 w-5" />
-                <span v-if="form.processing">Updating...</span>
+                <span v-if="form.processing">Sending...</span>
                 <span v-else-if="isValidating">Validating...</span>
-                <span v-else>Update Campaign</span>
+                <span v-else>Send Campaign</span>
               </PrimaryButton>
             </div>
           </div>

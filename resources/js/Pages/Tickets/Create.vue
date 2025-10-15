@@ -292,7 +292,7 @@ const cancel = () => {
                                                 title="Delete proof"
                                                 @click="deleteTempProofImage(image.id)"
                                             >
-                                                <i class="fas fa-trash text-xs"></i>
+                                                <font-awesome-icon icon="trash" class="text-xs" />
                                             </button>
                                         </div>
                                     </div>

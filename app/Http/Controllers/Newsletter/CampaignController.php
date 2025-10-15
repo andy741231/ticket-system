@@ -24,14 +24,15 @@ class CampaignController extends Controller
         $query = Campaign::with(['creator', 'template'])
             ->where('time_capsule', false); // Exclude time capsule campaigns
 
-        // View/Status filter: default to 'sent'; support composite 'in_progress'
+        // View/Status filter: default to 'in_progress'; support composite 'in_progress'
         $view = $request->input('status');
         if ($view === null || $view === '') {
-            $view = 'sent';
+            $view = 'in_progress';
         }
         if ($view === 'in_progress') {
             $query->whereIn('status', ['draft', 'scheduled', 'sending', 'paused', 'cancelled']);
         } elseif ($view === 'sent') {
+            // Archives: only show sent campaigns, exclude drafts
             $query->where('status', 'sent');
         } else {
             // Back-compat: allow filtering by a specific status value
@@ -139,6 +140,7 @@ class CampaignController extends Controller
             ],
             'send_to_all' => 'boolean',
             'enable_tracking' => 'sometimes|boolean',
+            'status' => 'sometimes|in:draft,pending,scheduled,sending,sent,paused,cancelled',
             'recurring_config' => 'required_if:send_type,recurring|array',
             'recurring_config.frequency' => 'required_if:send_type,recurring|in:daily,weekly,monthly,quarterly',
             'recurring_config.days_of_week' => 'required_if:recurring_config.frequency,weekly|array',
@@ -176,13 +178,18 @@ class CampaignController extends Controller
         // Ensure target_groups is always an array
         $data['target_groups'] = $data['target_groups'] ?? [];
         
-        // Set the initial status based on send type
-        if ($data['send_type'] === 'immediate') {
-            $data['status'] = 'draft';
-        } elseif ($data['send_type'] === 'recurring') {
-            $data['status'] = 'active'; // Recurring campaigns are active by default
+        // Set the initial status - respect the status parameter if provided, otherwise use send_type logic
+        if ($request->has('status')) {
+            $data['status'] = $request->input('status');
         } else {
-            $data['status'] = 'scheduled';
+            // Set the initial status based on send type
+            if ($data['send_type'] === 'immediate') {
+                $data['status'] = 'draft';
+            } elseif ($data['send_type'] === 'recurring') {
+                $data['status'] = 'active'; // Recurring campaigns are active by default
+            } else {
+                $data['status'] = 'scheduled';
+            }
         }
 
         // Format recurring config
@@ -281,6 +288,9 @@ class CampaignController extends Controller
         
         // Update the campaign with the recipient count
         $campaign->update(['total_recipients' => $data['total_recipients']]);
+        
+        // Check if this is a draft save
+        $isDraftSave = $campaign->status === 'draft' && $request->input('status') === 'draft';
 
         // Handle different send types
         if ($campaign->isRecurring()) {
@@ -303,6 +313,13 @@ class CampaignController extends Controller
                            ->setStatusCode(303);
                            
         } elseif ($campaign->send_type === 'immediate') {
+            // Check if this is a draft save - stay on edit page
+            if ($isDraftSave && $request->header('X-Inertia')) {
+                return redirect()->route('newsletter.campaigns.edit', $campaign)
+                               ->with('success', 'Draft saved successfully.')
+                               ->setStatusCode(303);
+            }
+            
             // Do not auto-send on creation. Keep as draft; user will send from the campaign page.
             return redirect()->route('newsletter.campaigns.show', $campaign)
                            ->with('success', 'Campaign created as draft. You can send it when ready.')
@@ -381,7 +398,12 @@ class CampaignController extends Controller
 
     public function edit(Campaign $campaign)
     {
-        if (!in_array($campaign->status, ['draft', 'scheduled'])) {
+        // Allow editing drafts and scheduled campaigns
+        // Also allow editing campaigns being sent as test drafts
+        $metadata = $campaign->metadata ?? [];
+        $isTestSend = $metadata['is_test_send'] ?? false;
+        
+        if (!in_array($campaign->status, ['draft', 'scheduled']) && !$isTestSend) {
             return back()->with('error', 'Cannot edit a campaign that has been sent.');
         }
 
@@ -437,7 +459,12 @@ class CampaignController extends Controller
 
     public function update(Request $request, Campaign $campaign)
     {
-        if (!in_array($campaign->status, ['draft', 'scheduled'])) {
+        // Allow updating drafts and scheduled campaigns
+        // Also allow updating campaigns being sent as test drafts
+        $metadata = $campaign->metadata ?? [];
+        $isTestSend = $metadata['is_test_send'] ?? false;
+        
+        if (!in_array($campaign->status, ['draft', 'scheduled']) && !$isTestSend) {
             return back()->with('error', 'Cannot update a campaign that has been sent.');
         }
 
@@ -478,6 +505,7 @@ class CampaignController extends Controller
             ],
             'send_to_all' => ['boolean'],
             'enable_tracking' => ['sometimes', 'boolean'],
+            'status' => ['sometimes', 'in:draft,pending,scheduled,sending,sent,paused,cancelled'],
         ]);
 
         if ($validator->fails()) {
@@ -584,16 +612,35 @@ class CampaignController extends Controller
             } elseif ($data['send_type'] === 'scheduled') {
                 $message = 'Scheduled campaign updated successfully.';
             }
+            
+            // Check if this is a draft save (status is 'draft' in the request)
+            $isDraftSave = $request->input('status') === 'draft';
 
-            // For Inertia requests, always return a redirect with 303 status so the client can properly navigate
-            // Only return JSON for non-Inertia API clients
-            if ($request->expectsJson() && !$request->header('X-Inertia')) {
+            // For Inertia requests, check if it's a draft save
+            if ($request->header('X-Inertia')) {
+                if ($isDraftSave) {
+                    // For draft saves, return back to stay on the same page
+                    return back()
+                        ->with('success', 'Draft saved successfully.')
+                        ->setStatusCode(303);
+                } else {
+                    // For other updates, redirect to show page
+                    return redirect()
+                        ->route('newsletter.campaigns.show', $campaign)
+                        ->with('success', $message)
+                        ->setStatusCode(303);
+                }
+            }
+            
+            // For non-Inertia API clients, return JSON
+            if ($request->expectsJson()) {
                 return response()->json([
                     'message' => $message,
                     'redirect' => route('newsletter.campaigns.show', $campaign),
                 ], 200);
             }
 
+            // Default fallback
             return redirect()
                 ->route('newsletter.campaigns.show', $campaign)
                 ->with('success', $message)
@@ -652,8 +699,20 @@ class CampaignController extends Controller
             return back()->with('error', 'Campaign cannot be sent. Please check the campaign details.');
         }
 
-        if ($campaign->total_recipients === 0) {
-            return back()->with('error', 'No recipients found for this campaign.');
+        // Recalculate total recipients using current campaign configuration
+        // This ensures we have the latest count even if the campaign wasn't recently updated
+        $recipientCount = 0;
+        if (method_exists($campaign, 'getRecipientEmails')) {
+            $recipientCount = $campaign->getRecipientEmails()->count();
+        } else {
+            $recipientCount = $campaign->getRecipientsQuery()->count();
+        }
+
+        // Update the campaign with the fresh recipient count
+        $campaign->update(['total_recipients' => $recipientCount]);
+
+        if ($recipientCount === 0) {
+            return back()->with('error', 'No recipients selected for this campaign. Please select at least one group or enable "Send to All".');
         }
 
         // Dispatch the send job
@@ -662,6 +721,102 @@ class CampaignController extends Controller
         $campaign->markAsSending();
 
         return back()->with('success', 'Campaign is being sent. Check the dashboard for progress.');
+    }
+
+    public function sendDraft(Campaign $campaign)
+    {
+        // Only allow sending drafts
+        if ($campaign->status !== 'draft') {
+            return back()->with('error', 'Only draft campaigns can be sent as test drafts.');
+        }
+
+        // Recalculate total recipients using current campaign configuration
+        // This ensures we have the latest count even if the campaign wasn't recently updated
+        $recipientCount = 0;
+        if (method_exists($campaign, 'getRecipientEmails')) {
+            $recipientCount = $campaign->getRecipientEmails()->count();
+        } else {
+            $recipientCount = $campaign->getRecipientsQuery()->count();
+        }
+
+        // Update the campaign with the fresh recipient count
+        $campaign->update(['total_recipients' => $recipientCount]);
+
+        if ($recipientCount === 0) {
+            return back()->with('error', 'No recipients selected for this campaign. Please select at least one group or enable "Send to All".');
+        }
+
+        // For test sends, we'll send synchronously and keep the campaign as draft throughout
+        // This avoids issues with queue workers not running
+        
+        try {
+            // Get recipient emails
+            $emails = method_exists($campaign, 'getRecipientEmails')
+                ? $campaign->getRecipientEmails()
+                : $campaign->getRecipientsQuery()->pluck('email')->unique();
+            
+            // Ensure we have Subscriber records for all emails
+            $existing = \App\Models\Newsletter\Subscriber::query()
+                ->whereIn('email', $emails)
+                ->get()
+                ->keyBy(fn($s) => strtolower($s->email));
+            
+            $recipients = collect();
+            foreach ($emails as $email) {
+                $key = strtolower($email);
+                $subscriber = $existing->get($key);
+                if (!$subscriber) {
+                    $subscriber = \App\Models\Newsletter\Subscriber::create([
+                        'email' => $key,
+                        'status' => 'active',
+                        'metadata' => ['source' => 'directory']
+                    ]);
+                }
+                $recipients->push($subscriber);
+            }
+            
+            // Send emails synchronously using the mailer directly
+            $successCount = 0;
+            $failCount = 0;
+            
+            foreach ($recipients as $recipient) {
+                try {
+                    $mail = new \App\Mail\NewsletterMail($campaign, $recipient);
+                    \Mail::mailer('campus_smtp')->to($recipient->email)->send($mail);
+                    $successCount++;
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send test email', [
+                        'campaign_id' => $campaign->id,
+                        'recipient_email' => $recipient->email,
+                        'error' => $e->getMessage()
+                    ]);
+                    $failCount++;
+                }
+            }
+            
+            \Log::info('Test send completed', [
+                'campaign_id' => $campaign->id,
+                'success_count' => $successCount,
+                'fail_count' => $failCount
+            ]);
+            
+            // Campaign remains as 'draft' throughout
+            $message = "Test send completed: {$successCount} sent successfully";
+            if ($failCount > 0) {
+                $message .= ", {$failCount} failed (check logs)";
+            }
+            $message .= ". Campaign remains as draft.";
+            
+            return back()->with('success', $message);
+            
+        } catch (\Exception $e) {
+            \Log::error('Test send failed', [
+                'campaign_id' => $campaign->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return back()->with('error', 'Test send failed: ' . $e->getMessage());
+        }
     }
 
     public function pause(Campaign $campaign)
@@ -715,10 +870,71 @@ class CampaignController extends Controller
         $newCampaign->sent_count = 0;
         $newCampaign->failed_count = 0;
         $newCampaign->created_by = auth()->id();
-        // Set html_content to empty string to trigger regeneration on first edit
-        // (cannot be null due to NOT NULL constraint)
-        $newCampaign->html_content = '';
         $newCampaign->save();
+
+        // Copy campaign files to new directory and rewrite URLs
+        try {
+            $disk = \Storage::disk('public');
+            $sourceDir = "images/newsletters/campaign-{$campaign->id}";
+            $destDir = "images/newsletters/campaign-{$newCampaign->id}";
+
+            if ($disk->exists($sourceDir)) {
+                // Ensure destination directory exists
+                if (!$disk->exists($destDir)) {
+                    $disk->makeDirectory($destDir);
+                }
+
+                // Copy all files from source to destination
+                $files = $disk->allFiles($sourceDir);
+                foreach ($files as $file) {
+                    $relative = ltrim(str_replace($sourceDir, '', $file), '/');
+                    $destPath = rtrim($destDir, '/') . '/' . $relative;
+                    
+                    // Ensure subdirectories exist
+                    $destSubdir = dirname($destPath);
+                    if (!$disk->exists($destSubdir)) {
+                        $disk->makeDirectory($destSubdir);
+                    }
+                    
+                    // Copy the file
+                    $disk->copy($file, $destPath);
+                }
+
+                // Rewrite URLs in html_content and content
+                $oldBase = url(\Storage::url($sourceDir . '/'));
+                $newBase = url(\Storage::url($destDir . '/'));
+
+                $updated = [];
+                
+                // Update html_content
+                if (!empty($newCampaign->html_content)) {
+                    $updated['html_content'] = str_replace($oldBase, $newBase, $newCampaign->html_content);
+                }
+                
+                // Update content (array) -> stringify, replace, decode
+                if (!empty($newCampaign->content)) {
+                    $json = json_encode($newCampaign->content);
+                    if ($json !== false) {
+                        $json = str_replace($oldBase, $newBase, $json);
+                        $decoded = json_decode($json, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $updated['content'] = $decoded;
+                        }
+                    }
+                }
+
+                if (!empty($updated)) {
+                    $newCampaign->update($updated);
+                }
+            }
+        } catch (\Throwable $e) {
+            \Log::error('Failed to copy campaign files during duplication', [
+                'original_campaign_id' => $campaign->id,
+                'new_campaign_id' => $newCampaign->id,
+                'error' => $e->getMessage(),
+            ]);
+            // Continue even if file copy fails - the campaign is still duplicated
+        }
 
         return redirect()->route('newsletter.campaigns.edit', $newCampaign)
                        ->with('success', 'Campaign duplicated successfully.');

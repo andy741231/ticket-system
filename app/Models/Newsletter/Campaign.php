@@ -41,6 +41,7 @@ class Campaign extends Model
         'template_id',
         'created_by',
         'time_capsule',
+        'metadata',
     ];
 
     protected $casts = [
@@ -49,6 +50,7 @@ class Campaign extends Model
         'sent_at' => 'datetime',
         'recurring_config' => 'array',
         'target_groups' => 'array',
+        'metadata' => 'array',
         'send_to_all' => 'boolean',
         'enable_tracking' => 'boolean',
         'time_capsule' => 'boolean',
@@ -396,9 +398,28 @@ class Campaign extends Model
     /**
      * Mark the campaign as sent with current timestamp.
      * Only updates if current status is 'sending' or 'scheduled'.
+     * Does not mark as sent if this is a test send.
      */
     public function markAsSent(): void
     {
+        // Check if this is a test send - if so, restore to draft instead
+        $metadata = $this->metadata ?? [];
+        $isTestSend = $metadata['is_test_send'] ?? false;
+        
+        if ($isTestSend) {
+            \Log::info("Skipping markAsSent for test send, restoring to draft", [
+                'campaign_id' => $this->id
+            ]);
+            
+            // Clear test send flag and restore to draft
+            $metadata['is_test_send'] = false;
+            $this->update([
+                'status' => 'draft',
+                'metadata' => $metadata
+            ]);
+            return;
+        }
+        
         if (in_array($this->status, ['sending', 'scheduled'])) {
             $this->update([
                 'status' => 'sent',

@@ -176,15 +176,10 @@ class GroupController extends Controller
 
         $count = $emails->filter()->map(fn($e) => strtolower($e))->unique()->count();
 
-        // Only return JSON for non-Inertia API clients
-        if (!$request->header('X-Inertia') && $request->acceptsJson()) {
-            return response()->json([
-                'unique_subscribers_count' => $count,
-            ]);
-        }
-
-        // For Inertia requests, redirect back with flash data to avoid plain JSON response
-        return back()->with('unique_subscribers_count', $count);
+        // Always return JSON for API calls (axios requests from frontend)
+        return response()->json([
+            'unique_subscribers_count' => $count,
+        ]);
     }
 
     public function destroy(Group $group)

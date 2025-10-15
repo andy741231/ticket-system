@@ -219,6 +219,9 @@ onMounted(() => {
     });
   }
   
+  // Initialize recipient count on mount
+  updateRecipientCount();
+  
   // Watch for send_type changes
   watch(() => form.send_type, (newVal) => {
     if (newVal === 'recurring' && !form.recurring_config) {
@@ -266,8 +269,11 @@ const getUniqueSubscribersCount = async (groupIds) => {
     
     const token = document.head.querySelector('meta[name="csrf-token"]')?.content;
     
+    // Convert all group IDs to strings to match backend validation
+    const stringGroupIds = groupIds.map(id => String(id));
+    
     const response = await axios.post(url, {
-      group_ids: groupIds
+      group_ids: stringGroupIds
     }, {
       headers: {
         'Content-Type': 'application/json',
@@ -631,14 +637,9 @@ const scrollToField = (fieldName) => {
   }
 };
 
-// On blur, validate subject and scroll into view when too short
+// Validate subject on blur without auto-scrolling (which blocks other field editing)
 const handleSubjectBlur = () => {
   validateField('subject');
-  const hasClientError = !!clientErrors.value?.subject;
-  const hasServerError = !!form.errors?.subject;
-  if (hasClientError || hasServerError) {
-    scrollToField('subject');
-  }
 };
 
 const submit = (status = 'pending') => {
@@ -729,6 +730,8 @@ const submit = (status = 'pending') => {
   
   // Use transform to ensure JSON payload shape is sent
   form.transform(() => payload).post(route('newsletter.campaigns.store'), {
+    preserveState: status === 'draft', // Keep state when saving draft
+    only: status === 'draft' ? [] : undefined, // Don't reload props when saving draft
     onSuccess: () => {
       // Clear client errors on success
       clientErrors.value = {};
@@ -826,7 +829,7 @@ function safeParseJson(str) {
                 :send-to-all="form.send_to_all"
                 :selected-group-ids="form.target_groups"
                 :estimated-count="recipientCount"
-                :loading-estimate="isLoadingRecipients"
+                :loading-estimated="isLoadingRecipients"
                 :show-estimate="true"
                 :error="form.errors.target_groups || clientErrors.target_groups"
                 @update:sendToAll="(v) => {
