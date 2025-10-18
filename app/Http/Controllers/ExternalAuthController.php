@@ -112,13 +112,6 @@ class ExternalAuthController extends Controller
             ]);
         }
 
-        // Verify token
-        if ($externalUser->verification_token !== $token) {
-            return Inertia::render('Errors/ExternalAuthError', [
-                'message' => 'Invalid or expired verification token'
-            ]);
-        }
-
         // Check if image is public
         if (!$image->isPublic()) {
             return Inertia::render('Errors/ExternalAuthError', [
@@ -126,11 +119,48 @@ class ExternalAuthController extends Controller
             ]);
         }
 
-        // Verify the user
+        // Check if user already has an active session and access to this image
+        $fingerprint = ExternalUser::generateFingerprint($request);
+        $sessionToken = $request->cookie('external_session');
+        
+        if ($sessionToken && $externalUser->validateSession($sessionToken, $fingerprint) && $externalUser->hasAccessToImage($image->id)) {
+            // User already has valid session, just redirect them
+            $publicToken = $this->generatePublicToken($image);
+            
+            return redirect()
+                ->route('annotations.public', [
+                    'image' => $image->id,
+                    'token' => $publicToken
+                ]);
+        }
+
+        // Verify token (only if not already verified or session expired)
+        if ($externalUser->verification_token !== $token) {
+            // Check if user is already verified but token was consumed
+            if ($externalUser->isVerified() && $externalUser->hasAccessToImage($image->id)) {
+                // User was already verified, generate new session and redirect
+                $sessionToken = $externalUser->generateSession($fingerprint, 7);
+                $externalUser->recordImageAccess($image->id);
+                $publicToken = $this->generatePublicToken($image);
+                
+                return redirect()
+                    ->route('annotations.public', [
+                        'image' => $image->id,
+                        'token' => $publicToken
+                    ])
+                    ->cookie('external_session', $sessionToken, 60 * 24 * 7, '/', null, false, true)
+                    ->cookie('external_user_id', $externalUser->id, 60 * 24 * 7, '/', null, false, false);
+            }
+            
+            return Inertia::render('Errors/ExternalAuthError', [
+                'message' => 'Invalid or expired verification token'
+            ]);
+        }
+
+        // First-time verification: verify the user
         $externalUser->verify();
 
         // Generate session
-        $fingerprint = ExternalUser::generateFingerprint($request);
         $sessionToken = $externalUser->generateSession($fingerprint, 7); // 7 days
 
         // Grant access to the image

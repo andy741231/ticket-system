@@ -1,5 +1,5 @@
 <script setup>
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 
 defineProps({
     message: {
@@ -7,6 +7,16 @@ defineProps({
         default: 'An error occurred during authentication'
     }
 });
+
+const goBack = () => {
+    // Safely check if window and history are available
+    if (typeof window !== 'undefined' && window.history && window.history.length > 1) {
+        window.history.back();
+    } else {
+        // Fallback to home page if no history
+        router.visit('/');
+    }
+};
 </script>
 
 <template>
@@ -38,7 +48,7 @@ defineProps({
                     </button>
                     
                     <button
-                        @click="window.history.back()"
+                        @click="goBack"
                         class="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md font-medium transition-colors"
                     >
                         Go Back
