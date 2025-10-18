@@ -73,9 +73,9 @@
     <div class="content">
         <p>Hi <strong>{{ $mentionedUser->name }}</strong>,</p>
         
-        <p><strong>{{ $mentioningUser->name }}</strong> mentioned you in a comment on an annotation in ticket <strong>#{{ $ticket->id }}: {{ $ticket->title }}</strong></p>
+        <p><strong>{{ $mentioningUser->name }}</strong> mentioned you in a comment on {{ $annotation ? 'an annotation' : 'an image' }} in ticket <strong>#{{ $ticket->id }}: {{ $ticket->title }}</strong></p>
         
-        @if($annotation->content)
+        @if($annotation && $annotation->content)
         <div class="annotation-box">
             <strong>Annotation:</strong>
             <p style="margin: 10px 0 0 0;">{{ $annotation->content }}</p>
