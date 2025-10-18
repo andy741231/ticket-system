@@ -69,7 +69,28 @@ const props = defineProps({
   },
   ticketId: {
     type: [String, Number],
-    required: true
+    required: false
+  },
+  imageId: {
+    type: [String, Number],
+    required: false
+  },
+  publicToken: {
+    type: String,
+    required: false
+  },
+  isPublic: {
+    type: Boolean,
+    default: false
+  },
+  includeExternalUsers: {
+    type: Boolean,
+    default: false
+  },
+  dropdownPosition: {
+    type: String,
+    default: 'bottom', // 'bottom' or 'top'
+    validator: (value) => ['bottom', 'top'].includes(value)
   }
 });
 
@@ -121,14 +142,25 @@ const checkForMention = async () => {
 const positionDropdown = () => {
   if (!textarea.value || !mentionInfo.value) return;
   
-  // Simple positioning below the textarea
-  dropdownStyle.value = {
-    top: '100%',
-    left: '0px',
-    marginTop: '4px',
-    minWidth: '200px',
-    width: 'auto'
-  };
+  if (props.dropdownPosition === 'top') {
+    // Position above the textarea
+    dropdownStyle.value = {
+      bottom: '100%',
+      left: '0px',
+      marginBottom: '4px',
+      minWidth: '200px',
+      width: 'auto'
+    };
+  } else {
+    // Position below the textarea (default)
+    dropdownStyle.value = {
+      top: '100%',
+      left: '0px',
+      marginTop: '4px',
+      minWidth: '200px',
+      width: 'auto'
+    };
+  }
 };
 
 const handleKeydown = (event) => {
@@ -173,19 +205,55 @@ const selectUser = (user) => {
 
 const loadMentionableUsers = async () => {
   try {
-    const response = await fetch(`/api/tickets/${props.ticketId}/mentionable-users`, {
+    let url;
+    console.log('[MentionAutocomplete] Loading mentionable users', {
+      isPublic: props.isPublic,
+      imageId: props.imageId,
+      publicToken: props.publicToken ? 'present' : 'missing',
+      ticketId: props.ticketId,
+      includeExternalUsers: props.includeExternalUsers
+    });
+    
+    if (props.isPublic && props.imageId && props.publicToken) {
+      // External user context - use public endpoint
+      url = `/api/public/annotations/${props.imageId}/mentionable-users?token=${props.publicToken}`;
+      console.log('[MentionAutocomplete] Using public endpoint:', url);
+    } else if (props.ticketId) {
+      // Internal user context - use ticket endpoint
+      url = `/api/tickets/${props.ticketId}/mentionable-users`;
+      // Add include_external parameter if requested
+      if (props.includeExternalUsers) {
+        url += '?include_external=true';
+      }
+      console.log('[MentionAutocomplete] Using ticket endpoint:', url);
+    } else {
+      console.warn('MentionAutocomplete: Neither ticketId nor (imageId + publicToken) provided');
+      availableUsers.value = [];
+      return;
+    }
+
+    const response = await fetch(url, {
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
         'Accept': 'application/json',
-      }
+      },
+      credentials: 'include'
     });
+    
+    console.log('[MentionAutocomplete] Response status:', response.status);
+    
     if (response.ok) {
       const data = await response.json();
+      console.log('[MentionAutocomplete] Received data:', data);
       availableUsers.value = Array.isArray(data.users) ? data.users : [];
+      console.log('[MentionAutocomplete] Available users count:', availableUsers.value.length);
     } else {
+      const errorData = await response.text();
+      console.error('[MentionAutocomplete] Failed to load users:', response.status, errorData);
       availableUsers.value = [];
     }
   } catch (error) {
+    console.error('[MentionAutocomplete] Error loading mentionable users:', error);
     availableUsers.value = [];
   }
 };

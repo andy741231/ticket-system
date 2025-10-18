@@ -25,8 +25,14 @@ class AnnotationMentionNotification extends Mailable implements ShouldQueue
 
     /**
      * Create a new message instance.
+     * 
+     * @param Ticket $ticket
+     * @param Annotation $annotation
+     * @param AnnotationComment $comment
+     * @param User $mentionedUser
+     * @param User|object $mentioningUser Can be a User model or stdClass for external users
      */
-    public function __construct(Ticket $ticket, Annotation $annotation, AnnotationComment $comment, User $mentionedUser, User $mentioningUser)
+    public function __construct(Ticket $ticket, Annotation $annotation, AnnotationComment $comment, User $mentionedUser, mixed $mentioningUser)
     {
         $this->ticket = $ticket;
         $this->annotation = $annotation;
@@ -58,7 +64,7 @@ class AnnotationMentionNotification extends Mailable implements ShouldQueue
                 'comment' => $this->comment,
                 'mentionedUser' => $this->mentionedUser,
                 'mentioningUser' => $this->mentioningUser,
-                'annotationUrl' => config('app.url') . '/annotations/' . $this->annotation->ticket_image_id,
+                'annotationUrl' => config('app.url') . '/annotations/' . $this->annotation->ticket_image_id . '?comment=' . $this->comment->id,
             ],
         );
     }

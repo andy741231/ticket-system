@@ -95,7 +95,37 @@
                 {{ formatDate(image.created_at) }}
               </p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-3">
+              <!-- Public/Private Toggle -->
+              <div v-if="!readonly" class="flex items-center gap-2">
+                <label class="flex items-center cursor-pointer group">
+                  <div class="relative">
+                    <input
+                      type="checkbox"
+                      :checked="image.is_public"
+                      @change="togglePublicAccess(image)"
+                      class="sr-only peer"
+                    />
+                    <div class="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
+                    <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  </div>
+                  <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ image.is_public ? 'Public' : 'Private' }}
+                  </span>
+                </label>
+                
+                <!-- Share Link Button (only shown when public) -->
+                <button
+                  v-if="image.is_public"
+                  @click="copyShareLink(image)"
+                  class="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center gap-1"
+                  :title="copiedImageId === image.id ? 'Copied!' : 'Copy share link'"
+                >
+                  <i :class="copiedImageId === image.id ? 'fas fa-check' : 'fas fa-share'"></i>
+                  <span>{{ copiedImageId === image.id ? 'Copied!' : 'Share' }}</span>
+                </button>
+              </div>
+              
               <!-- Status Badge -->
               <span
                 :class="getStatusBadgeClass(image.status)"
@@ -142,6 +172,8 @@
                   :comments="getImageComments(image.id)"
                   :can-edit="canEditAnnotation"
                   :can-delete="canDeleteAnnotation"
+                  :can-edit-comment="canEditComment"
+                  :can-delete-comment="canDeleteComment"
                   :readonly="readonly"
                   :ticket-id="ticketId"
                   @annotation-created="createAnnotation(image.id, $event)"
@@ -370,7 +402,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { router } from '@inertiajs/vue3'
+import { router, usePage } from '@inertiajs/vue3'
 import AnnotationCanvas from './AnnotationCanvas.vue'
 import MentionAutocomplete from '@/Components/MentionAutocomplete.vue'
 
@@ -431,13 +463,61 @@ const setCanvasRef = (el, imageId) => {
 // File input ref
 const fileInput = ref(null)
 
+// Get current user from Inertia page props
+const page = usePage()
+const currentUser = computed(() => page.props.auth?.user || null)
+
 // Computed
 const canEditAnnotation = (annotation) => {
-  return !props.readonly && (annotation.user_id === window.auth?.user?.id || props.canReviewAnnotations)
+  if (props.readonly) return false
+  
+  const user = currentUser.value
+  if (!user) return false
+  
+  // Super Admin or Tickets Admin can edit any annotation
+  if (user.isSuperAdmin || props.canReviewAnnotations) return true
+  
+  // Regular users can only edit their own annotations
+  return annotation.user_id === user.id
 }
 
 const canDeleteAnnotation = (annotation) => {
-  return !props.readonly && props.allowDelete && (annotation.user_id === window.auth?.user?.id || props.canReviewAnnotations)
+  if (props.readonly || !props.allowDelete) return false
+  
+  const user = currentUser.value
+  if (!user) return false
+  
+  // Super Admin or Tickets Admin can delete any annotation
+  if (user.isSuperAdmin || props.canReviewAnnotations) return true
+  
+  // Regular users can only delete their own annotations
+  return annotation.user_id === user.id
+}
+
+const canEditComment = (comment) => {
+  if (props.readonly) return false
+  
+  const user = currentUser.value
+  if (!user) return false
+  
+  // Super Admin or Tickets Admin can edit any comment
+  if (user.isSuperAdmin || props.canReviewAnnotations) return true
+  
+  // Regular users can only edit their own comments
+  return comment.user_id === user.id
+}
+
+const canDeleteComment = (comment) => {
+  if (props.readonly) return false
+  
+  const user = currentUser.value
+  if (!user) return false
+  
+  // Super Admin or Tickets Admin can delete any comment
+  if (user.isSuperAdmin || props.canReviewAnnotations) return true
+  
+  // Regular users can only delete their own comments
+  return comment.user_id === user.id
 }
 
 // Sidebar methods
@@ -988,6 +1068,54 @@ const deleteImage = async (image) => {
   } catch (error) {
     console.error('Error deleting image:', error)
     alert('Failed to delete image. Please try again.')
+  }
+}
+
+// Public/Private Access Management
+const copiedImageId = ref(null)
+
+const togglePublicAccess = async (image) => {
+  try {
+    const newPublicState = !image.is_public
+    
+    const response = await fetch(`/api/tickets/${props.ticketId}/images/${image.id}/public-access`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        is_public: newPublicState,
+        public_access_level: 'annotate' // Always full access when public
+      })
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      // Update local state
+      image.is_public = data.data.is_public
+      image.public_access_level = data.data.public_access_level
+    } else {
+      throw new Error('Failed to update public access')
+    }
+  } catch (error) {
+    console.error('Error toggling public access:', error)
+    alert('Failed to update public access. Please try again.')
+  }
+}
+
+const copyShareLink = async (image) => {
+  try {
+    const shareUrl = `${window.location.origin}/annotations/${image.id}/public`
+    await navigator.clipboard.writeText(shareUrl)
+    copiedImageId.value = image.id
+    setTimeout(() => {
+      copiedImageId.value = null
+    }, 2000)
+  } catch (error) {
+    console.error('Error copying share link:', error)
+    alert('Failed to copy share link')
   }
 }
 

@@ -13,7 +13,9 @@ class AnnotationComment extends Model
 
     protected $fillable = [
         'annotation_id',
+        'ticket_image_id',
         'user_id',
+        'external_user_id',
         'content',
         'parent_id',
         'created_by_public',
@@ -38,11 +40,27 @@ class AnnotationComment extends Model
     }
 
     /**
+     * Get the ticket image that owns this comment (for image-level comments).
+     */
+    public function ticketImage(): BelongsTo
+    {
+        return $this->belongsTo(TicketImage::class);
+    }
+
+    /**
      * Get the user who created this comment.
      */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the external user who created this comment.
+     */
+    public function externalUser(): BelongsTo
+    {
+        return $this->belongsTo(ExternalUser::class);
     }
 
     /**
@@ -69,5 +87,38 @@ class AnnotationComment extends Model
     public function isReply(): bool
     {
         return !is_null($this->parent_id);
+    }
+
+    /**
+     * Get the creator (internal user or external user)
+     */
+    public function getCreatorAttribute()
+    {
+        if ($this->user_id) {
+            return $this->user;
+        }
+        
+        if ($this->external_user_id) {
+            return $this->externalUser;
+        }
+        
+        // Fallback to public_user_info for legacy data
+        if ($this->created_by_public && $this->public_user_info) {
+            return (object) [
+                'name' => $this->public_user_info['name'] ?? 'Anonymous',
+                'email' => $this->public_user_info['email'] ?? null,
+                'is_external' => true,
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Check if comment was created by external user
+     */
+    public function isCreatedByExternalUser(): bool
+    {
+        return $this->external_user_id !== null;
     }
 }

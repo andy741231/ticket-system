@@ -1,157 +1,189 @@
 <template>
-  <div class="annotation-canvas-container flex relative bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
+  <div class="annotation-canvas-container flex relative bg-gray-50 dark:bg-gray-900 rounded-lg overflow-auto" style="height: 800px; min-height: 600px;">
     <!-- Main Canvas Area -->
-    <div class="flex-1 relative">
+    <div class="flex-1 relative flex flex-col" style="min-width: 0;">
     <!-- Toolbar -->
-     <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-    <div class="max-w-5xl mx-auto annotation-toolbar flex items-center justify-between p-3">
-      <!-- Left: Drawing Tools -->
-      <div class="flex items-center gap-2">
-        <!-- Tool Buttons -->
-        <div class="flex items-center gap-1 mr-4">
-          <button
-            v-for="tool in tools"
-            :key="tool.name"
-            @click="currentTool = tool.name"
-            :class="[
-              'p-2 rounded-md transition-colors',
-              currentTool === tool.name
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            ]"
-            :title="tool.label"
-            :disabled="readonly"
-          >
-            <font-awesome-icon :icon="tool.icon" class="text-sm" />
-          </button>
-          <!-- Clear Freehand Annotations -->
-          <button
-            v-if="!readonly"
-            @click="clearFreehandAnnotations"
-            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            title="Clear all freehand annotations"
-            aria-label="Clear all freehand annotations"
-          >
-            <font-awesome-icon :icon="['fas','trash']" class="text-sm" />
-          </button>
+    <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 shadow-sm">
+      <div class="annotation-toolbar flex items-center justify-center px-4 py-2.5">
+        <!-- Left Section: Tools & Properties -->
+        <div class="flex items-center gap-3">
+          <!-- Drawing Tools Group -->
+          <div class="flex items-center gap-0.5 px-2 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+            <button
+              v-for="tool in tools"
+              :key="tool.name"
+              @click="currentTool = tool.name"
+              :class="[
+                'p-2.5 rounded-md transition-all duration-200 relative group',
+                currentTool === tool.name
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
+              ]"
+              :title="`${tool.label} (${tool.shortcut})`"
+              :disabled="readonly"
+            >
+              <font-awesome-icon :icon="tool.icon" class="text-base" />
+              <!-- Active indicator -->
+              <div v-if="currentTool === tool.name" class="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
+            </button>
+          </div>
+          
+          <!-- Divider -->
+          <div class="h-8 w-px bg-gray-300 dark:bg-gray-600"></div>
+          
+          <!-- Color & Stroke Properties -->
+          <div class="flex items-center gap-3">
+            <!-- Color Picker -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Color</span>
+              <div class="flex items-center gap-1 px-1.5 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-md">
+                <button
+                  v-for="color in colorPalette"
+                  :key="color"
+                  @click="currentStyle.color = color"
+                  :class="[
+                    'w-7 h-7 rounded-md border-2 transition-all duration-200 hover:scale-110',
+                    currentStyle.color === color
+                      ? 'border-blue-500 shadow-md scale-110 ring-2 ring-blue-200 dark:ring-blue-800'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                  ]"
+                  :style="{ 
+                    backgroundColor: color,
+                    boxShadow: color === '#ffffff' ? 'inset 0 0 0 1px rgba(0,0,0,0.1)' : 'none'
+                  }"
+                  :title="`Color: ${color}`"
+                  :disabled="readonly"
+                ></button>
+                <input
+                  v-model="currentStyle.color"
+                  type="color"
+                  class="w-7 h-7 rounded-md border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                  title="Custom color"
+                  :disabled="readonly"
+                />
+              </div>
+            </div>
+            
+            <!-- Stroke Width -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Size</span>
+              <select
+                v-model.number="currentStyle.strokeWidth"
+                class="pl-3 pr-8 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-pointer"
+                :disabled="readonly"
+              >
+                <option :value="1">1px</option>
+                <option :value="2">2px</option>
+                <option :value="3">3px</option>
+                <option :value="4">4px</option>
+                <option :value="5">5px</option>
+                <option :value="6">6px</option>
+                <option :value="8">8px</option>
+                <option :value="10">10px</option>
+              </select>
+            </div>
+          </div>
         </div>
         
-        <!-- Color Swatches -->
-        <div class="flex items-center gap-1 mr-4">
-          <button
-            v-for="color in colorPalette"
-            :key="color"
-            @click="currentStyle.color = color"
-            :class="[
-              'w-6 h-6 rounded border-2 transition-all',
-              currentStyle.color === color
-                ? 'border-gray-800 dark:border-gray-200 scale-110'
-                : 'border-gray-300 dark:border-gray-600 hover:scale-105'
-            ]"
-            :style="{ backgroundColor: color }"
-            :title="`Color: ${color}`"
-            :disabled="readonly"
-          ></button>
-          <input
-            v-model="currentStyle.color"
-            type="color"
-            class="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
-            title="Custom color"
-            :disabled="readonly"
-          />
-        </div>
-        
-        <!-- Stroke Width -->
-        <div class="flex items-center gap-2 mr-4">
-          <label class="text-xs text-gray-600 dark:text-gray-400">Width:</label>
-          <input
-            v-model.number="currentStyle.strokeWidth"
-            type="range"
-            min="1"
-            max="8"
-            class="w-16"
-            :disabled="readonly"
-          />
-          <span class="text-xs text-gray-600 dark:text-gray-400 w-6">{{ currentStyle.strokeWidth }}</span>
-        </div>
-      </div>
-      
-      <!-- Right: View Controls -->
-      <div class="flex items-center gap-2">
-        <!-- Zoom Controls -->
-        <div class="flex items-center gap-1">
-          <button
-            @click="zoomOut"
-            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            title="Zoom out"
-          >
-            <font-awesome-icon :icon="['fas','search-minus']" class="text-sm" />
-          </button>
-          <span class="text-xs text-gray-600 dark:text-gray-400 min-w-12 text-center">{{ Math.round(zoomLevel * 100) }}%</span>
-          <button
-            @click="zoomIn"
-            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            title="Zoom in"
-          >
-            <font-awesome-icon :icon="['fas','search-plus']" class="text-sm" />
-          </button>
-          <button
-            @click="toggleFit"
-            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            :title="fitMode === 'width' ? 'Fit to width' : 'Fit to height'"
-          >
-            <font-awesome-icon :icon="fitMode === 'width' ? ['fas','expand-arrows-alt'] : ['fas','compress-arrows-alt']" class="text-sm" />
-          </button>
-        </div>
-        
-        <!-- Undo/Redo -->
-        <div class="flex items-center gap-1 ml-2">
-          <button
-            @click="undo"
-            :disabled="!canUndo || readonly"
-            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Undo (Ctrl+Z)"
-            aria-label="Undo last action"
-          >
-            <font-awesome-icon :icon="['fas','undo']" class="text-sm" />
-          </button>
-          <button
-            @click="redo"
-            :disabled="!canRedo || readonly"
-            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Redo (Ctrl+Shift+Z)"
-            aria-label="Redo last undone action"
-          >
-            <font-awesome-icon :icon="['fas','redo']" class="text-sm" />
-          </button>
-        </div>
-        
-        <!-- Help Button -->
-        <div class="flex items-center gap-1 ml-2">
+        <!-- Right Section: View Controls & Actions -->
+        <div class="flex items-center gap-3">
+          <!-- History Controls -->
+          <div class="flex items-center gap-0.5 px-1.5 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+            <button
+              @click="undo"
+              :disabled="!canUndo || readonly"
+              class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+              title="Undo (Ctrl+Z)"
+              aria-label="Undo last action"
+            >
+              <font-awesome-icon :icon="['fas','undo']" class="text-sm" />
+            </button>
+            <button
+              @click="redo"
+              :disabled="!canRedo || readonly"
+              class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+              title="Redo (Ctrl+Shift+Z)"
+              aria-label="Redo last undone action"
+            >
+              <font-awesome-icon :icon="['fas','redo']" class="text-sm" />
+            </button>
+          </div>
+          
+          <!-- Divider -->
+          <div class="h-8 w-px bg-gray-300 dark:bg-gray-600"></div>
+          
+          <!-- Zoom Controls -->
+          <div class="flex items-center gap-1.5">
+            <button
+              @click="zoomOut"
+              class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 transition-all"
+              title="Zoom out (Ctrl+-)"
+            >
+              <font-awesome-icon :icon="['fas','search-minus']" class="text-sm" />
+            </button>
+            <div class="relative">
+              <select
+                :value="Math.round(zoomLevel * 100)"
+                @change="setZoomFromDropdown($event.target.value)"
+                class="pl-2.5 pr-7 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-pointer min-w-[70px] appearance-none"
+              >
+                <option :value="25">25%</option>
+                <option :value="50">50%</option>
+                <option :value="75">75%</option>
+                <option :value="100">100%</option>
+                <option :value="150">150%</option>
+                <option :value="200">200%</option>
+              </select>
+              <!-- Display current zoom if not in dropdown options -->
+              <div 
+                v-if="![25, 50, 75, 100, 150, 200].includes(Math.round(zoomLevel * 100))"
+                class="absolute inset-0 pointer-events-none flex items-center pl-2.5 text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                {{ Math.round(zoomLevel * 100) }}%
+              </div>
+            </div>
+            <button
+              @click="zoomIn"
+              class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 transition-all"
+              title="Zoom in (Ctrl++)"
+            >
+              <font-awesome-icon :icon="['fas','search-plus']" class="text-sm" />
+            </button>
+            <button
+              @click="toggleFit"
+              class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 transition-all"
+              :title="fitMode === 'width' ? 'Fit to width (Ctrl+0)' : 'Fit to height (Ctrl+0)'"
+            >
+              <font-awesome-icon :icon="fitMode === 'width' ? ['fas','expand-arrows-alt'] : ['fas','compress-arrows-alt']" class="text-sm" />
+            </button>
+          </div>
+          
+          <!-- Divider -->
+          <div class="h-8 w-px bg-gray-300 dark:bg-gray-600"></div>
+          
+          <!-- Help Button -->
           <button
             @click="showKeyboardHelp = !showKeyboardHelp"
-            class="p-2 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-blue-500 dark:hover:text-blue-400 transition-all"
             title="Keyboard shortcuts (?)"
             aria-label="Show keyboard shortcuts"
           >
-            <font-awesome-icon :icon="['fas','keyboard']" class="text-sm" />
+            <font-awesome-icon :icon="['fas','info-circle']" class="text-base" />
           </button>
-       
         </div>
-      </div>
       </div>
     </div>
     
     <!-- Image Viewport -->
     <div 
       ref="viewportRef"
-      class="annotation-viewport relative overflow-hidden" 
-      :style="{ height: 'calc(100vh - 64px)' }"
+      class="annotation-viewport relative overflow-hidden flex-1" 
       @wheel.prevent="onWheel"
       @mousedown="onViewportMouseDown"
       @mousemove="onViewportMouseMove"
       @mouseup="onViewportMouseUp"
       @mouseleave="onViewportMouseUp"
+      @click="onViewportClick"
     >
       <div 
         class="annotation-content-wrapper relative"
@@ -166,6 +198,7 @@
           :src="imageUrl"
           :alt="imageName"
           class="block border border-gray-300 dark:border-gray-600 rounded-lg"
+          style="max-width: none;"
           @load="onImageLoad"
           @error="onImageError"
           draggable="false"
@@ -191,26 +224,39 @@
           @contextmenu.prevent="onRightClick"
         ></canvas>
         
-        <!-- Direct Text Input -->
-        <input
+        <!-- Direct Text Input with RichTextEditor -->
+        <div
           v-if="isEditingText"
-          ref="textEditElement"
-          v-model="textEditContent"
-          type="text"
-          class="absolute bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-500 rounded px-2 py-1 outline-none text-blue-600 dark:text-blue-400 font-medium z-20 shadow-md"
+          class="absolute z-20 shadow-lg"
           :style="{
-            left: Math.max(0, Math.min(textEditPosition.x, (canvasWidth || 800) - 150)) + 'px',
-            top: Math.max(0, Math.min(textEditPosition.y - 20, (canvasHeight || 600) - 40)) + 'px',
-            fontSize: '14px',
-            minWidth: '100px',
-            maxWidth: '200px'
+            left: Math.max(0, Math.min(textEditPosition.x, (canvasWidth || 800) - 320)) + 'px',
+            top: Math.max(0, Math.min(textEditPosition.y - 20, (canvasHeight || 600) - 200)) + 'px',
+            width: '300px'
           }"
-          @keydown.stop
-          @blur="finishTextEdit"
-          @keydown.enter="finishTextEdit"
-          @keydown.escape="cancelTextEdit"
-          placeholder="Type here..."
-        />
+          @mousedown.stop
+        >
+          <RichTextEditor
+            ref="textEditElement"
+            v-model="textContent"
+            placeholder="Type your annotation text..."
+            editor-class="rounded-b-none editor-content px-3 py-2 min-h-[100px] max-h-[200px] overflow-y-auto border-x border-b border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div class="flex justify-end gap-2 px-2 pb-2 bg-white dark:bg-gray-800 border border-t-0 border-gray-300 dark:border-gray-600 rounded-b-md">
+            <button
+              @click="cancelTextEdit"
+              class="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              @click="finishTextEdit"
+              :disabled="!stripHtmlTags(textContent).trim()"
+              class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
         
         <!-- Numbered Annotation Markers -->
         <div
@@ -219,7 +265,6 @@
           class="absolute annotation-marker"
           :style="getAnnotationStyle(annotation)"
           @mousedown="onAnnotationMarkerMouseDown(annotation, $event)"
-          @click="selectAnnotation(annotation)"
           @mouseenter="hoveredAnnotation = annotation"
           @mouseleave="hoveredAnnotation = null"
           :class="{
@@ -257,22 +302,50 @@
           
 
           <!-- Overlay text/comment box for this annotation -->
-          <div v-if="getOverlayContent(annotation)" class="annotation-comment-box ml-3">
-            <div class="flex items-start gap-2">
+          <div 
+            v-if="getOverlayContent(annotation)" 
+            class="annotation-comment-box ml-3"
+            :style="getCommentBoxStyle(annotation)"
+            @mousedown.stop
+          >
+            <div class="p-2 flex items-start gap-2">
               <div class="flex-shrink-0">
                 <Avatar :user="getDisplayUserForAnnotation(annotation)" size="xs" :show-link="false" />
               </div>
               <div class="flex-1 min-w-0">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="text-xs text-gray-800 dark:text-gray-100 break-words">
+                <div v-if="editingAnnotationId === annotation.id" class="space-y-2">
+                  <RichTextEditor
+                    ref="annotationEditorRef"
+                    v-model="editingAnnotationContent"
+                    placeholder="Edit annotation text..."
+                    editor-class="editor-content px-2 py-1 overflow-y-auto border-x border-b border-gray-300 dark:border-gray-600 rounded-b-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-xl focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    :editor-style="getEditorStyle(annotation)"
+                  />
+                  <div class="flex justify-end gap-1">
+                    <button @click.stop="cancelAnnotationEdit" class="px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">
+                      Cancel
+                    </button>
+                    <button @click.stop="saveAnnotationEdit" :disabled="!stripHtmlTags(editingAnnotationContent).trim()" class="px-2 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      Save
+                    </button>
+                  </div>
+                </div>
+                <div v-else class="flex items-start justify-between gap-2">
+                  <div class="text-xl text-gray-800 dark:text-gray-100 break-words">
                     <div class="text-gray-700 dark:text-gray-300" v-html="linkifyText(getOverlayContent(annotation))">
                     </div>
                   </div>
-                  <div v-if="!readonly" class="flex items-center gap-1">
-                    
-                  </div>
                 </div>
               </div>
+            </div>
+            <!-- Resize handle -->
+            <div 
+              v-if="!readonly && editingAnnotationId !== annotation.id"
+              class="resize-handle"
+              @mousedown.stop="startResizeCommentBox(annotation, $event)"
+              title="Drag to resize"
+            >
+              <font-awesome-icon :icon="['fas', 'grip-lines']" class="text-xs" />
             </div>
           </div>
 
@@ -283,56 +356,41 @@
     </div>
     
     <!-- Comments Panel -->
-    <div class="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col" :style="{ height: 'calc(100vh - 64px)' }">
-      <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+    <div class="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col h-full">
+      <!-- Header -->
+      <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Comments</h3>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ combinedComments.length }} comment{{ combinedComments.length !== 1 ? 's' : '' }}</p>
       </div>
-
-      <!-- Add Comment Form -->
-      <div class="p-4 border-t border-gray-200 dark:border-gray-700">
-        <div v-if="selectedAnnotation" class="mb-3 text-sm text-blue-600 dark:text-blue-400">
-          <font-awesome-icon :icon="['fas', 'reply']" class="mr-1" />
-          Commenting on Annotation #{{ getAnnotationNumber(selectedAnnotation.id) }}
-        </div>
-        <div class="flex gap-2">
-          <MentionAutocomplete
-            v-model="newCommentContent"
-            :ticket-id="ticketId"
-            placeholder="Add a comment... Use @username to mention"
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm resize-none"
-            rows="2"
-            @keydown.ctrl.enter="addComment"
-            @keydown.meta.enter="addComment"
-          />
-          <button
-            @click="addComment"
-            :disabled="!newCommentContent.trim()"
-            class="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <font-awesome-icon :icon="['fas', 'paper-plane']" class="text-sm" />
-          </button>
-        </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Ctrl+Enter to send</p>
-      </div>
       
-      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <!-- Comments List (Scrollable) -->
+      <div ref="commentsListRef" class="flex-1 overflow-y-auto p-4 space-y-4">
         <div v-if="combinedComments.length === 0" class="text-center text-gray-500 dark:text-gray-400 py-8">
           <font-awesome-icon :icon="['fas', 'comments']" class="text-4xl mb-2" />
           <p>No comments yet</p>
           <p class="text-sm">Add a text annotation on the canvas or use the panel below</p>
         </div>
         
+        <!-- Comment threads with nested replies -->
         <div
-          v-for="entry in combinedComments"
+          v-for="entry in flattenedComments"
           :key="`${entry.type}-${entry.id}`"
-          class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors cursor-default"
+          :ref="el => { if (entry.type === 'comment' && entry.id == highlightedCommentId) commentElementRefs[entry.id] = el }"
+          class="relative bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors cursor-default"
           :class="{
             'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer': entry.type === 'annotation' || entry.annotation,
-            'ring-1 ring-blue-400/60': entry.type === 'annotation' && selectedAnnotation?.id === entry.annotation.id
+            'ring-1 ring-blue-400/60': entry.type === 'annotation' && selectedAnnotation?.id === entry.annotation.id,
+            'ring-2 ring-orange-500 dark:ring-orange-600 bg-orange-50 dark:bg-orange-900/30': entry.type === 'comment' && entry.id == highlightedCommentId
           }"
+          :style="{ marginLeft: `${entry.level * 16}px` }"
           @click="handleCommentEntryClick(entry)"
         >
+          <!-- Tracing line for nested comments -->
+          <div
+            v-if="entry.level > 0"
+            class="absolute left-0 top-0 bottom-0 w-0.5 bg-gray-300 dark:bg-gray-600"
+            :style="{ left: '-8px' }"
+          ></div>
           <template v-if="entry.type === 'annotation'">
             <div class="flex items-start justify-between mb-2">
               <div class="flex items-center gap-2">
@@ -342,7 +400,7 @@
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(entry.createdAt) }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-1" v-if="!readonly && canEdit(entry.annotation)">
+              <div class="flex items-center gap-1" v-if="!readonly && canEdit(entry.annotation) && editingAnnotationId !== entry.annotation.id">
                 <button @click.stop="editAnnotation(entry.annotation)" class="text-gray-400 hover:text-blue-500 transition-colors">
                   <font-awesome-icon :icon="['fas', 'edit']" class="text-xs" />
                 </button>
@@ -351,7 +409,34 @@
                 </button>
               </div>
             </div>
-            <p class="text-sm text-gray-700 dark:text-gray-300 break-words" v-html="linkifyText(entry.annotation.content)"></p>
+            <div v-if="editingAnnotationId === entry.annotation.id" class="space-y-2">
+              <RichTextEditor
+                v-model="editingAnnotationContent"
+                placeholder="Edit annotation text..."
+                editor-class="editor-content px-3 py-2 min-h-[80px] max-h-[200px] overflow-y-auto border-x border-b border-gray-300 dark:border-gray-600 rounded-b-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div class="flex justify-end gap-2">
+                <button @click.stop="cancelAnnotationEdit" class="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">
+                  Cancel
+                </button>
+                <button @click.stop="saveAnnotationEdit" :disabled="!stripHtmlTags(editingAnnotationContent).trim()" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  Save
+                </button>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-700 dark:text-gray-300 break-words comment-content" v-html="linkifyText(entry.annotation.content)"></div>
+            
+            <!-- Reply and collapse buttons -->
+            <div class="flex items-center gap-3 mt-2">
+              <button v-if="!readonly" @click.stop="handleReply(entry)" class="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                <font-awesome-icon :icon="['fas', 'reply']" class="mr-1" />
+                Reply
+              </button>
+              <button v-if="entry.replies && entry.replies.length > 0" @click.stop="toggleThreadCollapse(entry)" class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                <font-awesome-icon :icon="collapsedThreads[`${entry.type}-${entry.id}`] ? ['fas', 'caret-right'] : ['fas', 'caret-down']" class="mr-1" />
+                {{ collapsedThreads[`${entry.type}-${entry.id}`] ? 'Show' : 'Hide' }} {{ entry.replies.length }} {{ entry.replies.length === 1 ? 'reply' : 'replies' }}
+              </button>
+            </div>
           </template>
           <template v-else>
             <div class="flex items-start justify-between mb-2">
@@ -362,25 +447,101 @@
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(entry.createdAt) }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-1" v-if="canEditComment(entry.comment)">
-                <button @click.stop="editComment(entry.comment)" class="text-gray-400 hover:text-blue-500 transition-colors">
+              <div class="flex items-center gap-1" v-if="(canEditComment(entry.comment) || canDeleteComment(entry.comment)) && editingCommentId !== entry.comment.id">
+                <button v-if="canEditComment(entry.comment)" @click.stop="editComment(entry.comment)" class="text-gray-400 hover:text-blue-500 transition-colors">
                   <font-awesome-icon :icon="['fas', 'edit']" class="text-xs" />
                 </button>
-                <button @click.stop="deleteComment(entry.comment)" class="text-gray-400 hover:text-red-500 transition-colors">
+                <button v-if="canDeleteComment(entry.comment)" @click.stop="deleteComment(entry.comment)" class="text-gray-400 hover:text-red-500 transition-colors">
                   <font-awesome-icon :icon="['fas', 'trash']" class="text-xs" />
                 </button>
               </div>
             </div>
-            <p class="text-sm text-gray-700 dark:text-gray-300 break-words" v-html="linkifyText(entry.comment.content)"></p>
-            <div v-if="entry.comment.annotation_id" class="mt-2 text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+            <div v-if="editingCommentId === entry.comment.id" class="space-y-1.5">
+              <MentionAutocomplete
+                v-model="editingCommentContent"
+                :ticket-id="ticketId"
+                :image-id="imageId"
+                :public-token="publicToken"
+                :is-public="isPublic"
+                :include-external-users="true"
+                placeholder="Edit comment..."
+                class="w-full min-h-[60px] max-h-[150px] overflow-y-auto border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                rows="2"
+              />
+              <div class="flex justify-end gap-1.5">
+                <button @click.stop="cancelCommentEdit" class="px-2.5 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">
+                  Cancel
+                </button>
+                <button @click.stop="saveCommentEdit" :disabled="!editingCommentContent.trim()" class="px-2.5 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  Save
+                </button>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-700 dark:text-gray-300 break-words comment-content" v-html="linkifyText(entry.comment.content)"></div>
+            <div v-if="entry.comment.annotation_id && entry.annotation" class="mt-2 text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
               <font-awesome-icon :icon="['fas', 'link']" />
               <span>Annotation #{{ getAnnotationNumber(entry.comment.annotation_id) }}</span>
+            </div>
+            
+            <!-- Reply and collapse buttons -->
+            <div class="flex items-center gap-3 mt-2">
+              <button v-if="!readonly" @click.stop="handleReply(entry)" class="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                <font-awesome-icon :icon="['fas', 'reply']" class="mr-1" />
+                Reply
+              </button>
+              <button v-if="entry.replies && entry.replies.length > 0" @click.stop="toggleThreadCollapse(entry)" class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                <font-awesome-icon :icon="collapsedThreads[`${entry.type}-${entry.id}`] ? ['fas', 'caret-right'] : ['fas', 'caret-down']" class="mr-1" />
+                {{ collapsedThreads[`${entry.type}-${entry.id}`] ? 'Show' : 'Hide' }} {{ entry.replies.length }} {{ entry.replies.length === 1 ? 'reply' : 'replies' }}
+              </button>
             </div>
           </template>
         </div>
       </div>
       
-      
+      <!-- Add Comment Form (Fixed at Bottom) -->
+      <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <!-- Reply indicator -->
+        <div v-if="selectedAnnotation || replyingToComment" class="px-4 pt-3 pb-2 text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20">
+          <font-awesome-icon :icon="['fas', 'reply']" class="text-xs" />
+          <span v-if="selectedAnnotation">Replying to Annotation #{{ getAnnotationNumber(selectedAnnotation.id) }}</span>
+          <span v-else-if="replyingToComment">Replying to {{ getDisplayUserForComment(replyingToComment)?.name || 'comment' }}</span>
+          <button @click="selectedAnnotation = null; replyingToComment = null" class="ml-auto text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <font-awesome-icon :icon="['fas', 'times']" class="text-xs" />
+          </button>
+        </div>
+        
+        <!-- Input area -->
+        <div class="p-2 border-t border-gray-200 dark:border-gray-700">
+          <div class="flex items-center gap-1.5">
+            <div class="flex-1">
+              <MentionAutocomplete
+                v-model="newCommentContent"
+                :ticket-id="ticketId"
+                :image-id="imageId"
+                :public-token="publicToken"
+                :is-public="isPublic"
+                :include-external-users="true"
+                dropdown-position="top"
+                placeholder="Add a comment..."
+                class="w-full rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows="1"
+                @keydown.enter.ctrl="addComment"
+              />
+            </div>
+            <button
+              @click="addComment"
+              :disabled="!newCommentContent.trim()"
+              class="px-2.5 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Post comment (Ctrl+Enter)"
+            >
+              <font-awesome-icon :icon="['fas', 'paper-plane']" class="text-xs" />
+            </button>
+          </div>
+          <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 px-0.5">
+            @mention • Ctrl+Enter to post
+          </p>
+        </div>
+      </div>
     </div>
     
     <!-- Text Input Modal -->
@@ -393,19 +554,16 @@
       aria-modal="true"
     >
       <div
-        class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4"
+        class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-lg w-full mx-4"
         @click.stop
       >
         <h3 id="text-modal-title" class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Add Text Annotation</h3>
-        <textarea
+        <RichTextEditor
           ref="textInput"
           v-model="textContent"
-          placeholder="Enter your annotation text..."
-          class="w-full h-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
-          @keydown.enter.ctrl="saveTextAnnotation"
-          @keydown.escape="closeTextModal"
-          aria-label="Annotation text content"
-        ></textarea>
+          placeholder="Enter your annotation text with formatting..."
+          editor-class="editor-content px-3 py-2 min-h-[120px] max-h-[250px] overflow-y-auto border-x border-b border-gray-300 dark:border-gray-600 rounded-b-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
         <div class="flex justify-end gap-2 mt-4">
           <button
             @click="closeTextModal"
@@ -415,7 +573,8 @@
           </button>
           <button
             @click="saveTextAnnotation"
-            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+            :disabled="!stripHtmlTags(textContent).trim()"
+            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Save
           </button>
@@ -426,109 +585,187 @@
     <!-- Keyboard Shortcuts Help Modal -->
     <div
       v-if="showKeyboardHelp"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm"
       @click="showKeyboardHelp = false"
       role="dialog"
       aria-labelledby="help-modal-title"
       aria-modal="true"
     >
       <div
-        class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-lg w-full mx-4 max-h-96 overflow-y-auto"
+        class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden"
         @click.stop
       >
-        <div class="flex items-center justify-between mb-4">
-          <h3 id="help-modal-title" class="text-lg font-medium text-gray-900 dark:text-gray-100">Keyboard Shortcuts</h3>
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-blue-500 rounded-lg">
+              <font-awesome-icon :icon="['fas','keyboard']" class="text-white text-lg" />
+            </div>
+            <div>
+              <h3 id="help-modal-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">Keyboard Shortcuts</h3>
+              <p class="text-xs text-gray-600 dark:text-gray-400">Speed up your workflow with these shortcuts</p>
+            </div>
+          </div>
           <button
             @click="showKeyboardHelp = false"
-            class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-all"
             aria-label="Close help"
           >
-            <font-awesome-icon :icon="['fas','times']" />
+            <font-awesome-icon :icon="['fas','times']" class="text-lg" />
           </button>
         </div>
         
-        <div class="space-y-4">
-          <!-- Tools -->
-          <div>
-            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Tools</h4>
-            <div class="grid grid-cols-2 gap-2 text-sm">
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Grab</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">G</kbd>
+        <!-- Content -->
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Drawing Tools -->
+            <div class="space-y-3">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-1 h-5 bg-blue-500 rounded-full"></div>
+                <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Drawing Tools</h4>
               </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Select</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">V</kbd>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Rectangle</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">R</kbd>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Circle</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">C</kbd>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Freehand</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">F</kbd>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Text</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">T</kbd>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Actions -->
-          <div>
-            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Actions</h4>
-            <div class="space-y-2 text-sm">
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Undo</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+Z</kbd>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Redo</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+Shift+Z</kbd>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Delete Selected</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Del</kbd>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Clear Selection</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Esc</kbd>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'hand-paper']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Grab Tool</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">G</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['far', 'square']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Rectangle</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">R</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['far', 'circle']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Circle</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">C</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'pencil-alt']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Freehand</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">F</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'i-cursor']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Text</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">T</kbd>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <!-- Navigation -->
-          <div>
-            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Navigation</h4>
-            <div class="space-y-2 text-sm">
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Zoom In</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl++</kbd>
+            
+            <!-- History & View Controls -->
+            <div class="space-y-3">
+              <!-- History -->
+              <div>
+                <div class="flex items-center gap-2 mb-3">
+                  <div class="w-1 h-5 bg-green-500 rounded-full"></div>
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">History</h4>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-2">
+                      <font-awesome-icon :icon="['fas', 'undo']" class="text-gray-400 w-4" />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Undo</span>
+                    </div>
+                    <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Ctrl+Z</kbd>
+                  </div>
+                  <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-2">
+                      <font-awesome-icon :icon="['fas', 'redo']" class="text-gray-400 w-4" />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Redo</span>
+                    </div>
+                    <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Ctrl+Shift+Z</kbd>
+                  </div>
+                </div>
               </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Zoom Out</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+-</kbd>
+              
+              <!-- Zoom & View -->
+              <div>
+                <div class="flex items-center gap-2 mb-3 mt-4">
+                  <div class="w-1 h-5 bg-purple-500 rounded-full"></div>
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Zoom & View</h4>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-2">
+                      <font-awesome-icon :icon="['fas', 'search-plus']" class="text-gray-400 w-4" />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Zoom In</span>
+                    </div>
+                    <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Ctrl++</kbd>
+                  </div>
+                  <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-2">
+                      <font-awesome-icon :icon="['fas', 'search-minus']" class="text-gray-400 w-4" />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Zoom Out</span>
+                    </div>
+                    <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Ctrl+-</kbd>
+                  </div>
+                  <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <div class="flex items-center gap-2">
+                      <font-awesome-icon :icon="['fas', 'expand-arrows-alt']" class="text-gray-400 w-4" />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Fit to Screen</span>
+                    </div>
+                    <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Ctrl+0</kbd>
+                  </div>
+                </div>
               </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Fit to Screen</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+0</kbd>
+            </div>
+            
+            <!-- Other Actions -->
+            <div class="space-y-3 md:col-span-2">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-1 h-5 bg-orange-500 rounded-full"></div>
+                <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Other Actions</h4>
               </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Pan</span>
-                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+Drag</kbd>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'trash']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Delete Selected</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Del</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'times-circle']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Clear Selection</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Esc</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'hand-paper']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Pan Canvas</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">Ctrl+Drag</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div class="flex items-center gap-2">
+                    <font-awesome-icon :icon="['fas', 'question-circle']" class="text-gray-400 w-4" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Toggle Help</span>
+                  </div>
+                  <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-semibold shadow-sm">?</kbd>
+                </div>
               </div>
             </div>
           </div>
         </div>
         
-        <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+        <!-- Footer -->
+        <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
           <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
-            Press <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">?</kbd> or click the keyboard icon to toggle this help
+            <font-awesome-icon :icon="['fas', 'lightbulb']" class="mr-1" />
+            Pro tip: Hover over toolbar buttons to see their shortcuts
           </p>
         </div>
       </div>
@@ -564,73 +801,15 @@
       </div>
     </div>
 
-    <!-- Public User Info Modal -->
-    <div
-      v-if="showPublicUserModal"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      @click="showPublicUserModal = false"
-      role="dialog"
-      aria-labelledby="public-user-modal-title"
-      aria-modal="true"
-    >
-      <div
-        class="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4"
-        @click.stop
-      >
-        <h3 id="public-user-modal-title" class="text-lg font-medium text-gray-900 dark:text-white mb-4">Add Your Information</h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Please provide your name and email to submit this comment.
-        </p>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Name *
-            </label>
-            <input
-              v-model="publicUserInfo.name"
-              type="text"
-              required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Your full name"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email *
-            </label>
-            <input
-              v-model="publicUserInfo.email"
-              type="email"
-              required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="your.email@example.com"
-            />
-          </div>
-        </div>
-        <div class="flex justify-end space-x-3 mt-6">
-          <button
-            @click="cancelPublicComment"
-            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            @click="submitPublicComment"
-            :disabled="!publicUserInfo.name.trim() || !publicUserInfo.email.trim()"
-            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
-          >
-            Submit Comment
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import Avatar from '@/Components/Avatar.vue'
+import RichTextEditor from '@/Components/RichTextEditor.vue'
 import MentionAutocomplete from '@/Components/MentionAutocomplete.vue'
+import { renderMentions } from '@/Utils/mentionUtils'
 
 const props = defineProps({
   imageUrl: {
@@ -661,6 +840,10 @@ const props = defineProps({
     type: Function,
     default: () => true
   },
+  canDeleteComment: {
+    type: Function,
+    default: () => true
+  },
   readonly: {
     type: Boolean,
     default: false
@@ -671,7 +854,23 @@ const props = defineProps({
   },
   ticketId: {
     type: [String, Number],
-    required: true
+    required: false
+  },
+  imageId: {
+    type: [String, Number],
+    required: false
+  },
+  publicToken: {
+    type: String,
+    required: false
+  },
+  currentUserId: {
+    type: [String, Number],
+    default: null
+  },
+  highlightedCommentId: {
+    type: [String, Number],
+    default: null
   }
 })
 
@@ -691,6 +890,8 @@ const emit = defineEmits([
 const imageRef = ref(null)
 const canvasRef = ref(null)
 const viewportRef = ref(null)
+const commentsListRef = ref(null)
+const commentElementRefs = ref({})
 
 // Canvas state
 const canvasWidth = ref(0)
@@ -724,35 +925,32 @@ const textEditElement = ref(null)
 const editingAnnotationId = ref(null)
 const currentStyle = ref({
   color: '#3b82f6',
-  strokeWidth: 2,
+  strokeWidth: 5,
   fillColor: 'transparent'
 })
 
 // Tools configuration
 const tools = ref([
-  { name: 'grab', label: 'Grab', icon: ['fas', 'hand-paper'] },
-  { name: 'select', label: 'Select', icon: ['fas', 'mouse-pointer'] },
-  { name: 'rectangle', label: 'Rectangle', icon: ['far', 'square'] },
-  { name: 'circle', label: 'Circle', icon: ['far', 'circle'] },
-  { name: 'freehand', label: 'Freehand', icon: ['fas', 'pencil-alt'] },
-  { name: 'text', label: 'Text', icon: ['fas', 'i-cursor'] }
+  { name: 'grab', label: 'Grab', icon: ['fas', 'hand-paper'], shortcut: 'G' },
+  { name: 'rectangle', label: 'Rectangle', icon: ['far', 'square'], shortcut: 'R' },
+  { name: 'circle', label: 'Circle', icon: ['far', 'circle'], shortcut: 'C' },
+  { name: 'freehand', label: 'Freehand', icon: ['fas', 'pencil-alt'], shortcut: 'F' },
+  { name: 'text', label: 'Text', icon: ['fas', 'i-cursor'], shortcut: 'T' }
 ])
 
 // Color palette
 const colorPalette = ref([
   '#3b82f6', // blue
   '#ef4444', // red
-  '#10b981', // green
   '#f59e0b', // yellow
-  '#8b5cf6', // purple
-  '#f97316', // orange
-  '#06b6d4', // cyan
-  '#84cc16'  // lime
+  '#ffffff', // white
+  '#000000' // black
 ])
 
 // Annotation state
 const selectedAnnotation = ref(null)
 const hoveredAnnotation = ref(null)
+const highlightedAnnotation = ref(null)
 const isDraggingAnnotation = ref(false)
 const draggedAnnotationSnapshot = ref(null)
 const dragStartAnchor = ref({ x: 0, y: 0 })
@@ -767,49 +965,147 @@ const pendingTextPosition = ref({ x: 0, y: 0 })
 
 // Comment state
 const newCommentContent = ref('')
+const replyingToComment = ref(null)
+const collapsedThreads = ref({})
+
+// Inline editing state for annotations/comments
+const editingAnnotationContent = ref('')
+const editingCommentId = ref(null)
+const editingCommentContent = ref('')
+
+// Comment box resize state
+const commentBoxSizes = ref({})
+const isResizingCommentBox = ref(false)
+const resizingAnnotationId = ref(null)
+const resizeStartSize = ref({ width: 0, height: 0 })
+const resizeStartPos = ref({ x: 0, y: 0 })
+const resizeAnimationFrame = ref(null)
+const pendingResizeUpdate = ref(null)
 
 // Derived annotations/comments for unified panel
-const textAnnotations = computed(() => props.annotations.filter(annotation => annotation.type === 'text'))
+// Do NOT include text annotations in the comment panel - they appear on canvas only
+const textAnnotations = computed(() => [])
 
 const combinedComments = computed(() => {
-  const annotationEntries = textAnnotations.value.map(annotation => ({
-    type: 'annotation',
-    id: annotation.id,
-    annotation,
-    createdAt: annotation.created_at || annotation.updated_at || annotation.createdAt || annotation.createdAt || annotation.updatedAt || null
-  }))
+  const annotationEntries = []
 
   const commentEntries = (props.comments || []).map(comment => ({
     type: 'comment',
     id: comment.id,
     comment,
     annotation: props.annotations.find(a => a.id === comment.annotation_id) || null,
-    createdAt: comment.created_at || comment.updated_at || comment.createdAt || comment.updatedAt || null
+    createdAt: comment.created_at || comment.updated_at || comment.createdAt || comment.updatedAt || null,
+    parentCommentId: comment.parent_id || comment.parent_comment_id || null,
+    replies: []
   }))
 
-  const entries = [...annotationEntries, ...commentEntries]
+  console.log('[AnnotationCanvas] Comment entries:', commentEntries.map(c => ({ id: c.id, parentId: c.parentCommentId, content: c.comment.content?.substring(0, 30) })))
 
-  return entries.sort((a, b) => {
+  // Separate top-level entries and replies
+  const topLevelEntries = []
+  const allEntries = [...annotationEntries, ...commentEntries]
+  
+  // First pass: identify top-level entries
+  allEntries.forEach(entry => {
+    if (entry.type === 'annotation' || !entry.parentCommentId) {
+      topLevelEntries.push(entry)
+    }
+  })
+  
+  console.log('[AnnotationCanvas] Top-level entries:', topLevelEntries.length)
+  
+  // Second pass: nest replies under their parents
+  commentEntries.forEach(entry => {
+    if (entry.parentCommentId) {
+      // Find parent (could be annotation or comment)
+      const parent = allEntries.find(e => 
+        (e.type === 'comment' && e.id === entry.parentCommentId) ||
+        (e.type === 'annotation' && e.id === entry.parentCommentId)
+      )
+      console.log('[AnnotationCanvas] Found parent for comment', entry.id, ':', parent ? `${parent.type}-${parent.id}` : 'NOT FOUND')
+      if (parent) {
+        parent.replies.push(entry)
+      } else {
+        // Parent not found, treat as top-level
+        topLevelEntries.push(entry)
+      }
+    }
+  })
+  
+  // Sort top-level entries by time
+  topLevelEntries.sort((a, b) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
     const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
     return aTime - bTime
   })
+  
+  // Sort replies within each thread
+  const sortReplies = (entry) => {
+    if (entry.replies && entry.replies.length > 0) {
+      entry.replies.sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return aTime - bTime
+      })
+      entry.replies.forEach(sortReplies)
+    }
+  }
+  topLevelEntries.forEach(sortReplies)
+  
+  console.log('[AnnotationCanvas] Final structure:', topLevelEntries.map(e => ({ 
+    type: e.type, 
+    id: e.id, 
+    replies: e.replies.length 
+  })))
+  
+  return topLevelEntries
+})
+
+// Flatten nested comments for rendering with indentation
+const flattenedComments = computed(() => {
+  const flattened = []
+  
+  const flatten = (entry, level = 0, parentId = null) => {
+    flattened.push({ ...entry, level, parentId })
+    if (entry.replies && entry.replies.length > 0) {
+      const threadId = `${entry.type}-${entry.id}`
+      const isCollapsed = collapsedThreads.value[threadId]
+      if (!isCollapsed) {
+        entry.replies.forEach(reply => flatten(reply, level + 1, threadId))
+      }
+    }
+  }
+  
+  combinedComments.value.forEach(entry => flatten(entry))
+  return flattened
 })
 
 const handleCommentEntryClick = (entry) => {
   if (entry.type === 'annotation' && entry.annotation) {
-    selectAnnotation(entry.annotation)
+    zoomToAnnotation(entry.annotation)
   } else if (entry.type === 'comment' && entry.annotation) {
-    selectAnnotation(entry.annotation)
+    zoomToAnnotation(entry.annotation)
+  }
+}
+
+const toggleThreadCollapse = (entry) => {
+  const threadId = `${entry.type}-${entry.id}`
+  collapsedThreads.value[threadId] = !collapsedThreads.value[threadId]
+}
+
+const handleReply = (entry) => {
+  if (entry.type === 'annotation') {
+    selectedAnnotation.value = entry.annotation
+    replyingToComment.value = null
+  } else {
+    replyingToComment.value = entry.comment
+    selectedAnnotation.value = null
   }
 }
 
 // Modal state
 const showDeleteConfirmation = ref(false)
 const annotationToDelete = ref(null)
-const showPublicUserModal = ref(false)
-const publicUserInfo = ref({ name: '', email: '' })
-const pendingComment = ref(null)
 
 // Undo/Redo state
 const undoStack = ref([])
@@ -821,6 +1117,7 @@ const canRedo = computed(() => redoStack.value.length > 0)
 const isShiftPressed = ref(false)
 const isCtrlPressed = ref(false)
 const isAltPressed = ref(false)
+const isSpacePressed = ref(false)
 
 // Watch for annotation changes to redraw canvas
 watch(() => props.annotations, () => {
@@ -834,6 +1131,57 @@ watch(() => props.comments, (newComments) => {
   console.log('[AnnotationCanvas] Comments updated:', newComments?.length || 0, newComments)
 }, { deep: true, immediate: true })
 
+// Watch for annotation style updates to clean up local resize state
+watch(() => props.annotations, (newAnnotations) => {
+  // Clean up local resize state for annotations that have been updated from server
+  Object.keys(commentBoxSizes.value).forEach(annotationId => {
+    const annotation = newAnnotations.find(a => a.id === parseInt(annotationId))
+    const localSize = commentBoxSizes.value[annotationId]
+    
+    // Only clear if server has the SAME size we just set
+    if (annotation?.style?.boxWidth === localSize?.width && 
+        annotation?.style?.boxHeight === localSize?.height) {
+      // Server has our updated size, safe to remove local state
+      delete commentBoxSizes.value[annotationId]
+    }
+  })
+}, { deep: true })
+
+// Watch for highlighted annotation changes to redraw canvas
+watch(highlightedAnnotation, () => {
+  if (imageLoaded.value) {
+    redrawCanvas()
+  }
+})
+
+// Watch for highlighted comment to scroll and zoom
+watch(() => props.highlightedCommentId, (commentId) => {
+  if (!commentId) return
+  
+  nextTick(() => {
+    // Find the comment in our data
+    const comment = props.comments.find(c => c.id == commentId)
+    if (!comment) return
+    
+    // Scroll to the comment in the panel
+    const commentElement = commentElementRefs.value[commentId]
+    if (commentElement && commentsListRef.value) {
+      commentElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    
+    // If comment is linked to an annotation, zoom to it
+    if (comment.annotation_id) {
+      const annotation = props.annotations.find(a => a.id === comment.annotation_id)
+      if (annotation) {
+        // Small delay to let scroll happen first
+        setTimeout(() => {
+          zoomToAnnotation(annotation)
+        }, 300)
+      }
+    }
+  })
+}, { immediate: true })
+
 const showKeyboardHelp = ref(false)
 
 // Image loading
@@ -841,16 +1189,27 @@ const imageLoaded = ref(false)
 
 // Refs for accessibility
 const textInput = ref(null)
+const annotationEditorRef = ref(null)
 
 // Methods
 const onImageLoad = () => {
+  console.log('=== onImageLoad called ===')
   imageLoaded.value = true
   // Ensure default zoom is 100%
   zoomLevel.value = 1
+  console.log('Image loaded - reset zoom to 1')
   // Reset pan so image starts at origin; user can pan/fit afterward
   panOffset.value = { x: 0, y: 0 }
+  console.log('Image loaded - reset pan offset to {x: 0, y: 0}')
   nextTick(() => {
     setupCanvas()
+    console.log('=== onImageLoad complete - canvas setup done ===')
+    
+    // Apply initial fit based on current fitMode
+    nextTick(() => {
+      applyFit(fitMode.value)
+      console.log('Applied initial fit mode:', fitMode.value)
+    })
   })
 }
 
@@ -858,31 +1217,37 @@ const onImageError = () => {
   console.error('Failed to load annotation image')
 }
 
-// Helper function to escape HTML and linkify URLs in text
+// Helper function to linkify URLs and render @mentions
 const linkifyText = (text) => {
   if (!text) return ''
   
-  // First escape HTML to prevent XSS
-  const escapeHtml = (str) => {
-    const div = document.createElement('div')
-    div.textContent = str
-    return div.innerHTML
+  // Check if text already contains HTML tags (from RichTextEditor)
+  const hasHtmlTags = /<[^>]+>/.test(text)
+  
+  let processed = text
+  
+  // If no HTML tags, convert plain text line breaks to HTML <br> tags
+  // This handles text from textarea inputs
+  if (!hasHtmlTags) {
+    processed = text.replace(/\n/g, '<br>')
   }
   
-  let escaped = escapeHtml(text)
+  // Render @mentions with proper styling
+  // Note: We don't have access to mentionable users list here, so we'll style all mentions
+  processed = processed.replace(/@([a-zA-Z0-9_\-]+(?:\s+[a-zA-Z0-9_\-]+)?)/g, (match) => {
+    return `<span class="mention-valid bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-1 rounded font-medium">${match}</span>`
+  })
   
-  // Convert newlines to <br> tags
-  escaped = escaped.replace(/\n/g, '<br>')
+  // Then linkify URLs outside of anchor tags
+  const urlRegex = /(?<!href=["'])(?<!">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g
   
-  // Convert URLs to clickable links
-  const urlRegex = /(https?:\/\/[^\s<]+)/g
-  escaped = escaped.replace(urlRegex, (url) => {
+  const linkified = processed.replace(urlRegex, (url) => {
     // Remove trailing punctuation that might have been captured
     const cleanUrl = url.replace(/[.,;:!?]+$/, '')
     return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline break-all" onclick="event.stopPropagation()">${cleanUrl}</a>`
   })
   
-  return escaped
+  return linkified
 }
 
 const setupCanvas = () => {
@@ -952,6 +1317,14 @@ const onViewportMouseUp = () => {
   isPanning.value = false
 }
 
+const onViewportClick = (event) => {
+  // Only deselect if clicking directly on the viewport (not on canvas or annotations)
+  // This will fire when clicking on the gray area around the image
+  if (event.target === viewportRef.value) {
+    selectedAnnotation.value = null
+  }
+}
+
 // Canvas mouse handlers for drawing
 const onCanvasMouseDown = (event) => {
   if (props.readonly) return
@@ -982,6 +1355,11 @@ const onCanvasMouseDown = (event) => {
   const coords = getCanvasCoordinates(event)
   startPoint.value = coords
   currentPoint.value = coords
+  
+  // Clear reply when clicking on canvas (not on annotation) with any drawing tool
+  if (!['grab', 'select'].includes(currentTool.value)) {
+    selectedAnnotation.value = null
+  }
   
   if (!['grab', 'select', 'text'].includes(currentTool.value)) {
     isDrawing.value = true
@@ -1039,8 +1417,27 @@ const onCanvasClick = (event) => {
   
   const coords = getCanvasCoordinates(event)
   
+  // Handle text tool
   if (currentTool.value === 'text') {
+    // Check if clicking on an existing annotation or canvas
+    const clickedAnnotation = findAnnotationAtPoint(coords)
+    if (clickedAnnotation) {
+      selectAnnotation(clickedAnnotation)
+    } else {
+      selectedAnnotation.value = null
+    }
     startTextEdit(coords)
+    return
+  }
+  
+  // For grab tool, check if clicking on annotation or canvas
+  if (currentTool.value === 'grab') {
+    const clickedAnnotation = findAnnotationAtPoint(coords)
+    if (clickedAnnotation) {
+      selectAnnotation(clickedAnnotation)
+    } else {
+      selectedAnnotation.value = null
+    }
   }
 }
 
@@ -1115,7 +1512,8 @@ const createAnnotation = (endCoords) => {
 }
 
 const saveTextAnnotation = () => {
-  if (!textContent.value.trim()) {
+  const plainText = stripHtmlTags(textContent.value)
+  if (!plainText.trim()) {
     closeTextModal()
     return
   }
@@ -1169,7 +1567,8 @@ const startTextEdit = (coords) => {
 }
 
 const finishTextEdit = () => {
-  if (!isEditingText.value || !textEditContent.value.trim()) {
+  const plainText = stripHtmlTags(textContent.value)
+  if (!isEditingText.value || !plainText.trim()) {
     cancelTextEdit()
     return
   }
@@ -1189,7 +1588,7 @@ const finishTextEdit = () => {
       type: 'text',
       coordinates: canvasCoords,
       style: original.style || { ...currentStyle.value },
-      content: textEditContent.value.trim()
+      content: textContent.value // Use HTML content from RichTextEditor
     }
     emit('annotation-updated', updated)
   } else {
@@ -1199,7 +1598,7 @@ const finishTextEdit = () => {
       type: 'text',
       coordinates: canvasCoords,
       style: { ...currentStyle.value },
-      content: textEditContent.value.trim()
+      content: textContent.value // Use HTML content from RichTextEditor
     })
   }
 
@@ -1209,6 +1608,7 @@ const finishTextEdit = () => {
 const cancelTextEdit = () => {
   isEditingText.value = false
   textEditContent.value = ''
+  textContent.value = ''
   textEditPosition.value = { x: 0, y: 0 }
   editingAnnotationId.value = null
 }
@@ -1289,75 +1689,151 @@ const distanceToLineSegment = (point, start, end) => {
   return Math.sqrt(dx * dx + dy * dy)
 }
 
+// Helper to strip HTML tags
+const stripHtmlTags = (html) => {
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html
+  return tmp.textContent || tmp.innerText || ''
+}
+
 // Comment management methods
 const addComment = () => {
   console.log('[AnnotationCanvas.addComment] Called, content:', newCommentContent.value)
   console.log('[AnnotationCanvas.addComment] Selected annotation:', selectedAnnotation.value?.id || 'none')
+  console.log('[AnnotationCanvas.addComment] Replying to comment:', replyingToComment.value?.id || 'none')
   
+  // MentionAutocomplete returns plain text, no need to strip HTML
   if (!newCommentContent.value.trim()) {
     console.warn('[AnnotationCanvas.addComment] Empty content, aborting')
     return
   }
   
   const comment = {
-    content: newCommentContent.value.trim(),
+    content: newCommentContent.value,
     annotation_id: selectedAnnotation.value?.id || null,
+    parent_id: replyingToComment.value?.id || null,
     created_at: new Date().toISOString()
   }
   
   console.log('[AnnotationCanvas.addComment] Comment object:', comment)
   
-  // For public users, collect name and email first
-  if (props.isPublic) {
-    console.log('[AnnotationCanvas.addComment] Public user, showing modal')
-    pendingComment.value = comment
-    showPublicUserModal.value = true
-  } else {
-    console.log('[AnnotationCanvas.addComment] Emitting comment-added event')
-    emit('comment-added', comment)
-    newCommentContent.value = ''
-    console.log('[AnnotationCanvas.addComment] Comment emitted, input cleared')
-  }
-}
-
-const submitPublicComment = () => {
-  if (!publicUserInfo.value.name.trim() || !publicUserInfo.value.email.trim()) {
-    return
-  }
-  
-  const commentWithUserInfo = {
-    ...pendingComment.value,
-    public_name: publicUserInfo.value.name.trim(),
-    public_email: publicUserInfo.value.email.trim()
-  }
-  
-  emit('comment-added', commentWithUserInfo)
-  
-  // Reset state
+  // Emit comment directly - authentication is handled by parent component
+  console.log('[AnnotationCanvas.addComment] Emitting comment-added event')
+  emit('comment-added', comment)
   newCommentContent.value = ''
-  showPublicUserModal.value = false
-  pendingComment.value = null
-  publicUserInfo.value = { name: '', email: '' }
-}
-
-const cancelPublicComment = () => {
-  showPublicUserModal.value = false
-  pendingComment.value = null
-  publicUserInfo.value = { name: '', email: '' }
-}
-
-const editComment = (comment) => {
-  // Implement comment editing
-  const newContent = prompt('Edit comment:', comment.content)
-  if (newContent && newContent.trim() !== comment.content) {
-    emit('comment-updated', { ...comment, content: newContent.trim() })
-  }
+  selectedAnnotation.value = null
+  replyingToComment.value = null
+  console.log('[AnnotationCanvas.addComment] Comment emitted, input cleared')
 }
 
 const deleteComment = (comment) => {
   if (confirm('Are you sure you want to delete this comment?')) {
     emit('comment-deleted', comment)
   }
+}
+
+// Edit annotation inline with RichTextEditor
+const editAnnotation = (annotation) => {
+  console.log('=== editAnnotation called ===', {
+    annotationId: annotation.id,
+    annotationType: annotation.type,
+    content: annotation.content
+  })
+  
+  editingAnnotationId.value = annotation.id
+  editingAnnotationContent.value = annotation.content || ''
+  
+  console.log('State updated:', {
+    editingAnnotationId: editingAnnotationId.value,
+    editingAnnotationContent: editingAnnotationContent.value
+  })
+  
+  // Focus the editor after it renders
+  nextTick(() => {
+    console.log('nextTick callback - checking ref:', {
+      refExists: !!annotationEditorRef.value,
+      refType: typeof annotationEditorRef.value,
+      hasFocusMethod: annotationEditorRef.value && typeof annotationEditorRef.value.focus === 'function'
+    })
+    
+    try {
+      if (annotationEditorRef.value) {
+        console.log('Attempting to focus editor...')
+        annotationEditorRef.value.focus()
+        console.log('Focus called successfully')
+      } else {
+        console.error('annotationEditorRef.value is null or undefined')
+      }
+    } catch (error) {
+      console.error('Error focusing editor:', error)
+    }
+    
+    // Additional check after a short delay
+    setTimeout(() => {
+      console.log('Delayed check - ref status:', {
+        refExists: !!annotationEditorRef.value,
+        activeElement: document.activeElement?.tagName,
+        activeElementClass: document.activeElement?.className
+      })
+    }, 100)
+  })
+}
+
+const saveAnnotationEdit = () => {
+  if (!editingAnnotationId.value) return
+  
+  const plainText = stripHtmlTags(editingAnnotationContent.value)
+  if (!plainText.trim()) {
+    cancelAnnotationEdit()
+    return
+  }
+  
+  const annotation = props.annotations.find(a => a.id === editingAnnotationId.value)
+  if (annotation) {
+    saveToUndoStack()
+    emit('annotation-updated', {
+      ...annotation,
+      content: editingAnnotationContent.value
+    })
+  }
+  
+  cancelAnnotationEdit()
+}
+
+const cancelAnnotationEdit = () => {
+  editingAnnotationId.value = null
+  editingAnnotationContent.value = ''
+}
+
+// Edit comment inline with RichTextEditor
+const editComment = (comment) => {
+  editingCommentId.value = comment.id
+  editingCommentContent.value = comment.content || ''
+}
+
+const saveCommentEdit = () => {
+  if (!editingCommentId.value) return
+  
+  // MentionAutocomplete returns plain text, no need to strip HTML
+  if (!editingCommentContent.value.trim()) {
+    cancelCommentEdit()
+    return
+  }
+  
+  const comment = props.comments.find(c => c.id === editingCommentId.value)
+  if (comment) {
+    emit('comment-updated', {
+      ...comment,
+      content: editingCommentContent.value
+    })
+  }
+  
+  cancelCommentEdit()
+}
+
+const cancelCommentEdit = () => {
+  editingCommentId.value = null
+  editingCommentContent.value = ''
 }
 
 const formatDate = (dateString) => {
@@ -1387,21 +1863,32 @@ const getAnnotationAnchor = (annotation) => {
 
   switch (annotation.type) {
     case 'rectangle':
+      // Top-left corner
       return {
         x: ensureNumber(coords.x),
         y: ensureNumber(coords.y)
       }
     case 'circle':
+      // Top-left corner of bounding box (center - radius)
+      const centerX = ensureNumber(coords.centerX ?? coords.x)
+      const centerY = ensureNumber(coords.centerY ?? coords.y)
+      const radius = ensureNumber(coords.radius)
       return {
-        x: ensureNumber(coords.centerX ?? coords.x),
-        y: ensureNumber(coords.centerY ?? coords.y)
+        x: centerX - radius,
+        y: centerY - radius
       }
     case 'freehand':
+      // Top-left corner of bounding box
       if (Array.isArray(coords.path) && coords.path.length > 0) {
-        const firstPoint = coords.path[0] || {}
+        let minX = Infinity
+        let minY = Infinity
+        coords.path.forEach(point => {
+          minX = Math.min(minX, ensureNumber(point.x))
+          minY = Math.min(minY, ensureNumber(point.y))
+        })
         return {
-          x: ensureNumber(firstPoint.x),
-          y: ensureNumber(firstPoint.y)
+          x: minX === Infinity ? 0 : minX,
+          y: minY === Infinity ? 0 : minY
         }
       }
       return { x: 0, y: 0 }
@@ -1467,19 +1954,214 @@ const getLatestCommentForAnnotation = (annotationId) => {
   return list[list.length - 1]
 }
 
-// Prefer latest comment content; fallback to annotation.content for text annotations
+// Only show overlay content for text annotations with their own content
+// Do NOT show comment content in the overlay - comments belong in the comment panel
 const getOverlayContent = (annotation) => {
-  const latest = getLatestCommentForAnnotation(annotation.id)
-  if (latest?.content) return latest.content
+  // Only show content for text annotations that have their own content
   if (annotation?.type === 'text' && annotation?.content) return annotation.content
   return null
+}
+
+// Get comment box style with custom size if resized
+const getCommentBoxStyle = (annotation) => {
+  // PRIORITY 1: Always prefer local state if it exists (during resize or pending save)
+  const localSize = commentBoxSizes.value[annotation.id]
+  if (localSize) {
+    return {
+      width: localSize.width ? `${localSize.width}px` : undefined,
+      maxWidth: localSize.width ? `${localSize.width}px` : undefined,
+      minHeight: localSize.height ? `${localSize.height}px` : undefined
+    }
+  }
+  
+  // PRIORITY 2: Use saved box size from database
+  if (annotation.style?.boxWidth || annotation.style?.boxHeight) {
+    return {
+      width: annotation.style.boxWidth ? `${annotation.style.boxWidth}px` : undefined,
+      maxWidth: annotation.style.boxWidth ? `${annotation.style.boxWidth}px` : undefined,
+      minHeight: annotation.style.boxHeight ? `${annotation.style.boxHeight}px` : undefined
+    }
+  }
+  
+  // Default: no custom size
+  return {}
+}
+
+// Get editor style with dynamic height matching comment box
+const getEditorStyle = (annotation) => {
+  // Check if there's a custom height
+  const localSize = commentBoxSizes.value[annotation.id]
+  const savedHeight = annotation.style?.boxHeight
+  
+  if (localSize?.height) {
+    // Use local state height (during resize)
+    const editorHeight = Math.max(60, localSize.height - 40) // Subtract padding/margins
+    return {
+      minHeight: `${editorHeight}px`,
+      maxHeight: `${editorHeight}px`
+    }
+  } else if (savedHeight) {
+    // Use saved height from database
+    const editorHeight = Math.max(60, savedHeight - 40)
+    return {
+      minHeight: `${editorHeight}px`,
+      maxHeight: `${editorHeight}px`
+    }
+  }
+  
+  // Default height
+  return {
+    minHeight: '60px',
+    maxHeight: '150px'
+  }
+}
+
+// Start resizing comment box
+const startResizeCommentBox = (annotation, event) => {
+  if (props.readonly) return
+  
+  event.preventDefault()
+  event.stopPropagation()
+  
+  isResizingCommentBox.value = true
+  resizingAnnotationId.value = annotation.id
+  resizeStartPos.value = { x: event.clientX, y: event.clientY }
+  
+  // Get current size from annotation.style, local state, or default
+  let currentSize = { width: 360, height: 0 }
+  
+  if (annotation.style?.boxWidth || annotation.style?.boxHeight) {
+    currentSize = {
+      width: annotation.style.boxWidth || 360,
+      height: annotation.style.boxHeight || 0
+    }
+  } else if (commentBoxSizes.value[annotation.id]) {
+    currentSize = commentBoxSizes.value[annotation.id]
+  }
+  
+  resizeStartSize.value = { ...currentSize }
+  
+  // Add body class for cursor
+  document.body.classList.add('resizing-comment-box')
+  
+  // Add event listeners
+  document.addEventListener('mousemove', onResizeCommentBoxMove)
+  document.addEventListener('mouseup', onResizeCommentBoxEnd)
+}
+
+// Handle comment box resize movement
+const onResizeCommentBoxMove = (event) => {
+  if (!isResizingCommentBox.value || !resizingAnnotationId.value) return
+  
+  // Store the latest mouse position
+  pendingResizeUpdate.value = {
+    clientX: event.clientX,
+    clientY: event.clientY
+  }
+  
+  // Only schedule one animation frame at a time
+  if (resizeAnimationFrame.value) return
+  
+  resizeAnimationFrame.value = requestAnimationFrame(() => {
+    if (!pendingResizeUpdate.value || !resizingAnnotationId.value) {
+      resizeAnimationFrame.value = null
+      return
+    }
+    
+    const deltaX = pendingResizeUpdate.value.clientX - resizeStartPos.value.x
+    const deltaY = pendingResizeUpdate.value.clientY - resizeStartPos.value.y
+    
+    // Calculate new size (minimum 120px width, 40px height)
+    const newWidth = Math.max(120, Math.min(600, resizeStartSize.value.width + deltaX))
+    const newHeight = Math.max(40, resizeStartSize.value.height + deltaY)
+    
+    commentBoxSizes.value[resizingAnnotationId.value] = {
+      width: newWidth,
+      height: newHeight
+    }
+    
+    // Clear the animation frame reference
+    resizeAnimationFrame.value = null
+  })
+}
+
+// End comment box resize
+const onResizeCommentBoxEnd = () => {
+  if (!isResizingCommentBox.value || !resizingAnnotationId.value) return
+  
+  const annotationId = resizingAnnotationId.value
+  
+  // Cancel any pending animation frame and process final update
+  if (resizeAnimationFrame.value) {
+    cancelAnimationFrame(resizeAnimationFrame.value)
+    resizeAnimationFrame.value = null
+  }
+  
+  // Process any pending resize update one final time
+  if (pendingResizeUpdate.value) {
+    const deltaX = pendingResizeUpdate.value.clientX - resizeStartPos.value.x
+    const deltaY = pendingResizeUpdate.value.clientY - resizeStartPos.value.y
+    
+    const newWidth = Math.max(120, Math.min(600, resizeStartSize.value.width + deltaX))
+    const newHeight = Math.max(40, resizeStartSize.value.height + deltaY)
+    
+    commentBoxSizes.value[annotationId] = {
+      width: newWidth,
+      height: newHeight
+    }
+  }
+  
+  const size = commentBoxSizes.value[annotationId]
+  
+  isResizingCommentBox.value = false
+  resizingAnnotationId.value = null
+  pendingResizeUpdate.value = null
+  
+  // Remove body class
+  document.body.classList.remove('resizing-comment-box')
+  
+  // Remove event listeners
+  document.removeEventListener('mousemove', onResizeCommentBoxMove)
+  document.removeEventListener('mouseup', onResizeCommentBoxEnd)
+  
+  // NOW update the database with final size (only on mouse release)
+  if (size) {
+    const annotation = props.annotations.find(a => a.id === annotationId)
+    if (annotation) {
+      const updatedStyle = {
+        ...(annotation.style || {}),
+        boxWidth: size.width,
+        boxHeight: size.height
+      }
+      
+      // Emit update event with new style - this triggers database save
+      emit('annotation-updated', {
+        id: annotation.id,
+        style: updatedStyle
+      })
+      
+      // DON'T clear local state immediately - keep it until the annotation prop updates
+      // This prevents the visual jerk back to old size
+      // The local state will be used as fallback until annotation.style is updated from the server
+    }
+  }
 }
 
 const getDisplayUserForComment = (comment) => {
   if (!comment) return buildUserLike()
 
+  // Check for internal user first
   if (comment.user) {
     return comment.user
+  }
+
+  // Check for external user relationship
+  if (comment.external_user) {
+    return {
+      name: comment.external_user.name,
+      email: comment.external_user.email,
+      is_external: true
+    }
   }
 
   const fromPublicInfo = extractPublicUser(comment.public_user_info)
@@ -1499,8 +2181,18 @@ const getDisplayUserForComment = (comment) => {
 const getDisplayUserForAnnotation = (annotation) => {
   if (!annotation) return buildUserLike()
 
+  // Check for internal user first
   if (annotation.user) {
     return annotation.user
+  }
+
+  // Check for external user relationship
+  if (annotation.external_user) {
+    return {
+      name: annotation.external_user.name,
+      email: annotation.external_user.email,
+      is_external: true
+    }
   }
 
   const fromPublicInfo = extractPublicUser(annotation.public_user_info)
@@ -1527,26 +2219,65 @@ const selectAnnotation = (annotation) => {
   emit('annotation-selected', annotation)
 }
 
+const zoomToAnnotation = (annotation) => {
+  if (!annotation || !viewportRef.value) return
+  
+  // Get annotation anchor point
+  const anchor = getAnnotationAnchor(annotation)
+  
+  // Set target zoom level (max 1.0 = 100%, no more than current view)
+  const targetZoom = Math.min(1.0, zoomLevel.value)
+  
+  // Calculate viewport center
+  const viewport = viewportRef.value
+  const viewportCenterX = viewport.clientWidth / 2
+  const viewportCenterY = viewport.clientHeight / 2
+  
+  // Calculate where the annotation center should be in canvas coordinates
+  let annotationCenterX = anchor.x
+  let annotationCenterY = anchor.y
+  
+  // Adjust center based on annotation type
+  const coords = annotation.coordinates || {}
+  switch (annotation.type) {
+    case 'rectangle':
+      annotationCenterX += ensureNumber(coords.width) / 2
+      annotationCenterY += ensureNumber(coords.height) / 2
+      break
+    case 'circle':
+      // Already centered for circles
+      annotationCenterX = ensureNumber(coords.centerX ?? coords.x)
+      annotationCenterY = ensureNumber(coords.centerY ?? coords.y)
+      break
+    case 'freehand':
+    case 'text':
+      // Use anchor point as-is
+      break
+  }
+  
+  // Calculate pan offset to center the annotation
+  panOffset.value = {
+    x: viewportCenterX - (annotationCenterX * targetZoom),
+    y: viewportCenterY - (annotationCenterY * targetZoom)
+  }
+  
+  // Set zoom and highlight
+  isAnimating.value = true
+  zoomLevel.value = targetZoom
+  highlightedAnnotation.value = annotation
+  
+  setTimeout(() => {
+    isAnimating.value = false
+  }, 300)
+}
+
 // Expose only the methods needed by parent components
 defineExpose({
-  selectAnnotation
+  selectAnnotation,
+  zoomToAnnotation
 })
 
-const editAnnotation = (annotation) => {
-  // Only text annotations are currently editable inline
-  if (annotation?.type === 'text') {
-    isEditingText.value = true
-    textEditPosition.value = { x: annotation.coordinates.x, y: annotation.coordinates.y }
-    textEditContent.value = annotation.content || ''
-    editingAnnotationId.value = annotation.id
-    nextTick(() => {
-      textEditElement.value?.focus()
-    })
-  } else {
-    // Could add a modal for unsupported types, but keeping simple for now
-    console.log('Editing for this annotation type is not supported yet.')
-  }
-}
+// Note: editAnnotation is defined earlier for inline editing in comment panel
 
 const deleteAnnotation = (annotation) => {
   // Use proper modal instead of alert
@@ -1562,6 +2293,10 @@ const confirmDelete = () => {
     // no-op by default
   } else if (annotationToDelete.value) {
     saveToUndoStack()
+    // Clear selection if deleting the currently selected annotation
+    if (selectedAnnotation.value?.id === annotationToDelete.value.id) {
+      selectedAnnotation.value = null
+    }
     emit('annotation-deleted', annotationToDelete.value)
   }
   showDeleteConfirmation.value = false
@@ -1579,21 +2314,50 @@ const clearAnnotations = () => {
   annotationToDelete.value = 'all'
 }
 
-const clearFreehandAnnotations = () => {
-  if (props.readonly) return
-  showDeleteConfirmation.value = true
-  annotationToDelete.value = 'all-freehand'
-}
 
 // Zoom and Pan methods
 const zoomIn = () => {
   const newZoom = Math.min(zoomLevel.value * 1.2, 5)
-  setZoom(newZoom)
+  zoomTowardCenter(newZoom)
 }
 
 const zoomOut = () => {
   const newZoom = Math.max(zoomLevel.value / 1.2, 0.1)
-  setZoom(newZoom)
+  zoomTowardCenter(newZoom)
+}
+
+const setZoomFromDropdown = (value) => {
+  const newZoom = parseInt(value) / 100
+  zoomTowardCenter(newZoom)
+}
+
+const zoomTowardCenter = (newZoom) => {
+  if (!viewportRef.value) return
+  
+  const viewport = viewportRef.value
+  const viewportCenterX = viewport.clientWidth / 2
+  const viewportCenterY = viewport.clientHeight / 2
+  
+  // Calculate the point under the viewport center before zoom
+  const beforeZoomX = (viewportCenterX - panOffset.value.x) / zoomLevel.value
+  const beforeZoomY = (viewportCenterY - panOffset.value.y) / zoomLevel.value
+  
+  // Calculate the point under the viewport center after zoom
+  const afterZoomX = beforeZoomX * newZoom
+  const afterZoomY = beforeZoomY * newZoom
+  
+  // Adjust pan offset to keep the center point in the same position
+  panOffset.value = {
+    x: viewportCenterX - afterZoomX,
+    y: viewportCenterY - afterZoomY
+  }
+  
+  isAnimating.value = true
+  zoomLevel.value = newZoom
+  
+  setTimeout(() => {
+    isAnimating.value = false
+  }, 300)
 }
 
 const setZoom = (newZoom) => {
@@ -1607,43 +2371,77 @@ const setZoom = (newZoom) => {
 
 // Apply fit according to current fitMode (width or height)
 const applyFit = (mode = fitMode.value) => {
-  if (!imageRef.value || !viewportRef.value) return
+  console.log('=== applyFit called ===')
+  console.log('Mode:', mode)
+  
+  if (!imageRef.value || !viewportRef.value) {
+    console.error('Missing refs:', { 
+      imageRef: !!imageRef.value, 
+      viewportRef: !!viewportRef.value 
+    })
+    return
+  }
   
   isAnimating.value = true
   const viewport = viewportRef.value
   const image = imageRef.value
 
-  const viewportWidth = viewport.clientWidth - 40 // padding
-  const viewportHeight = viewport.clientHeight - 40
+  const viewportWidth = viewport.clientWidth
+  const viewportHeight = viewport.clientHeight
+
+  console.log('Viewport dimensions:', { 
+    width: viewportWidth, 
+    height: viewportHeight 
+  })
 
   const imageWidth = image.naturalWidth
   const imageHeight = image.naturalHeight
 
+  console.log('Image natural dimensions:', { 
+    width: imageWidth, 
+    height: imageHeight 
+  })
+
   let scale
   if (mode === 'width') {
-    scale = Math.min(viewportWidth / imageWidth, 1)
+    // Fit to width - scale image so width fills viewport
+    scale = viewportWidth / imageWidth
+    console.log('Fit to WIDTH - scale:', scale)
   } else {
-    scale = Math.min(viewportHeight / imageHeight, 1)
+    // Fit to height - scale image so height fills viewport
+    scale = viewportHeight / imageHeight
+    console.log('Fit to HEIGHT - scale:', scale)
   }
 
   const scaledWidth = imageWidth * scale
   const scaledHeight = imageHeight * scale
 
+  console.log('Scaled dimensions:', { 
+    width: scaledWidth, 
+    height: scaledHeight 
+  })
+
   panOffset.value = {
-    x: (viewportWidth - scaledWidth) / 2 + 20,
-    y: (viewportHeight - scaledHeight) / 2 + 20
+    x: (viewportWidth - scaledWidth) / 2,
+    y: (viewportHeight - scaledHeight) / 2
   }
 
+  console.log('Pan offset:', { x: panOffset.value.x, y: panOffset.value.y })
+
   zoomLevel.value = scale
+  console.log('Zoom level set to:', zoomLevel.value)
   
   setTimeout(() => {
     isAnimating.value = false
+    console.log('=== applyFit complete ===')
   }, 300)
 }
 
 // Toggle between fitting to width and to height
 const toggleFit = () => {
+  console.log('toggleFit called - current mode:', fitMode.value)
   fitMode.value = fitMode.value === 'width' ? 'height' : 'width'
+  console.log('toggleFit - switching to mode:', fitMode.value)
   applyFit(fitMode.value)
 }
 
@@ -1653,8 +2451,8 @@ const fitToScreen = () => {
   const viewport = viewportRef.value
   const image = imageRef.value
   
-  const viewportWidth = viewport.clientWidth - 40 // padding
-  const viewportHeight = viewport.clientHeight - 40
+  const viewportWidth = viewport.clientWidth
+  const viewportHeight = viewport.clientHeight
   
   const imageWidth = image.naturalWidth
   const imageHeight = image.naturalHeight
@@ -1668,8 +2466,8 @@ const fitToScreen = () => {
   const scaledHeight = imageHeight * scale
   
   panOffset.value = {
-    x: (viewportWidth - scaledWidth) / 2 + 20,
-    y: (viewportHeight - scaledHeight) / 2 + 20
+    x: (viewportWidth - scaledWidth) / 2,
+    y: (viewportHeight - scaledHeight) / 2
   }
   
   setZoom(scale)
@@ -1970,11 +2768,18 @@ const onAnnotationMarkerMouseDown = (annotation, event) => {
   if (props.readonly) return
   if (event.button !== 0) return
   if (event.target.closest('.annotation-actions')) return
-  if (typeof props.canEdit === 'function' && !props.canEdit(annotation)) return
 
   event.preventDefault()
   event.stopPropagation()
 
+  // Allow selection for all users (for commenting), but only allow dragging if user can edit
+  if (typeof props.canEdit === 'function' && !props.canEdit(annotation)) {
+    // User can't edit this annotation, but they can select it to comment
+    selectAnnotation(annotation)
+    return
+  }
+
+  // User can edit, so allow dragging
   startAnnotationDrag(annotation, event)
 }
 
@@ -2077,8 +2882,12 @@ const drawAnnotation = (annotation) => {
   const coords = effective.coordinates
   const style = effective.style || annotation.style || currentStyle.value
 
-  ctx.value.strokeStyle = style.color
-  ctx.value.lineWidth = style.strokeWidth
+  // Check if this annotation is highlighted
+  const isHighlighted = highlightedAnnotation.value?.id === annotation.id
+  
+  // Use dark orange (#c2410c) for highlighted annotations
+  ctx.value.strokeStyle = isHighlighted ? '#c2410c' : style.color
+  ctx.value.lineWidth = isHighlighted ? style.strokeWidth + 2 : style.strokeWidth
   ctx.value.fillStyle = style.fillColor || 'transparent'
 
   switch (effective.type) {
@@ -2195,6 +3004,8 @@ const drawArrow = (startX, startY, endX, endY) => {
   )
   ctx.value.stroke()
 }
+
+// ==================== END OF ZOOM & PAN ====================
 
 // Watch for image changes
 watch(() => props.imageUrl, () => {
@@ -2369,6 +3180,34 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
+  
+  // Log viewport dimensions on mount
+  nextTick(() => {
+    if (viewportRef.value) {
+      console.log('=== Component Mounted ===')
+      console.log('Viewport dimensions on mount:', {
+        width: viewportRef.value.clientWidth,
+        height: viewportRef.value.clientHeight
+      })
+      
+      const container = document.querySelector('.annotation-canvas-container')
+      if (container) {
+        console.log('Container dimensions:', {
+          width: container.clientWidth,
+          height: container.clientHeight
+        })
+      }
+    }
+    
+    if (imageRef.value) {
+      console.log('Image element dimensions:', {
+        clientWidth: imageRef.value.clientWidth,
+        clientHeight: imageRef.value.clientHeight,
+        naturalWidth: imageRef.value.naturalWidth,
+        naturalHeight: imageRef.value.naturalHeight
+      })
+    }
+  })
 })
 
 onUnmounted(() => {
@@ -2376,6 +3215,16 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
   cleanupAnnotationDrag()
+  
+  // Cleanup resize listeners if still active
+  if (isResizingCommentBox.value) {
+    if (resizeAnimationFrame.value) {
+      cancelAnimationFrame(resizeAnimationFrame.value)
+    }
+    document.removeEventListener('mousemove', onResizeCommentBoxMove)
+    document.removeEventListener('mouseup', onResizeCommentBoxEnd)
+    document.body.classList.remove('resizing-comment-box')
+  }
 })
 </script>
 
@@ -2414,30 +3263,77 @@ onUnmounted(() => {
 .annotation-marker {
   pointer-events: auto;
   z-index: 10;
-  transform: translate(-50%, -50%);
   transition: all 0.2s ease;
 }
 
 /* On-canvas comment box anchored near the marker */
 .annotation-comment-box {
   position: absolute;
-  left: 18px; /* offset to the right of the marker */
-  top: -8px;  /* slight upward offset */
+  left: 0;
+  top: 32px; /* Position below the marker */
   background: white;
   color: #111827;
   border: 1px solid rgba(0,0,0,0.1);
   border-radius: 6px;
   box-shadow: 0 6px 16px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.08);
-  padding: 6px 8px;
+  padding: 6px 8px 20px 8px;
   max-width: 360px;
   width: fit-content;
   min-width: 120px;
+  resize: none;
+  overflow: visible;
+  position: relative;
+  will-change: width, height;
+  contain: layout style;
 }
 
 .dark .annotation-comment-box {
   background: #111827;
   color: #e5e7eb;
   border-color: rgba(255,255,255,0.1);
+}
+
+/* Resize handle for comment boxes */
+.resize-handle {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  background: linear-gradient(135deg, transparent 50%, rgba(156, 163, 175, 0.25) 50%);
+  border-bottom-right-radius: 6px;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  color: #6b7280;
+  background: linear-gradient(135deg, transparent 50%, rgba(107, 114, 128, 0.4) 50%);
+}
+
+.dark .resize-handle {
+  color: #6b7280;
+  background: linear-gradient(135deg, transparent 50%, rgba(107, 114, 128, 0.3) 50%);
+}
+
+.dark .resize-handle:hover {
+  color: #9ca3af;
+  background: linear-gradient(135deg, transparent 50%, rgba(156, 163, 175, 0.4) 50%);
+}
+
+/* Prevent text selection during resize */
+.annotation-comment-box.resizing {
+  user-select: none;
+}
+
+body.resizing-comment-box {
+  cursor: nwse-resize !important;
+  user-select: none;
 }
 
 .annotation-number {
@@ -2514,8 +3410,8 @@ onUnmounted(() => {
 /* Action Buttons */
 .annotation-actions {
   position: absolute;
-  top: -50px;
-  right: -20px;
+  top: 0;
+  left: 32px;
   display: flex;
   gap: 4px;
   opacity: 0;
@@ -2773,5 +3669,307 @@ button:focus-visible {
   .annotation-content-wrapper {
     transition: none !important;
   }
+}
+
+/* ==================== NEW FEATURE STYLES ==================== */
+
+/* Mini-map */
+.minimap-container {
+  backdrop-filter: blur(8px);
+  animation: slideIn 0.2s ease-out;
+}
+
+.minimap-container img {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Zoom presets dropdown */
+.zoom-presets-dropdown {
+  animation: slideIn 0.15s ease-out;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.zoom-presets-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.zoom-presets-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 2px;
+}
+
+/* Context menu */
+.fixed.bg-white.dark\\:bg-gray-800.border {
+  animation: fadeIn 0.1s ease-out;
+}
+
+/* Touch support */
+@media (hover: none) and (pointer: coarse) {
+  /* Mobile optimizations */
+  .annotation-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  
+  .annotation-marker {
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  
+  .annotation-number {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+  
+  .annotation-actions {
+    opacity: 1 !important;
+  }
+  
+  button, .action-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Status badge animations */
+.status-badge-enter-active,
+.status-badge-leave-active {
+  transition: all 0.2s ease;
+}
+
+.status-badge-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.status-badge-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+/* Threaded comment styles */
+.border-l-2 {
+  position: relative;
+}
+
+.border-l-2::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, currentColor 0%, transparent 100%);
+  opacity: 0.5;
+}
+
+/* Search input with icon */
+input[type="text"]:focus {
+  outline: none;
+}
+
+/* Comment filter badges */
+.filter-active {
+  position: relative;
+}
+
+.filter-active::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: #3b82f6;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+
+.dark .filter-active::after {
+  border-color: #1f2937;
+}
+
+/* Smooth transitions for panel updates */
+.space-y-3 > * {
+  transition: all 0.2s ease;
+}
+
+/* Enhanced hover states */
+@media (hover: hover) {
+  .minimap-container:hover {
+    border-color: #3b82f6;
+  }
+  
+  .zoom-presets-dropdown button:hover {
+    transform: translateX(2px);
+  }
+}
+
+/* Loading skeleton for comments */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.loading-skeleton {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    to right,
+    #f3f4f6 0%,
+    #e5e7eb 20%,
+    #f3f4f6 40%,
+    #f3f4f6 100%
+  );
+  background-size: 1000px 100%;
+}
+
+.dark .loading-skeleton {
+  background: linear-gradient(
+    to right,
+    #374151 0%,
+    #4b5563 20%,
+    #374151 40%,
+    #374151 100%
+  );
+}
+
+/* Improved focus ring for accessibility */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth color transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Prevent transition on page load */
+.annotation-canvas-container.loading * {
+  transition: none !important;
+}
+
+/* Comment content formatting */
+.comment-content {
+  line-height: 1.5;
+}
+
+.comment-content p {
+  margin-bottom: 0.5rem;
+}
+
+.comment-content p:last-child {
+  margin-bottom: 0;
+}
+
+.comment-content strong,
+.comment-content b {
+  font-weight: 600;
+  color: inherit;
+}
+
+.comment-content em,
+.comment-content i {
+  font-style: italic;
+}
+
+.comment-content ul,
+.comment-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.comment-content ul {
+  list-style-type: disc;
+}
+
+.comment-content ol {
+  list-style-type: decimal;
+}
+
+.comment-content li {
+  margin-bottom: 0.25rem;
+}
+
+.comment-content br {
+  display: block;
+  content: "";
+  margin-top: 0.25rem;
+}
+
+.comment-content h1,
+.comment-content h2,
+.comment-content h3,
+.comment-content h4,
+.comment-content h5,
+.comment-content h6 {
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.comment-content h1 { font-size: 1.25rem; }
+.comment-content h2 { font-size: 1.125rem; }
+.comment-content h3 { font-size: 1rem; }
+
+.comment-content code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.875em;
+}
+
+.dark .comment-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.comment-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.dark .comment-content pre {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.comment-content pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.comment-content blockquote {
+  border-left: 3px solid #d1d5db;
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: #6b7280;
+}
+
+.dark .comment-content blockquote {
+  border-left-color: #4b5563;
+  color: #9ca3af;
+}
+
+.comment-content hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 0.75rem 0;
+}
+
+.dark .comment-content hr {
+  border-top-color: #374151;
 }
 </style>

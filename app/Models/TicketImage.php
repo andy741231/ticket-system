@@ -26,12 +26,15 @@ class TicketImage extends Model
         'status',
         'error_message',
         'metadata',
+        'is_public',
+        'public_access_level',
     ];
 
     protected $casts = [
         'metadata' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'is_public' => 'boolean',
     ];
 
     // Always include computed attributes when serializing
@@ -101,5 +104,55 @@ class TicketImage extends Model
     public function isProcessing(): bool
     {
         return $this->status === 'processing';
+    }
+
+    /**
+     * Get external users with access to this image
+     */
+    public function externalUsers()
+    {
+        return $this->belongsToMany(ExternalUser::class, 'external_user_image_access')
+            ->withPivot(['invited_by_user_id', 'invited_at', 'first_accessed_at', 'last_accessed_at', 'access_revoked'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get external user access records
+     */
+    public function externalUserAccess()
+    {
+        return $this->hasMany(ExternalUserImageAccess::class);
+    }
+
+    /**
+     * Check if image is public
+     */
+    public function isPublic(): bool
+    {
+        return $this->is_public === true;
+    }
+
+    /**
+     * Get access level for external users
+     */
+    public function getAccessLevel(): string
+    {
+        return $this->public_access_level ?? 'annotate';
+    }
+
+    /**
+     * Check if external users can annotate
+     */
+    public function canExternalUsersAnnotate(): bool
+    {
+        return $this->isPublic() && $this->getAccessLevel() === 'annotate';
+    }
+
+    /**
+     * Check if external users can comment
+     */
+    public function canExternalUsersComment(): bool
+    {
+        return $this->isPublic() && in_array($this->getAccessLevel(), ['comment', 'annotate']);
     }
 }

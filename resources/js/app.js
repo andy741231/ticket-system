@@ -74,7 +74,14 @@ import {
     faCompressArrowsAlt,
     faLink,
     faPaperPlane,
-    faSpinner
+    faSpinner,
+    // Rich text editor icons
+    faBold,
+    faItalic,
+    faUnderline,
+    faListUl,
+    faListOl,
+    faEraser
 } from '@fortawesome/free-solid-svg-icons';
 
 // Import regular icons
@@ -95,6 +102,8 @@ library.add(
     faSearchMinus, faSearchPlus, faExpandArrowsAlt, faUndo, faRedo, faKeyboard,
     faExclamationTriangle, faCommentDots, faStickyNote, faHandPaper, faDrawPolygon,
     faICursor, faCompressArrowsAlt, faLink, faPaperPlane, faSpinner,
+    // Rich text editor icons
+    faBold, faItalic, faUnderline, faListUl, faListOl, faEraser,
     // Regular icons
     farSquare, farCircle
 );

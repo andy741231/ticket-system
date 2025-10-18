@@ -52,6 +52,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 | HttpRequest::HEADER_X_FORWARDED_PORT
         );
 
+        // Exclude external user cookies from encryption
+        $middleware->encryptCookies(except: [
+            'external_session',
+            'external_user_id',
+        ]);
+
         $middleware->web(append: [
             \App\Http\Middleware\SetAppContext::class,
             \App\Http\Middleware\HandleInertiaRequests::class,

@@ -18,27 +18,66 @@ use Illuminate\Support\Facades\Mail;
 class AnnotationController extends Controller
 {
     /**
-     * Extract mentions from comment text and return valid users
+     * Extract mentions from comment text and return valid users (internal and external)
      */
     private function extractValidMentions(string $text, Ticket $ticket): array
     {
-        // Extract @mentions: capture only the username token after '@' (stop at first whitespace)
-        preg_match_all('/@([a-zA-Z0-9_\-]+)/', $text, $matches);
-        $mentionedUsernames = array_unique($matches[1]);
+        $validMentions = ['internal' => [], 'external' => []];
         
-        if (empty($mentionedUsernames)) {
-            return [];
-        }
+        // Extract email mentions: @email@domain.com
+        preg_match_all('/@([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/', $text, $emailMatches);
+        $mentionedEmails = array_unique($emailMatches[1]);
         
-        // Get users who have access to this ticket
+        // Extract username mentions: @username (not containing @)
+        preg_match_all('/@([a-zA-Z0-9_\-]+)(?!@)/', $text, $usernameMatches);
+        // Filter out any that are actually part of email addresses
+        $mentionedUsernames = array_filter(array_unique($usernameMatches[1]), function($username) use ($mentionedEmails) {
+            foreach ($mentionedEmails as $email) {
+                if (strpos($email, $username) === 0) {
+                    return false; // This username is part of an email
+                }
+            }
+            return true;
+        });
+        
+        // Get internal users who have access to this ticket
         $validUsers = $this->getUsersWithTicketAccess($ticket);
         
-        // Filter mentioned users to only those who have access
-        $validMentions = [];
+        // Process email mentions
+        foreach ($mentionedEmails as $email) {
+            $email = trim($email);
+            
+            // Check if it's an internal user
+            $user = $validUsers->first(function ($user) use ($email) {
+                return !empty($user->email) && strcasecmp($user->email, $email) === 0;
+            });
+            
+            if ($user) {
+                $validMentions['internal'][] = $user->id;
+            } else {
+                // Check if it's an external user with access to this ticket's images
+                $externalUser = \App\Models\ExternalUser::where('email', $email)
+                    ->whereHas('imageAccess', function ($query) use ($ticket) {
+                        $query->whereIn('ticket_image_id', function ($subQuery) use ($ticket) {
+                            $subQuery->select('id')
+                                ->from('ticket_images')
+                                ->where('ticket_id', $ticket->id);
+                        })
+                        ->where('access_revoked', false);
+                    })
+                    ->first();
+                    
+                if ($externalUser) {
+                    $validMentions['external'][] = $externalUser->id;
+                }
+            }
+        }
+        
+        // Process username mentions (internal users only)
         foreach ($mentionedUsernames as $username) {
             $username = trim($username);
             
-            // First, try to find exact username match
+            // Try to find exact username match
             $user = $validUsers->first(function ($user) use ($username) {
                 return !empty($user->username) && strcasecmp($user->username, $username) === 0;
             });
@@ -46,31 +85,29 @@ class AnnotationController extends Controller
             // If no username match, try other fields
             if (!$user) {
                 $user = $validUsers->first(function ($user) use ($username) {
-                    // Check first name
                     if (!empty($user->first_name) && strcasecmp($user->first_name, $username) === 0) {
                         return true;
                     }
-                    
-                    // Check last name
                     if (!empty($user->last_name) && strcasecmp($user->last_name, $username) === 0) {
                         return true;
                     }
-                    
-                    // Check full name
                     if (!empty($user->name) && strcasecmp($user->name, $username) === 0) {
                         return true;
                     }
-                    
                     return false;
                 });
             }
             
             if ($user) {
-                $validMentions[] = $user->id;
+                $validMentions['internal'][] = $user->id;
             }
         }
         
-        return array_unique($validMentions);
+        // Remove duplicates
+        $validMentions['internal'] = array_unique($validMentions['internal']);
+        $validMentions['external'] = array_unique($validMentions['external']);
+        
+        return $validMentions;
     }
     
     /**
@@ -125,7 +162,7 @@ class AnnotationController extends Controller
 
         $annotations = $ticketImage->annotations()
             ->where('type', '<>', 'root_comment')
-            ->with(['user', 'reviewer', 'comments.user'])
+            ->with(['user', 'externalUser', 'reviewer', 'comments.user', 'comments.externalUser'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -397,20 +434,26 @@ class AnnotationController extends Controller
             // Extract valid mentions
             $mentions = $this->extractValidMentions($request->content, $ticket);
             
+            // Store all mention IDs (internal and external) for the database
+            $allMentionIds = array_merge(
+                array_map(fn($id) => 'user_' . $id, $mentions['internal']),
+                array_map(fn($id) => 'external_' . $id, $mentions['external'])
+            );
+            
             $comment = AnnotationComment::create([
                 'annotation_id' => $annotation->id,
                 'user_id' => Auth::id(),
                 'content' => $request->content,
                 'parent_id' => $request->parent_id,
-                'mentions' => $mentions,
+                'mentions' => $allMentionIds,
             ]);
 
-            $comment->load(['user', 'replies.user']);
+            $comment->load(['user', 'externalUser', 'replies.user', 'replies.externalUser']);
             
-            // Send mention notifications
-            if (!empty($mentions)) {
+            // Send mention notifications to internal users
+            if (!empty($mentions['internal'])) {
                 $currentUser = Auth::user();
-                $mentionedUsers = User::whereIn('id', $mentions)->get();
+                $mentionedUsers = User::whereIn('id', $mentions['internal'])->get();
                 
                 foreach ($mentionedUsers as $mentionedUser) {
                     // Don't send notification to the user who made the comment
@@ -418,6 +461,34 @@ class AnnotationController extends Controller
                         Mail::to($mentionedUser->email)
                             ->send(new AnnotationMentionNotification($ticket, $annotation, $comment, $mentionedUser, $currentUser));
                     }
+                }
+            }
+            
+            // Send mention notifications to external users
+            if (!empty($mentions['external'])) {
+                $currentUser = Auth::user();
+                $mentionedExternalUsers = \App\Models\ExternalUser::whereIn('id', $mentions['external'])->get();
+                
+                foreach ($mentionedExternalUsers as $externalUser) {
+                    // Get the image for this annotation
+                    $image = $annotation->image;
+                    $publicToken = hash('sha256', $image->id . $image->created_at . config('app.key'));
+                    $accessUrl = route('annotations.public', [
+                        'image' => $image->id,
+                        'token' => $publicToken,
+                        'comment' => $comment->id,
+                    ]);
+                    
+                    // Send notification email to external user
+                    Mail::to($externalUser->email)->send(
+                        new \App\Mail\ExternalUserMentionNotification(
+                            $externalUser,
+                            $comment,
+                            $image,
+                            $currentUser->name,
+                            $accessUrl
+                        )
+                    );
                 }
             }
 
@@ -449,7 +520,9 @@ class AnnotationController extends Controller
             ], 404);
         }
 
-        $comments = $annotation->comments()->get();
+        $comments = $annotation->comments()
+            ->with(['user', 'externalUser'])
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -533,12 +606,18 @@ class AnnotationController extends Controller
         // Extract valid mentions from updated comment
         $mentions = $this->extractValidMentions($request->content, $ticket);
         
+        // Store all mention IDs (internal and external) for the database
+        $allMentionIds = array_merge(
+            array_map(fn($id) => 'user_' . $id, $mentions['internal']),
+            array_map(fn($id) => 'external_' . $id, $mentions['external'])
+        );
+        
         $comment->update([
             'content' => $request->content,
-            'mentions' => $mentions,
+            'mentions' => $allMentionIds,
         ]);
 
-        $comment->load(['user']);
+        $comment->load(['user', 'externalUser']);
 
         return response()->json([
             'success' => true,
@@ -547,39 +626,9 @@ class AnnotationController extends Controller
         ]);
     }
 
-    /**
-     * Get or create a root annotation used to attach image-level comments.
-     */
-    private function getOrCreateRootCommentAnnotation(TicketImage $ticketImage): Annotation
-    {
-        // Use a special type to avoid rendering as a visible marker on canvas
-        \Log::info('[getOrCreateRootCommentAnnotation] Looking for root annotation', ['image_id' => $ticketImage->id]);
-        
-        $root = $ticketImage->annotations()
-            ->where('type', 'root_comment')
-            ->first();
-
-        if (!$root) {
-            \Log::info('[getOrCreateRootCommentAnnotation] Root not found, creating new one');
-            $root = Annotation::create([
-                'ticket_image_id' => $ticketImage->id,
-                'user_id' => Auth::id(),
-                'type' => 'root_comment',
-                'coordinates' => json_encode([]),
-                'content' => null,
-                'style' => json_encode([]),
-                'status' => 'approved',
-            ]);
-            \Log::info('[getOrCreateRootCommentAnnotation] Root annotation created', ['root_id' => $root->id]);
-        } else {
-            \Log::info('[getOrCreateRootCommentAnnotation] Found existing root annotation', ['root_id' => $root->id]);
-        }
-
-        return $root;
-    }
 
     /**
-     * List all comments for an image (both annotation-linked and image-level)
+     * List all comments for an image (image-level comments only, not linked to specific annotations)
      */
     public function listImageComments(Ticket $ticket, TicketImage $ticketImage): JsonResponse
     {
@@ -597,23 +646,17 @@ class AnnotationController extends Controller
                 'message' => 'Image not found for this ticket'
             ], 404);
         }
-
-        // Get all annotations for this image (including root)
-        $annotationIds = $ticketImage->annotations()->pluck('id');
-        \Log::info('[listImageComments] Found annotations', [
-            'annotation_ids' => $annotationIds->toArray()
-        ]);
         
-        // Get all comments for all annotations of this image
-        $comments = AnnotationComment::whereIn('annotation_id', $annotationIds)
-            ->with(['user'])
+        // Get image-level comments (comments with ticket_image_id and null annotation_id)
+        $comments = AnnotationComment::where('ticket_image_id', $ticketImage->id)
+            ->whereNull('annotation_id')
+            ->with(['user', 'externalUser'])
             ->orderBy('created_at', 'asc')
             ->get();
 
-        \Log::info('[listImageComments] Found comments', [
+        \Log::info('[listImageComments] Found image-level comments', [
             'count' => $comments->count(),
-            'comment_ids' => $comments->pluck('id')->toArray(),
-            'annotation_ids' => $comments->pluck('annotation_id')->toArray()
+            'comment_ids' => $comments->pluck('id')->toArray()
         ]);
 
         return response()->json([
@@ -658,38 +701,67 @@ class AnnotationController extends Controller
         }
 
         try {
-            \Log::info('[storeImageComment] Getting or creating root annotation');
-            $root = $this->getOrCreateRootCommentAnnotation($ticketImage);
-            \Log::info('[storeImageComment] Root annotation', ['root_id' => $root->id]);
-
             // Extract valid mentions
             $mentions = $this->extractValidMentions($request->content, $ticket);
             \Log::info('[storeImageComment] Extracted mentions', ['mentions' => $mentions]);
 
-            \Log::info('[storeImageComment] Creating comment');
+            // Store all mention IDs (internal and external) for the database
+            $allMentionIds = array_merge(
+                array_map(fn($id) => 'user_' . $id, $mentions['internal']),
+                array_map(fn($id) => 'external_' . $id, $mentions['external'])
+            );
+
+            \Log::info('[storeImageComment] Creating comment with null annotation_id and ticket_image_id');
             $comment = AnnotationComment::create([
-                'annotation_id' => $root->id,
+                'annotation_id' => null, // Image-level comments have null annotation_id
+                'ticket_image_id' => $ticketImage->id, // Link directly to the image
                 'user_id' => Auth::id(),
                 'content' => $request->content,
                 'parent_id' => $request->parent_id,
-                'mentions' => $mentions,
+                'mentions' => $allMentionIds,
             ]);
             \Log::info('[storeImageComment] Comment created', ['comment_id' => $comment->id]);
 
-            $comment->load(['user', 'replies.user']);
+            $comment->load(['user', 'externalUser', 'replies.user', 'replies.externalUser']);
 
-            // Send mention notifications
-            if (!empty($mentions)) {
-                \Log::info('[storeImageComment] Sending mention notifications');
+            // Send mention notifications to internal users
+            if (!empty($mentions['internal'])) {
+                \Log::info('[storeImageComment] Sending mention notifications to internal users');
                 $currentUser = Auth::user();
-                $mentionedUsers = User::whereIn('id', $mentions)->get();
+                $mentionedUsers = User::whereIn('id', $mentions['internal'])->get();
                 
                 foreach ($mentionedUsers as $mentionedUser) {
                     // Don't send notification to the user who made the comment
                     if ($mentionedUser->id !== $currentUser->id) {
                         Mail::to($mentionedUser->email)
-                            ->send(new AnnotationMentionNotification($ticket, $root, $comment, $mentionedUser, $currentUser));
+                            ->send(new AnnotationMentionNotification($ticket, null, $comment, $mentionedUser, $currentUser));
                     }
+                }
+            }
+            
+            // Send mention notifications to external users
+            if (!empty($mentions['external'])) {
+                \Log::info('[storeImageComment] Sending mention notifications to external users');
+                $currentUser = Auth::user();
+                $mentionedExternalUsers = \App\Models\ExternalUser::whereIn('id', $mentions['external'])->get();
+                
+                foreach ($mentionedExternalUsers as $externalUser) {
+                    $publicToken = hash('sha256', $ticketImage->id . $ticketImage->created_at . config('app.key'));
+                    $accessUrl = route('annotations.public', [
+                        'image' => $ticketImage->id,
+                        'token' => $publicToken,
+                        'comment' => $comment->id,
+                    ]);
+                    
+                    Mail::to($externalUser->email)->send(
+                        new \App\Mail\ExternalUserMentionNotification(
+                            $externalUser,
+                            $comment,
+                            $ticketImage,
+                            $currentUser->name,
+                            $accessUrl
+                        )
+                    );
                 }
             }
 
@@ -725,9 +797,8 @@ class AnnotationController extends Controller
             ], 404);
         }
 
-        // Ensure comment belongs to the image root annotation
-        $root = $this->getOrCreateRootCommentAnnotation($ticketImage);
-        if ($comment->annotation_id !== $root->id) {
+        // Ensure comment is an image-level comment for this image
+        if ($comment->annotation_id !== null || $comment->ticket_image_id !== $ticketImage->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Comment not found for this image'
@@ -756,12 +827,18 @@ class AnnotationController extends Controller
         // Extract valid mentions from updated comment
         $mentions = $this->extractValidMentions($request->content, $ticket);
 
+        // Store all mention IDs (internal and external) for the database
+        $allMentionIds = array_merge(
+            array_map(fn($id) => 'user_' . $id, $mentions['internal']),
+            array_map(fn($id) => 'external_' . $id, $mentions['external'])
+        );
+
         $comment->update([
             'content' => $request->content,
-            'mentions' => $mentions,
+            'mentions' => $allMentionIds,
         ]);
 
-        $comment->load(['user']);
+        $comment->load(['user', 'externalUser']);
 
         return response()->json([
             'success' => true,
@@ -784,8 +861,8 @@ class AnnotationController extends Controller
             ], 404);
         }
 
-        $root = $this->getOrCreateRootCommentAnnotation($ticketImage);
-        if ($comment->annotation_id !== $root->id) {
+        // Ensure comment is an image-level comment for this image
+        if ($comment->annotation_id !== null || $comment->ticket_image_id !== $ticketImage->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Comment not found for this image'

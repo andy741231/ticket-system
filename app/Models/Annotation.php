@@ -14,6 +14,7 @@ class Annotation extends Model
     protected $fillable = [
         'ticket_image_id',
         'user_id',
+        'external_user_id',
         'type',
         'coordinates',
         'content',
@@ -46,11 +47,27 @@ class Annotation extends Model
     }
 
     /**
+     * Alias for ticketImage relationship (used in some controllers).
+     */
+    public function image(): BelongsTo
+    {
+        return $this->belongsTo(TicketImage::class, 'ticket_image_id');
+    }
+
+    /**
      * Get the user who created this annotation.
      */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the external user who created this annotation.
+     */
+    public function externalUser(): BelongsTo
+    {
+        return $this->belongsTo(ExternalUser::class);
     }
 
     /**
@@ -102,5 +119,38 @@ class Annotation extends Model
     public function isPending(): bool
     {
         return $this->status === 'pending';
+    }
+
+    /**
+     * Get the creator (internal user or external user)
+     */
+    public function getCreatorAttribute()
+    {
+        if ($this->user_id) {
+            return $this->user;
+        }
+        
+        if ($this->external_user_id) {
+            return $this->externalUser;
+        }
+        
+        // Fallback to public_user_info for legacy data
+        if ($this->created_by_public && $this->public_user_info) {
+            return (object) [
+                'name' => $this->public_user_info['name'] ?? 'Anonymous',
+                'email' => $this->public_user_info['email'] ?? null,
+                'is_external' => true,
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Check if annotation was created by external user
+     */
+    public function isCreatedByExternalUser(): bool
+    {
+        return $this->external_user_id !== null;
     }
 }

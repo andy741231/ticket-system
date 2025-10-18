@@ -331,7 +331,7 @@ class TicketCommentController extends Controller
     /**
      * Get users available for mentioning in this ticket
      */
-    public function mentionableUsers(Ticket $ticket)
+    public function mentionableUsers(Request $request, Ticket $ticket)
     {
         $this->authorize('view', $ticket);
         
@@ -351,6 +351,7 @@ class TicketCommentController extends Controller
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'email' => $user->email,
+                'type' => 'internal',
                 'searchable_names' => [
                     $user->username ?? $user->name,
                     $user->name,
@@ -361,8 +362,44 @@ class TicketCommentController extends Controller
             ];
         });
         
+        // Check if external users should be included (default: false for backward compatibility)
+        $includeExternal = $request->query('include_external', 'false') === 'true';
+        
+        if ($includeExternal) {
+            // Get external users who have access to any images in this ticket
+            $externalUsers = \App\Models\ExternalUser::whereHas('imageAccess', function ($query) use ($ticket) {
+                $query->whereIn('ticket_image_id', function ($subQuery) use ($ticket) {
+                    $subQuery->select('id')
+                        ->from('ticket_images')
+                        ->where('ticket_id', $ticket->id);
+                })
+                ->where('access_revoked', false);
+            })->get();
+            
+            $mappedExternalUsers = $externalUsers->map(function ($externalUser) {
+                return [
+                    'id' => 'ext_' . $externalUser->id,
+                    'name' => $externalUser->name . ' (Guest)',
+                    'username' => $externalUser->email,
+                    'first_name' => $externalUser->name,
+                    'last_name' => null,
+                    'email' => $externalUser->email,
+                    'type' => 'external',
+                    'searchable_names' => [
+                        $externalUser->email,
+                        $externalUser->name,
+                        $externalUser->name . ' (Guest)'
+                    ]
+                ];
+            });
+            
+            $allUsers = $mappedUsers->concat($mappedExternalUsers);
+        } else {
+            $allUsers = $mappedUsers;
+        }
+        
         return response()->json([
-            'users' => $mappedUsers->toArray()
+            'users' => $allUsers->toArray()
         ]);
     }
 }

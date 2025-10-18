@@ -186,6 +186,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // Public Annotation Routes (no auth required)
 Route::get('/annotations/{image}/public', [\App\Http\Controllers\AnnotationController::class, 'showPublic'])->name('annotations.public');
 
+// External User Authentication Routes
+Route::prefix('external-auth')->name('external-auth.')->group(function () {
+    Route::post('/annotations/{image}/request-verification', [\App\Http\Controllers\ExternalAuthController::class, 'requestVerification'])->name('request-verification');
+    Route::get('/annotations/{image}/verify', [\App\Http\Controllers\ExternalAuthController::class, 'verify'])->name('verify');
+    Route::get('/annotations/{image}/check-session', [\App\Http\Controllers\ExternalAuthController::class, 'checkSession'])->name('check-session');
+    Route::post('/logout', [\App\Http\Controllers\ExternalAuthController::class, 'logout'])->name('logout');
+});
+
 // Directory Routes (now using DirectoryController)
 Route::middleware(['auth', 'verified'])->prefix('directory')->name('directory.')->group(function () {
     Route::get('/', [\App\Http\Controllers\DirectoryController::class, 'index'])->name('index');

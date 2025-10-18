@@ -19,11 +19,19 @@ class AnnotationController extends Controller
         $ticket = $image->ticket;
         $this->authorize('view', $ticket);
 
+        // Check if user can review annotations (Super Admin or Tickets Admin)
+        $user = auth()->user();
+        $canReviewAnnotations = $user && (
+            $user->isSuperAdmin() || 
+            $user->can('tickets.ticket.manage')
+        );
+
         return Inertia::render('Annotations/Show', [
             'image' => $image->load('ticket'),
             'ticket' => $ticket,
             'isPublic' => false,
             'publicToken' => null,
+            'canReviewAnnotations' => $canReviewAnnotations,
         ]);
     }
 

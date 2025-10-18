@@ -65,6 +65,7 @@ Route::middleware(['web', 'auth'])->group(function () {
             Route::get('/{ticketImage}', [TicketImageController::class, 'show']);
             Route::delete('/{ticketImage}', [TicketImageController::class, 'destroy']);
             Route::get('/{ticketImage}/status', [TicketImageController::class, 'status']);
+            Route::put('/{ticketImage}/public-access', [TicketImageController::class, 'updatePublicAccess']);
 
             // Annotation management for specific images
             Route::prefix('{ticketImage}/annotations')->group(function () {
@@ -113,14 +114,21 @@ Route::delete('/image-delete', [ImageUploadController::class, 'destroy'])->name(
 Route::options('/directory/team', [DirectoryPublicController::class, 'options']);
 Route::get('/directory/team', [DirectoryPublicController::class, 'index']);
 
-// Public annotation routes
+// Public annotation routes (with external user authentication)
 Route::prefix('public/annotations/{image}')->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'index']);
     Route::post('/', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'store']);
+    Route::put('/{annotation}', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'update']);
     Route::delete('/{annotation}', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'destroy']);
     
-    // Public image-level comments
+    // Get mentionable users for external users
+    Route::get('/mentionable-users', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'mentionableUsers']);
+    
+    // Image-level comments (not linked to annotation)
+    Route::get('/image-comments', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'listImageComments']);
     Route::post('/image-comments', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'storeImageComment']);
+    Route::put('/image-comments/{comment}', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'updateImageComment']);
+    Route::delete('/image-comments/{comment}', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'destroyImageComment']);
     
     Route::prefix('annotations/{annotation}')->group(function () {
         Route::get('/comments', [\App\Http\Controllers\Api\PublicAnnotationController::class, 'getComments']);

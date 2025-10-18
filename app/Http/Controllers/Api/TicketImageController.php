@@ -48,6 +48,8 @@ class TicketImageController extends Controller
                     'error_message' => $image->error_message,
                     'metadata' => $image->metadata,
                     'file_size' => $image->file_size,
+                    'is_public' => $image->is_public,
+                    'public_access_level' => $image->public_access_level,
                     'created_at' => $image->created_at,
                     'annotations' => $image->annotations,
                 ];
@@ -295,6 +297,47 @@ class TicketImageController extends Controller
                 'width' => $ticketImage->width,
                 'height' => $ticketImage->height,
                 'updated_at' => $ticketImage->updated_at,
+            ]
+        ]);
+    }
+
+    /**
+     * Update public access settings for an image
+     */
+    public function updatePublicAccess(Request $request, Ticket $ticket, TicketImage $ticketImage): JsonResponse
+    {
+        $this->authorize('update', $ticket);
+
+        if ($ticketImage->ticket_id !== $ticket->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Image not found for this ticket'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'is_public' => 'required|boolean',
+            'public_access_level' => 'required|in:view_only,comment,annotate',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $ticketImage->is_public = $request->is_public;
+        $ticketImage->public_access_level = $request->public_access_level;
+        $ticketImage->save();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $ticketImage->id,
+                'is_public' => $ticketImage->is_public,
+                'public_access_level' => $ticketImage->public_access_level,
             ]
         ]);
     }

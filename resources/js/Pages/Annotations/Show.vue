@@ -1,7 +1,8 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
-import { ref, onMounted } from 'vue';
+import { Head, router, usePage } from '@inertiajs/vue3';
+import { ref, onMounted, computed } from 'vue';
 import AnnotationCanvas from '@/Components/Annotation/AnnotationCanvas.vue';
+import ExternalUserLoginModal from '@/Components/Annotation/ExternalUserLoginModal.vue';
 
 const props = defineProps({
     image: {
@@ -19,14 +20,134 @@ const props = defineProps({
     publicToken: {
         type: String,
         default: null,
+    },
+    canReviewAnnotations: {
+        type: Boolean,
+        default: false,
     }
 });
+
+// Get highlighted comment ID from URL parameter
+const urlParams = new URLSearchParams(window.location.search);
+const highlightedCommentId = ref(urlParams.get('comment') || null);
+
+// Get current user from Inertia page props
+const page = usePage();
+const currentUser = computed(() => page.props.auth?.user || null);
+
+// External user state
+const externalUser = ref(null);
+const showLoginModal = ref(false);
+const checkingSession = ref(false);
 
 // State
 const annotations = ref([]);
 const comments = ref([]);
 const loading = ref(true);
 const error = ref(null);
+
+// Check external user session
+const checkExternalUserSession = async () => {
+    if (!props.isPublic) return;
+    
+    checkingSession.value = true;
+    try {
+        const response = await fetch(`/external-auth/annotations/${props.image.id}/check-session`, {
+            headers: {
+                'Accept': 'application/json',
+            },
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.authenticated) {
+                externalUser.value = data.user;
+            }
+        }
+    } catch (err) {
+        console.error('Error checking external user session:', err);
+    } finally {
+        checkingSession.value = false;
+    }
+};
+
+// Permission check functions
+const canEditAnnotation = (annotation) => {
+    if (props.isPublic) {
+        // External users can edit their own annotations
+        if (externalUser.value && annotation.external_user_id === externalUser.value.id) {
+            return true;
+        }
+        return false;
+    }
+    
+    const user = currentUser.value;
+    if (!user) return false;
+    
+    // Super Admin or Tickets Admin can edit any annotation
+    if (user.isSuperAdmin || props.canReviewAnnotations) return true;
+    
+    // Regular users can only edit their own annotations
+    return annotation.user_id === user.id;
+};
+
+const canDeleteAnnotation = (annotation) => {
+    if (props.isPublic) {
+        // External users can delete their own annotations
+        if (externalUser.value && annotation.external_user_id === externalUser.value.id) {
+            return true;
+        }
+        return false;
+    }
+    
+    const user = currentUser.value;
+    if (!user) return false;
+    
+    // Super Admin or Tickets Admin can delete any annotation
+    if (user.isSuperAdmin || props.canReviewAnnotations) return true;
+    
+    // Regular users can only delete their own annotations
+    return annotation.user_id === user.id;
+};
+
+const canEditComment = (comment) => {
+    if (props.isPublic) {
+        // External users can edit their own comments
+        if (externalUser.value && comment.external_user_id === externalUser.value.id) {
+            return true;
+        }
+        return false;
+    }
+    
+    const user = currentUser.value;
+    if (!user) return false;
+    
+    // Super Admin or Tickets Admin can edit any comment
+    if (user.isSuperAdmin || props.canReviewAnnotations) return true;
+    
+    // Regular users can only edit their own comments
+    return comment.user_id === user.id;
+};
+
+const canDeleteComment = (comment) => {
+    if (props.isPublic) {
+        // External users can delete their own comments
+        if (externalUser.value && comment.external_user_id === externalUser.value.id) {
+            return true;
+        }
+        return false;
+    }
+    
+    const user = currentUser.value;
+    if (!user) return false;
+    
+    // Super Admin or Tickets Admin can delete any comment
+    if (user.isSuperAdmin || props.canReviewAnnotations) return true;
+    
+    // Regular users can only delete their own comments
+    return comment.user_id === user.id;
+};
 
 // Load annotations
 const loadAnnotations = async () => {
@@ -43,7 +164,8 @@ const loadAnnotations = async () => {
                 ...(props.isPublic ? {} : {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 })
-            }
+            },
+            credentials: 'include'
         });
         
         if (response.ok) {
@@ -64,6 +186,12 @@ const loadAnnotations = async () => {
 
 // Create annotation (for public users)
 const createAnnotation = async (annotationData) => {
+    // Check if external user is authenticated for public view
+    if (props.isPublic && !externalUser.value) {
+        showLoginModal.value = true;
+        return;
+    }
+
     try {
         const url = props.isPublic 
             ? `/api/public/annotations/${props.image.id}?token=${props.publicToken}`
@@ -78,6 +206,7 @@ const createAnnotation = async (annotationData) => {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 })
             },
+            credentials: 'include', // Include cookies for external user session
             body: JSON.stringify(annotationData)
         });
         
@@ -86,7 +215,11 @@ const createAnnotation = async (annotationData) => {
             annotations.value.push(data.data);
         } else {
             const error = await response.json();
-            alert('Failed to create annotation: ' + (error.message || 'Unknown error'));
+            if (error.message === 'Authentication required. Please verify your email.') {
+                showLoginModal.value = true;
+            } else {
+                alert('Failed to create annotation: ' + (error.message || 'Unknown error'));
+            }
         }
     } catch (error) {
         console.error('Error creating annotation:', error);
@@ -96,20 +229,27 @@ const createAnnotation = async (annotationData) => {
 
 // Update annotation
 const updateAnnotation = async (annotation) => {
-    try {
-        if (props.isPublic) {
-            alert('Editing annotations is not available in public view.');
-            return;
-        }
+    // Check if external user is authenticated for public view
+    if (props.isPublic && !externalUser.value) {
+        showLoginModal.value = true;
+        return;
+    }
 
-        const url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`;
+    try {
+        const url = props.isPublic
+            ? `/api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`
+            : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`;
+            
         const response = await fetch(url, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                ...(props.isPublic ? {} : {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                })
             },
+            credentials: 'include',
             body: JSON.stringify({
                 type: annotation.type,
                 coordinates: annotation.coordinates,
@@ -136,10 +276,6 @@ const updateAnnotation = async (annotation) => {
 
 // Delete annotation
 const deleteAnnotation = async (annotation) => {
-    if (!confirm('Are you sure you want to delete this annotation?')) {
-        return;
-    }
-    
     try {
         const url = props.isPublic 
             ? `/api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`
@@ -152,14 +288,19 @@ const deleteAnnotation = async (annotation) => {
                 ...(props.isPublic ? {} : {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 })
-            }
+            },
+            credentials: 'include'
         });
         
         if (response.ok) {
+            // Remove the annotation from the list
             const index = annotations.value.findIndex(a => a.id === annotation.id);
             if (index !== -1) {
                 annotations.value.splice(index, 1);
             }
+            
+            // Remove all comments associated with this annotation
+            comments.value = comments.value.filter(c => c.annotation_id !== annotation.id);
         } else {
             throw new Error('Failed to delete annotation');
         }
@@ -175,28 +316,32 @@ const loadComments = async () => {
     try {
         const allComments = [];
 
-        // 1) Image-level comments (auth only)
-        if (!props.isPublic) {
-            const imageUrl = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`;
-            console.log('[loadComments] Fetching image-level comments from:', imageUrl);
-            const respImage = await fetch(imageUrl, {
-                headers: {
-                    'Accept': 'application/json',
+        // 1) Image-level comments (both public and auth)
+        const imageUrl = props.isPublic
+            ? `/api/public/annotations/${props.image.id}/image-comments?token=${props.publicToken}`
+            : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`;
+        console.log('[loadComments] Fetching image-level comments from:', imageUrl);
+        const respImage = await fetch(imageUrl, {
+            headers: {
+                'Accept': 'application/json',
+                ...(props.isPublic ? {} : {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                }
-            });
-            if (respImage.ok) {
-                const data = await respImage.json();
-                console.log('[loadComments] Image-level comments fetched:', data.data?.length || 0, data.data);
-                allComments.push(...(data.data || []));
-            } else {
-                console.error('[loadComments] Failed to fetch image-level comments:', respImage.status);
-            }
+                })
+            },
+            credentials: 'include'
+        });
+        if (respImage.ok) {
+            const data = await respImage.json();
+            console.log('[loadComments] Image-level comments fetched:', data.data?.length || 0, data.data);
+            allComments.push(...(data.data || []));
+        } else {
+            console.error('[loadComments] Failed to fetch image-level comments:', respImage.status);
         }
 
-        // 2) Comments for each visible annotation
-        console.log('[loadComments] Fetching comments for', annotations.value.length, 'annotations');
-        for (const annotation of annotations.value) {
+        // 2) Comments for each visible annotation (exclude root_comment to avoid duplicates)
+        const visibleAnnotations = annotations.value.filter(a => a.type !== 'root_comment');
+        console.log('[loadComments] Fetching comments for', visibleAnnotations.length, 'annotations');
+        for (const annotation of visibleAnnotations) {
             const url = props.isPublic 
                 ? `/api/public/annotations/${props.image.id}/annotations/${annotation.id}/comments?token=${props.publicToken}`
                 : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}/comments`;
@@ -206,7 +351,8 @@ const loadComments = async () => {
                     ...(props.isPublic ? {} : {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                     })
-                }
+                },
+                credentials: 'include'
             });
             if (response.ok) {
                 const data = await response.json();
@@ -224,14 +370,22 @@ const loadComments = async () => {
 // Add comment (image-level if no annotation_id)
 const addComment = async (commentData) => {
     console.log('[addComment] Called with:', commentData);
+    
+    // Check if external user is authenticated for public view
+    if (props.isPublic && !externalUser.value) {
+        showLoginModal.value = true;
+        return;
+    }
+
     try {
         let url = '';
         if (props.isPublic) {
-            if (!commentData.annotation_id) {
-                alert('Please select an annotation to add a comment (public view)');
-                return;
+            // Public view supports both annotation-level and image-level comments
+            if (commentData.annotation_id) {
+                url = `/api/public/annotations/${props.image.id}/annotations/${commentData.annotation_id}/comments?token=${props.publicToken}`;
+            } else {
+                url = `/api/public/annotations/${props.image.id}/image-comments?token=${props.publicToken}`;
             }
-            url = `/api/public/annotations/${props.image.id}/annotations/${commentData.annotation_id}/comments?token=${props.publicToken}`;
         } else {
             if (commentData.annotation_id) {
                 url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${commentData.annotation_id}/comments`;
@@ -242,12 +396,11 @@ const addComment = async (commentData) => {
 
         console.log('[addComment] Posting to:', url);
 
-        // Prepare request body
-        let requestBody = { content: commentData.content, parent_id: commentData.parent_id || null };
-        if (props.isPublic && commentData.public_name && commentData.public_email) {
-            requestBody.public_name = commentData.public_name;
-            requestBody.public_email = commentData.public_email;
-        }
+        // Prepare request body (no longer need public_name/public_email with new auth system)
+        let requestBody = { 
+            content: commentData.content, 
+            parent_id: commentData.parent_id || null 
+        };
 
         const response = await fetch(url, {
             method: 'POST',
@@ -258,6 +411,7 @@ const addComment = async (commentData) => {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 })
             },
+            credentials: 'include',
             body: JSON.stringify(requestBody)
         });
         
@@ -270,7 +424,11 @@ const addComment = async (commentData) => {
         } else {
             const error = await response.json();
             console.error('[addComment] API error:', error);
-            alert('Failed to add comment: ' + (error.message || 'Unknown error'));
+            if (error.message === 'Authentication required. Please verify your email.') {
+                showLoginModal.value = true;
+            } else {
+                alert('Failed to add comment: ' + (error.message || 'Unknown error'));
+            }
         }
     } catch (error) {
         console.error('Error adding comment:', error);
@@ -283,7 +441,13 @@ const updateComment = async (comment) => {
     try {
         let url = '';
         if (props.isPublic) {
-            url = `/api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`;
+            // Check if it's an annotation-level or image-level comment
+            const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
+            if (isAnnotationScoped) {
+                url = `/api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`;
+            } else {
+                url = `/api/public/annotations/${props.image.id}/image-comments/${comment.id}?token=${props.publicToken}`;
+            }
         } else {
             const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
             if (isAnnotationScoped) {
@@ -302,6 +466,7 @@ const updateComment = async (comment) => {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 })
             },
+            credentials: 'include',
             body: JSON.stringify({ content: comment.content })
         });
         
@@ -325,7 +490,13 @@ const deleteComment = async (comment) => {
     try {
         let url = '';
         if (props.isPublic) {
-            url = `/api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`;
+            // Check if it's an annotation-level or image-level comment
+            const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
+            if (isAnnotationScoped) {
+                url = `/api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`;
+            } else {
+                url = `/api/public/annotations/${props.image.id}/image-comments/${comment.id}?token=${props.publicToken}`;
+            }
         } else {
             const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
             if (isAnnotationScoped) {
@@ -342,7 +513,8 @@ const deleteComment = async (comment) => {
                 ...(props.isPublic ? {} : {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
                 })
-            }
+            },
+            credentials: 'include'
         });
         
         if (response.ok) {
@@ -430,8 +602,45 @@ const goBack = () => {
     }
 };
 
+// Public/Private Access Management
+const togglePublicAccess = async () => {
+    try {
+        const newPublicState = !props.image.is_public;
+        
+        const response = await fetch(`/api/tickets/${props.ticket.id}/images/${props.image.id}/public-access`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                is_public: newPublicState,
+                public_access_level: 'annotate' // Always full access when public
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            // Update local state
+            props.image.is_public = data.data.is_public;
+            props.image.public_access_level = data.data.public_access_level;
+        } else {
+            throw new Error('Failed to update public access');
+        }
+    } catch (error) {
+        console.error('Error toggling public access:', error);
+        alert('Failed to update public access. Please try again.');
+    }
+};
+
 // Generate share link on mount
 onMounted(async () => {
+    // Check external user session if public view
+    if (props.isPublic) {
+        await checkExternalUserSession();
+    }
+    
     await loadAnnotations();
     
     // Generate share URL
@@ -472,6 +681,25 @@ onMounted(async () => {
                     
                     <!-- Right: Share and Info -->
                     <div class="flex items-center space-x-4">
+                        <!-- Public/Private Toggle (only for authenticated users) -->
+                        <div v-if="!isPublic">
+                            <label class="flex items-center cursor-pointer group">
+                                <div class="relative">
+                                    <input
+                                        type="checkbox"
+                                        :checked="image.is_public"
+                                        @change="togglePublicAccess"
+                                        class="sr-only peer"
+                                    />
+                                    <div class="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
+                                    <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+                                </div>
+                                <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {{ image.is_public ? 'Public' : 'Private' }}
+                                </span>
+                            </label>
+                        </div>
+                        
                         <!-- Share Button (only for authenticated users) -->
                         <div v-if="!isPublic" class="flex items-center">
                             <input
@@ -491,9 +719,25 @@ onMounted(async () => {
                         </div>
                         
                         <!-- Public indicator -->
-                        <div v-if="isPublic" class="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                            <i class="fas fa-globe mr-2"></i>
-                            Public View
+                        <div v-if="isPublic" class="flex items-center space-x-3">
+                            <!-- External user info or login button -->
+                            <div v-if="externalUser" class="flex items-center text-sm text-gray-700 dark:text-gray-300">
+                                <i class="fas fa-user-check mr-2 text-green-600 dark:text-green-400"></i>
+                                <span>{{ externalUser.name }}</span>
+                                <span class="ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-xs rounded">Guest</span>
+                            </div>
+                            <button
+                                v-else
+                                @click="showLoginModal = true"
+                                class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-md transition-colors"
+                            >
+                                <i class="fas fa-sign-in-alt mr-2"></i>
+                                Sign In to Collaborate
+                            </button>
+                            <div class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                                <i class="fas fa-globe mr-2"></i>
+                                Public View
+                            </div>
                         </div>
                         
                         <!-- Image info -->
@@ -535,9 +779,16 @@ onMounted(async () => {
                     :image-name="image.original_name || 'Annotation Image'"
                     :annotations="annotations"
                     :comments="comments"
+                    :can-edit="canEditAnnotation"
+                    :can-delete="canDeleteAnnotation"
+                    :can-edit-comment="canEditComment"
+                    :can-delete-comment="canDeleteComment"
                     :readonly="false"
                     :is-public="isPublic"
                     :ticket-id="ticket.id"
+                    :image-id="image.id"
+                    :public-token="publicToken"
+                    :highlighted-comment-id="highlightedCommentId"
                     @annotation-created="createAnnotation"
                     @annotation-updated="updateAnnotation"
                     @annotation-deleted="deleteAnnotation"
@@ -554,12 +805,26 @@ onMounted(async () => {
                         <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
                         <div class="text-sm text-blue-700 dark:text-blue-300">
                             <p class="font-medium mb-1">You're viewing a shared annotation</p>
-                            <p>You can add your own annotations and comments to provide feedback. Use the toolbar above to select annotation tools.</p>
+                            <p v-if="externalUser">
+                                You can add your own annotations and comments to provide feedback. Use the toolbar above to select annotation tools. 
+                                Mention others using <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">@email@domain.com</code>
+                            </p>
+                            <p v-else>
+                                <button @click="showLoginModal = true" class="underline font-medium">Sign in</button> to add annotations and comments.
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+        
+        <!-- External User Login Modal -->
+        <ExternalUserLoginModal
+            :show="showLoginModal"
+            :image-id="image.id"
+            @close="showLoginModal = false"
+            @success="checkExternalUserSession"
+        />
     </div>
 </template>
 
