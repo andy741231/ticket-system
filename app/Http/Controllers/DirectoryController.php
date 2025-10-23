@@ -51,12 +51,29 @@ class DirectoryController extends Controller
             ->sort()
             ->values();
 
+        // Get available logos from the logos folder
+        $logosPath = public_path('storage/images/newsletters/logos');
+        $availableLogos = [];
+        
+        if (file_exists($logosPath) && is_dir($logosPath)) {
+            $files = scandir($logosPath);
+            foreach ($files as $file) {
+                if ($file !== '.' && $file !== '..' && preg_match('/\.(png|jpg|jpeg|svg)$/i', $file)) {
+                    $availableLogos[] = [
+                        'value' => '/storage/images/newsletters/logos/' . $file,
+                        'label' => ucfirst(str_replace(['-', '_', '.png', '.jpg', '.jpeg', '.svg'], [' ', ' ', '', '', '', ''], $file))
+                    ];
+                }
+            }
+        }
+
         return Inertia::render('Directory/Index', [
             'teams' => $teams,
             'query' => $query,
             'group' => $group,
             'program' => $program,
             'availablePrograms' => $availablePrograms,
+            'availableLogos' => $availableLogos,
         ]);
     }
 

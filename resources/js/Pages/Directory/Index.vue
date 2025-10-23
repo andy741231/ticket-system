@@ -13,6 +13,7 @@ const props = defineProps({
   group: String,
   program: String,
   availablePrograms: Array,
+  availableLogos: Array,
 });
 
 const searchForm = useForm({
@@ -169,6 +170,7 @@ const showExportModal = ref(false);
       :show="showExportModal"
       :teams="teams"
       :current-filter="group"
+      :available-logos="availableLogos"
       @close="showExportModal = false"
     />
   </AuthenticatedLayout>

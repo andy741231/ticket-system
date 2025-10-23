@@ -10,6 +10,10 @@ const props = defineProps({
   show: Boolean,
   teams: Array,
   currentFilter: String,
+  availableLogos: {
+    type: Array,
+    default: () => []
+  },
 });
 
 const emit = defineEmits(['close']);
@@ -21,12 +25,13 @@ const height = ref(1080);
 const title = ref('');
 const selectedLogo = ref('');
 
-// Available logos from the logos folder
-const availableLogos = [
-  { value: '', label: 'No Logo' },
-  { value: '/storage/images/newsletters/logos/uhph-logo-red.png', label: 'UHPH Logo (Red)' },
-  { value: '/storage/images/newsletters/logos/uhph-logo.png', label: 'UHPH Logo' },
-];
+// Computed logos list with "No Logo" option prepended
+const logoOptions = computed(() => {
+  return [
+    { value: '', label: 'No Logo' },
+    ...props.availableLogos
+  ];
+});
 
 const organizedTeams = computed(() => {
   const leadership = props.teams.filter(t => t.group_1 === 'leadership');
@@ -395,7 +400,7 @@ const loadImage = (src) => {
             v-model="selectedLogo"
             class="mt-1 block w-full rounded-md border-gray-300 focus:border-uh-teal focus:ring-uh-teal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           >
-            <option v-for="logo in availableLogos" :key="logo.value" :value="logo.value">
+            <option v-for="logo in logoOptions" :key="logo.value" :value="logo.value">
               {{ logo.label }}
             </option>
           </select>
