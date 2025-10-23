@@ -1,8 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { watch } from 'vue';
+import { ref, watch } from 'vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import OrganizationChartExport from '@/Components/Directory/OrganizationChartExport.vue';
 import { useHasAny } from '@/Extensions/useAuthz';
 
 const props = defineProps({
@@ -39,6 +41,9 @@ watch(() => searchForm.query, () => {
 watch(() => searchForm.group, () => {
   search();
 });
+
+// Export modal state
+const showExportModal = ref(false);
 </script>
 
 <template>
@@ -48,6 +53,10 @@ watch(() => searchForm.group, () => {
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
       <div class="flex justify-between items-center mb-4">
           <div>
+            <SecondaryButton @click="showExportModal = true">
+              <font-awesome-icon icon="download" class="h-5 w-5 mr-1" />
+              Export as Image
+            </SecondaryButton>
           </div>
           <Link v-if="isDirectoryAdmin" :href="route('directory.create')" as="button">
               <PrimaryButton>
@@ -136,5 +145,13 @@ watch(() => searchForm.group, () => {
         </div>
       </div>
     </div>
+    
+    <!-- Export Modal -->
+    <OrganizationChartExport
+      :show="showExportModal"
+      :teams="teams"
+      :current-filter="group"
+      @close="showExportModal = false"
+    />
   </AuthenticatedLayout>
 </template>
