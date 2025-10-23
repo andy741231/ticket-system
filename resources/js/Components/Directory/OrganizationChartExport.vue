@@ -20,8 +20,8 @@ const width = ref(1920);
 const height = ref(1080);
 
 const organizedTeams = computed(() => {
-  const leadership = props.teams.filter(t => t.is_leadership);
-  const others = props.teams.filter(t => !t.is_leadership);
+  const leadership = props.teams.filter(t => t.group_1 === 'leadership');
+  const others = props.teams.filter(t => t.group_1 !== 'leadership');
   return { leadership, others };
 });
 
