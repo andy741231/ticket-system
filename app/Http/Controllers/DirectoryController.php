@@ -15,6 +15,7 @@ class DirectoryController extends Controller
     {
         $query = $request->input('query');
         $group = $request->input('group', 'default');
+        $program = $request->input('program');
 
         $teams = Team::query()
             ->select(['id', 'first_name', 'last_name', 'description', 'img', 'title', 'degree', 'email', 'bio', 'group_1', 'program', 'team'])
@@ -23,6 +24,9 @@ class DirectoryController extends Controller
             })
             ->when($group && $group !== 'default', function ($q) use ($group) {
                 $q->where('group_1', $group);
+            })
+            ->when($program, function ($q, $program) {
+                $q->where('program', $program);
             })
             ->when($query, function ($q, $query) {
                 // Search across first/last name and description with proper grouping
@@ -38,10 +42,21 @@ class DirectoryController extends Controller
             ->limit(50)
             ->get();
 
+        // Get available programs for filter dropdown
+        $availablePrograms = Team::query()
+            ->whereNotNull('program')
+            ->where('program', '!=', '')
+            ->distinct()
+            ->pluck('program')
+            ->sort()
+            ->values();
+
         return Inertia::render('Directory/Index', [
             'teams' => $teams,
             'query' => $query,
             'group' => $group,
+            'program' => $program,
+            'availablePrograms' => $availablePrograms,
         ]);
     }
 

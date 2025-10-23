@@ -11,11 +11,14 @@ const props = defineProps({
   teams: Array,
   query: String,
   group: String,
+  program: String,
+  availablePrograms: Array,
 });
 
 const searchForm = useForm({
   query: props.query,
   group: props.group ?? 'default',
+  program: props.program ?? '',
 });
 
 // Only Directory admins can add staff
@@ -39,6 +42,11 @@ watch(() => searchForm.query, () => {
 
 // Trigger search when group changes
 watch(() => searchForm.group, () => {
+  search();
+});
+
+// Trigger search when program changes
+watch(() => searchForm.program, () => {
   search();
 });
 
@@ -81,6 +89,16 @@ const showExportModal = ref(false);
           >
             <option value="default">Team</option>
             <option value="external advisory board">External Advisory Board</option>
+          </select>
+          <select
+            v-model="searchForm.program"
+            class="rounded-md border-gray-300 focus:border-uh-teal focus:ring-uh-teal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            title="Filter by Program"
+          >
+            <option value="">All Programs</option>
+            <option v-for="prog in availablePrograms" :key="prog" :value="prog">
+              {{ prog }}
+            </option>
           </select>
         </div>
         <div class="mt-6">

@@ -18,6 +18,7 @@ const canvas = ref(null);
 const isExporting = ref(false);
 const width = ref(1920);
 const height = ref(1080);
+const title = ref('');
 
 const organizedTeams = computed(() => {
   const leadership = props.teams.filter(t => t.group_1 === 'leadership');
@@ -110,7 +111,24 @@ const exportChart = async () => {
       ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
     }
     
-    const topMargin = logoY + logoHeight + logoBottomMargin;
+    // Draw title below logo if provided
+    let titleHeight = 0;
+    if (title.value) {
+      const titleFontSize = 32 * scale;
+      const titleMargin = 20 * scale;
+      
+      ctx.fillStyle = '#111827';
+      ctx.font = `bold ${titleFontSize}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      
+      const titleY = logoY + logoHeight + titleMargin;
+      ctx.fillText(title.value, padding + contentWidth / 2, titleY);
+      
+      titleHeight = titleFontSize + titleMargin + 10 * scale; // Add extra spacing after title
+    }
+    
+    const topMargin = logoY + logoHeight + logoBottomMargin + titleHeight;
     
     // Calculate positions
     let currentY = topMargin;
@@ -347,6 +365,20 @@ const loadImage = (src) => {
       </h2>
       
       <div class="space-y-4">
+        <div>
+          <InputLabel for="title" value="Chart Title (optional)" />
+          <TextInput
+            id="title"
+            v-model="title"
+            type="text"
+            class="mt-1 block w-full"
+            placeholder="e.g., Organization Chart 2025"
+          />
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Title will appear below the logo
+          </p>
+        </div>
+        
         <div>
           <InputLabel for="width" value="Width (px)" />
           <TextInput
