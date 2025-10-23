@@ -19,6 +19,14 @@ const isExporting = ref(false);
 const width = ref(1920);
 const height = ref(1080);
 const title = ref('');
+const selectedLogo = ref('');
+
+// Available logos from the logos folder
+const availableLogos = [
+  { value: '', label: 'No Logo' },
+  { value: '/storage/images/newsletters/logos/uhph-logo-red.png', label: 'UHPH Logo (Red)' },
+  { value: '/storage/images/newsletters/logos/uhph-logo.png', label: 'UHPH Logo' },
+];
 
 const organizedTeams = computed(() => {
   const leadership = props.teams.filter(t => t.group_1 === 'leadership');
@@ -63,7 +71,11 @@ const exportChart = async () => {
     
     // Calculate required height at base scale
     let requiredHeight = basePadding; // Top padding
-    requiredHeight += baseLogoTopMargin + baseLogoHeight + baseLogoBottomMargin; // Logo area
+    
+    // Only add logo area if a logo is selected
+    if (selectedLogo.value) {
+      requiredHeight += baseLogoTopMargin + baseLogoHeight + baseLogoBottomMargin; // Logo area
+    }
     
     // Leadership row
     if (leadership.length > 0) {
@@ -93,17 +105,19 @@ const exportChart = async () => {
     const logoBottomMargin = baseLogoBottomMargin * scale;
     const contentWidth = width.value - (padding * 2);
     
-    // Load logo
-    const logoPath = '/storage/images/newsletters/logos/uhph-logo-red.png';
+    // Load logo if selected
     let logo = null;
-    try {
-      logo = await loadImage(logoPath);
-    } catch (e) {
-      console.warn('Logo not found, continuing without it');
+    let logoWidth = 0;
+    if (selectedLogo.value) {
+      try {
+        logo = await loadImage(selectedLogo.value);
+        logoWidth = (logo.width / logo.height) * logoHeight;
+      } catch (e) {
+        console.warn('Logo not found, continuing without it');
+      }
     }
     
-    // Draw logo at top center (within padded area)
-    const logoWidth = logo ? (logo.width / logo.height) * logoHeight : 0;
+    // Draw logo at top center (within padded area) if loaded
     const logoX = padding + (contentWidth - logoWidth) / 2;
     const logoY = padding + logoTopMargin;
     
@@ -111,24 +125,33 @@ const exportChart = async () => {
       ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
     }
     
-    // Draw title below logo if provided
+    // Draw title below logo (or at top if no logo) if provided
     let titleHeight = 0;
     if (title.value) {
-      const titleFontSize = 32 * scale;
+      const titleFontSize = 64 * scale;
       const titleMargin = 20 * scale;
       
-      ctx.fillStyle = '#111827';
+      ctx.fillStyle = '#54585a';
       ctx.font = `bold ${titleFontSize}px Arial, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       
-      const titleY = logoY + logoHeight + titleMargin;
+      // Position title below logo if logo exists, otherwise at top
+      const titleY = logo ? (logoY + logoHeight + titleMargin) : (padding + titleMargin);
       ctx.fillText(title.value, padding + contentWidth / 2, titleY);
       
       titleHeight = titleFontSize + titleMargin + 10 * scale; // Add extra spacing after title
     }
     
-    const topMargin = logoY + logoHeight + logoBottomMargin + titleHeight;
+    // Calculate top margin based on what's present
+    let topMargin;
+    if (logo) {
+      topMargin = logoY + logoHeight + logoBottomMargin + titleHeight;
+    } else if (title.value) {
+      topMargin = padding + titleHeight + 20 * scale;
+    } else {
+      topMargin = padding;
+    }
     
     // Calculate positions
     let currentY = topMargin;
@@ -366,6 +389,19 @@ const loadImage = (src) => {
       
       <div class="space-y-4">
         <div>
+          <InputLabel for="logo" value="Logo (optional)" />
+          <select
+            id="logo"
+            v-model="selectedLogo"
+            class="mt-1 block w-full rounded-md border-gray-300 focus:border-uh-teal focus:ring-uh-teal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            <option v-for="logo in availableLogos" :key="logo.value" :value="logo.value">
+              {{ logo.label }}
+            </option>
+          </select>
+        </div>
+        
+        <div>
           <InputLabel for="title" value="Chart Title (optional)" />
           <TextInput
             id="title"
@@ -375,7 +411,7 @@ const loadImage = (src) => {
             placeholder="e.g., Organization Chart 2025"
           />
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Title will appear below the logo
+            Title will appear below the logo (or at top if no logo selected)
           </p>
         </div>
         
