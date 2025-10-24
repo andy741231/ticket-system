@@ -82,6 +82,13 @@ const exportChart = async () => {
       requiredHeight += baseLogoTopMargin + baseLogoHeight + baseLogoBottomMargin; // Logo area
     }
     
+    // Add title area if title is provided
+    if (title.value) {
+      const baseTitleFontSize = 64;
+      const baseTitleMargin = 20;
+      requiredHeight += baseTitleFontSize + baseTitleMargin + 10; // Title height + margins
+    }
+    
     // Leadership row
     if (leadership.length > 0) {
       requiredHeight += baseCardHeight + baseVerticalGap + 40; // Extra gap after leadership
