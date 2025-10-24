@@ -27,11 +27,12 @@ class DirectoryController extends Controller
             })
             ->when($program, function ($q, $program) {
                 // Handle comma-separated program values
+                // Match: exact, start with comma after, middle with commas, end with comma before (with optional trailing comma/space)
                 $q->where(function ($qq) use ($program) {
                     $qq->where('program', $program)
                        ->orWhere('program', 'like', "{$program},%")
-                       ->orWhere('program', 'like', "%,{$program},%")
-                       ->orWhere('program', 'like', "%,{$program}");
+                       ->orWhere('program', 'like', "%, {$program},%")
+                       ->orWhere('program', 'like', "%, {$program}");
                 });
             })
             ->when($query, function ($q, $query) {
