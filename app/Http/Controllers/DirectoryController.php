@@ -26,7 +26,13 @@ class DirectoryController extends Controller
                 $q->where('group_1', $group);
             })
             ->when($program, function ($q, $program) {
-                $q->where('program', $program);
+                // Handle comma-separated program values
+                $q->where(function ($qq) use ($program) {
+                    $qq->where('program', $program)
+                       ->orWhere('program', 'like', "{$program},%")
+                       ->orWhere('program', 'like', "%,{$program},%")
+                       ->orWhere('program', 'like', "%,{$program}");
+                });
             })
             ->when($query, function ($q, $query) {
                 // Search across first/last name and description with proper grouping
@@ -43,11 +49,21 @@ class DirectoryController extends Controller
             ->get();
 
         // Get available programs for filter dropdown
+        // Split comma-separated values into individual programs
         $availablePrograms = Team::query()
             ->whereNotNull('program')
             ->where('program', '!=', '')
             ->distinct()
             ->pluck('program')
+            ->flatMap(function ($program) {
+                // Split by comma and trim whitespace from each value
+                return array_map('trim', explode(',', $program));
+            })
+            ->filter(function ($program) {
+                // Remove empty strings
+                return !empty($program);
+            })
+            ->unique()
             ->sort()
             ->values();
 
