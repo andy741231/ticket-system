@@ -697,6 +697,11 @@ function onColumnDrop(event, colIdx) {
     if (!draggedBlock.value) return;
     // Create a new block from the dragged type and take its rendered HTML
     const newBlock = createBlock(draggedBlock.value);
+    // Remove padding for text blocks in columns
+    if (newBlock.type === 'text' && newBlock.data) {
+      newBlock.data.padding = '0';
+      newBlock.content = getBlockHtml(newBlock.type, newBlock.data);
+    }
     const html = newBlock?.content || '';
     const existing = columnsContent.value[colIdx] || '';
     // Append if existing content present, otherwise set
@@ -730,6 +735,11 @@ function onCanvasColumnDrop(event, blockId, colIdx) {
     if (!blk) return;
     // Normalize columns to items-based structure
     const cols = normalizeColumnsItems(blk.data?.columns || []);
+    // Remove padding for text blocks in columns
+    if (newBlock.type === 'text' && newBlock.data) {
+      newBlock.data.padding = '0';
+      newBlock.content = getBlockHtml(newBlock.type, newBlock.data);
+    }
     const item = {
       id: generateBlockId(),
       type: newBlock.type,
@@ -882,6 +892,7 @@ function openNestedEditor(blockId, colIdx, itemIndex) {
     buttonText.value = item.data?.text || 'Click Here';
     buttonUrl.value = item.data?.url || '#';
     buttonTextColor.value = item.data?.color || '#ffffff';
+    buttonBackground.value = item.data?.buttonBackground || '#c8102e';
     showButtonEditor.value = true;
   } else {
     // Fallback: treat as text content
@@ -1043,6 +1054,7 @@ function openTableListNestedEditor(blockId, rowIdx, itemIndex) {
     buttonText.value = item.data?.text || 'Click Here';
     buttonUrl.value = item.data?.url || '#';
     buttonTextColor.value = item.data?.color || '#ffffff';
+    buttonBackground.value = item.data?.buttonBackground || '#c8102e';
     showButtonEditor.value = true;
   } else {
     textModalContent.value = item.data?.content || item.content || '';
@@ -1074,6 +1086,12 @@ function onCanvasTableListDrop(event, blockId, rowIdx) {
     // Ensure the specific row index exists
     if (!rows[rowIdx]) {
       rows[rowIdx] = { items: [] };
+    }
+    
+    // Remove padding for text blocks in table lists
+    if (newBlock.type === 'text' && newBlock.data) {
+      newBlock.data.padding = '0';
+      newBlock.content = getBlockHtml(newBlock.type, newBlock.data);
     }
     
     const item = {
@@ -1690,20 +1708,34 @@ function getBlockHtml(type, data) {
   };
   
   const getBlockStyles = (blockData) => {
-    const styles = [];
-    if (blockData.blockBackground) styles.push(`background: ${blockData.blockBackground}`);
-    if (blockData.margin) styles.push(`margin: ${blockData.margin}`);
-    if (blockData.border && blockData.border !== 'none') {
-      if (blockData.border === 'custom') {
-        const width = blockData.borderWidth || '1px';
-        const style = blockData.borderStyle || 'solid';
-        const color = blockData.borderColor || '#e5e7eb';
-        styles.push(`border: ${width} ${style} ${color}`);
-      } else {
-        styles.push(`border: ${blockData.border}`);
+    try {
+      const styles = [];
+      
+      console.log('[EmailBuilder] getBlockStyles called with blockData:', blockData);
+      
+      if (blockData?.blockBackground) {
+        console.log('[EmailBuilder] Adding blockBackground:', blockData.blockBackground);
+        styles.push(`background: ${blockData.blockBackground}`);
       }
+      if (blockData?.margin) styles.push(`margin: ${blockData.margin}`);
+      if (blockData?.border && blockData.border !== 'none') {
+        if (blockData.border === 'custom') {
+          const width = blockData.borderWidth || '1px';
+          const style = blockData.borderStyle || 'solid';
+          const color = blockData.borderColor || '#e5e7eb';
+          styles.push(`border: ${width} ${style} ${color}`);
+        } else {
+          styles.push(`border: ${blockData.border}`);
+        }
+      }
+      
+      const result = styles.length > 0 ? styles.join('; ') + ';' : '';
+      console.log('[EmailBuilder] getBlockStyles result:', result);
+      return result;
+    } catch (error) {
+      console.error('[EmailBuilder] Error in getBlockStyles:', error, 'blockData:', blockData);
+      return '';
     }
-    return styles.length > 0 ? styles.join('; ') + ';' : '';
   };
   
   // Helper to add margin reset to all elements in content for email compatibility
@@ -1722,28 +1754,57 @@ function getBlockHtml(type, data) {
     // Reset ALL children's margins to 0 for consistent email rendering
     children.forEach((child, index) => {
       if (child && child.style !== undefined) {
+        // Build styles using style object properties instead of string manipulation
+        const tagName = child.tagName.toLowerCase();
+        
+        // Preserve existing styles except margins
+        const existingStyles = {};
         const currentStyle = child.getAttribute('style') || '';
-        let newStyle = currentStyle;
-        
-        // Remove existing margin declarations
-        newStyle = newStyle.replace(/margin(-top|-bottom|-left|-right)?\s*:[^;]+;?/gi, '');
-        
-        // Add margin: 0 for first and last, or appropriate spacing for middle elements
-        if (index === 0) {
-          // First child: no top margin
-          newStyle += (newStyle && !newStyle.endsWith(';') ? '; ' : '') + 'margin: 0 0 0.75em 0;';
-        } else if (index === children.length - 1) {
-          // Last child: no bottom margin
-          newStyle += (newStyle && !newStyle.endsWith(';') ? '; ' : '') + 'margin: 0.75em 0 0 0;';
-        } else {
-          // Middle children: spacing on top and bottom
-          newStyle += (newStyle && !newStyle.endsWith(';') ? '; ' : '') + 'margin: 0.75em 0;';
+        if (currentStyle) {
+          currentStyle.split(';').forEach(rule => {
+            const [prop, val] = rule.split(':').map(s => s.trim());
+            if (prop && val && !prop.match(/^margin/i)) {
+              existingStyles[prop] = val;
+            }
+          });
         }
         
-        // If only one child, no margins at all
+        // Add proper font-size and font-weight for heading tags
+        if (tagName === 'h1') {
+          existingStyles['font-size'] = '2em';
+          existingStyles['font-weight'] = 'bold';
+        } else if (tagName === 'h2') {
+          existingStyles['font-size'] = '1.5em';
+          existingStyles['font-weight'] = 'bold';
+        } else if (tagName === 'h3') {
+          existingStyles['font-size'] = '1.17em';
+          existingStyles['font-weight'] = 'bold';
+        } else if (tagName === 'h4') {
+          existingStyles['font-size'] = '1em';
+          existingStyles['font-weight'] = 'bold';
+        } else if (tagName === 'h5') {
+          existingStyles['font-size'] = '0.83em';
+          existingStyles['font-weight'] = 'bold';
+        } else if (tagName === 'h6') {
+          existingStyles['font-size'] = '0.67em';
+          existingStyles['font-weight'] = 'bold';
+        }
+        
+        // Add margin based on position
         if (children.length === 1) {
-          newStyle = newStyle.replace(/margin[^;]+;?/gi, 'margin: 0;');
+          existingStyles['margin'] = '0';
+        } else if (index === 0) {
+          existingStyles['margin'] = '0 0 0.75em 0';
+        } else if (index === children.length - 1) {
+          existingStyles['margin'] = '0.75em 0 0 0';
+        } else {
+          existingStyles['margin'] = '0.75em 0';
         }
+        
+        // Build final style string
+        const newStyle = Object.entries(existingStyles)
+          .map(([prop, val]) => `${prop}: ${val}`)
+          .join('; ');
         
         child.setAttribute('style', newStyle);
       }
@@ -1768,8 +1829,10 @@ function getBlockHtml(type, data) {
       data = data || {};
       const textStyles = getBlockStyles(data);
       const textMargin = data.margin || '0';
+      const textColor = data.color || '#666666';
       const textContent = addMarginResets(data.content || '<p>Click to edit this text...</p>');
-      return `<div style="margin: ${textMargin}; padding: ${data.padding || '15px 35px'}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; ${textStyles}">${textContent}</div>`;
+      const textPadding = data.padding !== undefined ? data.padding : '15px 35px';
+      return `<div style="margin: ${textMargin}; padding: ${textPadding}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${textColor}; ${textStyles}">${textContent}</div>`;
     case 'heading':
       data = data || {};
       const headingStyles = getBlockStyles(data);
@@ -1786,25 +1849,37 @@ function getBlockHtml(type, data) {
         }
       }
       
-      // Remove wrapping <p> tags from heading content
-      headingContent = headingContent.replace(/^<p[^>]*>(.*)<\/p>$/is, '$1');
+      // Check if content contains heading tags (h1-h6)
+      const hasHeadingTags = /<h[1-6][^>]*>/i.test(headingContent);
       
-      // Remove underlines from links in headings
-      headingContent = headingContent.replace(/<a\s+([^>]*?)>/gi, (match, attrs) => {
-        if (!/style\s*=/i.test(attrs)) {
-          return `<a ${attrs} style="text-decoration: none;">`;
-        } else {
-          return match.replace(/style\s*=\s*["']([^"']*)["']/i, (m, styles) => {
-            const hasTextDecoration = /text-decoration\s*:/i.test(styles);
-            if (hasTextDecoration) {
-              return `style="${styles.replace(/text-decoration\s*:[^;]+;?/gi, 'text-decoration: none;')}"`;
-            } else {
-              return `style="${styles}${styles.endsWith(';') ? '' : ';'} text-decoration: none;"`;
-            }
-          });
-        }
-      });
-      return `<div style="padding: ${data.padding || '15px 35px'}; text-align: ${textAlign}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; line-height: 1.3;">${headingContent}</h${data.level || 2}></div>`;
+      if (hasHeadingTags) {
+        // If content has heading tags, process it with addMarginResets
+        headingContent = addMarginResets(headingContent);
+        const headingColor = data.color || '#333333';
+        return `<div style="padding: ${data.padding || '15px 35px'}; text-align: ${textAlign}; color: ${headingColor}; ${headingStyles}">${headingContent}</div>`;
+      } else {
+        // Original behavior for simple text content
+        // Remove wrapping <p> tags from heading content
+        headingContent = headingContent.replace(/^<p[^>]*>(.*)<\/p>$/is, '$1');
+        
+        // Remove underlines from links in headings
+        headingContent = headingContent.replace(/<a\s+([^>]*?)>/gi, (match, attrs) => {
+          if (!/style\s*=/i.test(attrs)) {
+            return `<a ${attrs} style="text-decoration: none;">`;
+          } else {
+            return match.replace(/style\s*=\s*["']([^"']*)["']/i, (m, styles) => {
+              const hasTextDecoration = /text-decoration\s*:/i.test(styles);
+              if (hasTextDecoration) {
+                return `style="${styles.replace(/text-decoration\s*:[^;]+;?/gi, 'text-decoration: none;')}"`;
+              } else {
+                return `style="${styles}${styles.endsWith(';') ? '' : ';'} text-decoration: none;"`;
+              }
+            });
+          }
+        });
+        const headingColor = data.color || '#333333';
+        return `<div style="padding: ${data.padding || '15px 35px'}; text-align: ${textAlign}; ${headingStyles}"><h${data.level || 2} style="margin: 0; font-size: ${data.fontSize || '22px'}; font-weight: ${data.fontWeight || '600'}; line-height: 1.3; color: ${headingColor};">${headingContent}</h${data.level || 2}></div>`;
+      }
     case 'image':
       data = data || {};
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
@@ -1814,40 +1889,59 @@ function getBlockHtml(type, data) {
         `<div style="padding: ${imgPadding}; ${imageStyles}"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
         `<div style="padding: ${imgPadding}; ${imageStyles}"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
     case 'button':
-      const buttonBg = data.blockBackground || '#c8102e';
-      return `<div style="text-align: center; margin: 20px 0;"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${buttonBg}; color: ${data.color || '#ffffff'}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
+      const buttonBg = data.buttonBackground || '#c8102e';
+      const buttonWrapperStyles = getBlockStyles(data);
+      return `<div style="text-align: center; margin: 20px 0; ${buttonWrapperStyles}"><a href="${data.url}" style="display: inline-block; padding: ${data.padding}; background: ${buttonBg}; color: ${data.color || '#ffffff'}; text-decoration: none; border-radius: ${data.borderRadius}; font-weight: 600; transition: transform 0.2s ease;">${data.text}</a></div>`;
     case 'columns':
-      data = data || {};
-      const count = 2; // enforce two columns only
-      const gap = data.gap || '20px';
-      const cols = Array.isArray(data.columns) ? data.columns : [];
-      const getInner = (col) => {
-        const items = Array.isArray(col?.items) ? col.items : [];
-        return items.length
-          ? items.map(it => (it && (it.content || getBlockHtml(it.type || 'text', it.data || {})))).join('')
-          : ((col && col.content) || '');
-      };
-      const c0 = getInner(cols[0] || {});
-      const c1 = getInner(cols[1] || {});
-      // Derive half-gap (px only). If not px, fallback to 20px total gap.
-      let gapPx = 20;
       try {
-        const m = String(gap).match(/^(\d+)px$/);
-        if (m) gapPx = Math.max(0, parseInt(m[1], 10));
-      } catch (e) {}
-      const halfGap = Math.round(gapPx / 2);
-      const tdLeftStyle = `text-align: center; vertical-align: top; padding-right: ${halfGap}px;`;
-      const tdRightStyle = `text-align: center; vertical-align: top; padding-left: ${halfGap}px;`;
-      return [
-        `<div style="padding: ${getPadding(data)}; text-align: center;">`,
-        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">`,
-        `<tr>`,
-        `<td align="center" valign="top" width="50%" style="${tdLeftStyle}">${c0}</td>`,
-        `<td align="center" valign="top" width="50%" style="${tdRightStyle}">${c1}</td>`,
-        `</tr>`,
-        `</table>`,
-        `</div>`
-      ].join('');
+        data = data || {};
+        console.log('[EmailBuilder] Rendering columns with data:', data);
+        const count = 2; // enforce two columns only
+        const gap = data.gap || '20px';
+        const cols = Array.isArray(data.columns) ? data.columns : [];
+        const getInner = (col) => {
+          const items = Array.isArray(col?.items) ? col.items : [];
+          return items.length
+            ? items.map(it => {
+                if (!it) return '';
+                // Override padding to 0 for text blocks in columns
+                if (it.type === 'text' && it.data) {
+                  const modifiedData = { ...it.data, padding: '0' };
+                  return getBlockHtml(it.type, modifiedData);
+                }
+                return it.content || getBlockHtml(it.type || 'text', it.data || {});
+              }).join('')
+            : ((col && col.content) || '');
+        };
+        const c0 = getInner(cols[0] || {});
+        const c1 = getInner(cols[1] || {});
+        // Derive half-gap (px only). If not px, fallback to 20px total gap.
+        let gapPx = 20;
+        try {
+          const m = String(gap).match(/^(\d+)px$/);
+          if (m) gapPx = Math.max(0, parseInt(m[1], 10));
+        } catch (e) {}
+        const halfGap = Math.round(gapPx / 2);
+        const tdLeftStyle = `text-align: center; vertical-align: top; padding-right: ${halfGap}px;`;
+        const tdRightStyle = `text-align: center; vertical-align: top; padding-left: ${halfGap}px;`;
+        const columnsWrapperStyles = getBlockStyles(data);
+        console.log('[EmailBuilder] columnsWrapperStyles:', columnsWrapperStyles);
+        const html = [
+          `<div style="padding: ${getPadding(data)}; text-align: center; ${columnsWrapperStyles}">`,
+          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">`,
+          `<tr>`,
+          `<td align="center" valign="top" width="50%" style="${tdLeftStyle}">${c0}</td>`,
+          `<td align="center" valign="top" width="50%" style="${tdRightStyle}">${c1}</td>`,
+          `</tr>`,
+          `</table>`,
+          `</div>`
+        ].join('');
+        console.log('[EmailBuilder] Columns HTML first 200 chars:', html.substring(0, 200));
+        return html;
+      } catch (error) {
+        console.error('[EmailBuilder] Error rendering columns block:', error);
+        return `<div style="padding: 10px; background: #fee; border: 1px solid #f00; color: #c00;">Error rendering columns: ${error.message}</div>`;
+      }
     case 'divider':
       data = data || {};
       return `<hr style="border: none; border-top: 1px ${data.style || 'solid'} ${data.color || '#e5e7eb'}; margin: ${data.margin || '20px 0'};" />`;
@@ -1859,36 +1953,51 @@ function getBlockHtml(type, data) {
       const footerStyles = getBlockStyles(data);
       return `<div style="color: ${(data && data.textColor) || '#ffffff'}; padding: 25px 30px; text-align: center; border-top: 1px solid #eee; ${footerStyles}"><div>${(data && data.content) || ''}</div><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">${footerLinks}</p><p style="margin: 5px 0; color: ${(data && data.textColor) || '#ffffff'}; font-size: 14px;">&copy; ${(data && data.copyright) || ''}</p></div>`;
     case 'tablelist':
-      data = data || {};
-      const rowCount = data.rowCount || 3;
-      const rowGap = data.gap || '10px';
-      const maxHeight = data.maxHeight || '60px';
-      const col1Width = data.col1Width || '50%';
-      const col2Width = data.col2Width || '50%';
-      const rows = Array.isArray(data.rows) ? data.rows : [];
-      const getRowInner = (row) => {
-        const items = Array.isArray(row?.items) ? row.items : [];
-        return items.length
-          ? items.map(it => (it && (it.content || getBlockHtml(it.type || 'text', it.data || {})))).join('')
-          : ((row && row.content) || '');
-      };
-      const tableRows = [];
-      for (let i = 0; i < rowCount; i++) {
-        const col1Content = getRowInner(rows[i * 2] || {});
-        const col2Content = getRowInner(rows[i * 2 + 1] || {});
-        tableRows.push(
-          `<tr><td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; max-height: ${maxHeight}; width: ${col1Width};">${col1Content || `<p style="margin: 0; font-size: 14px; color: #666;">Cell ${i * 2 + 1}</p>`}</td><td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; max-height: ${maxHeight}; width: ${col2Width};">${col2Content || `<p style="margin: 0; font-size: 14px; color: #666;">Cell ${i * 2 + 2}</p>`}</td></tr>`
-        );
+      try {
+        data = data || {};
+        const rowCount = data.rowCount || 3;
+        const rowGap = data.gap || '10px';
+        const maxHeight = data.maxHeight || '60px';
+        const col1Width = data.col1Width || '50%';
+        const col2Width = data.col2Width || '50%';
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        const getRowInner = (row) => {
+          const items = Array.isArray(row?.items) ? row.items : [];
+          return items.length
+            ? items.map(it => {
+                if (!it) return '';
+                // Override padding to 0 for text blocks in table lists
+                if (it.type === 'text' && it.data) {
+                  const modifiedData = { ...it.data, padding: '0' };
+                  return getBlockHtml(it.type, modifiedData);
+                }
+                return it.content || getBlockHtml(it.type || 'text', it.data || {});
+              }).join('')
+            : ((row && row.content) || '');
+        };
+        const tableRows = [];
+        for (let i = 0; i < rowCount; i++) {
+          const col1Content = getRowInner(rows[i * 2] || {});
+          const col2Content = getRowInner(rows[i * 2 + 1] || {});
+          tableRows.push(
+            `<tr><td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; max-height: ${maxHeight}; width: ${col1Width};">${col1Content || `<p style="margin: 0; font-size: 14px; color: #666;">Cell ${i * 2 + 1}</p>`}</td><td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; max-height: ${maxHeight}; width: ${col2Width};">${col2Content || `<p style="margin: 0; font-size: 14px; color: #666;">Cell ${i * 2 + 2}</p>`}</td></tr>`
+          );
+        }
+        const tableListStyles = getBlockStyles(data);
+        return [
+          `<div style="padding: ${getPadding(data)}; ${tableListStyles}">`,
+          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; margin-bottom: ${rowGap};">`,
+          tableRows.join(''),
+          `</table>`,
+          `</div>`
+        ].join('');
+      } catch (error) {
+        console.error('[EmailBuilder] Error rendering tablelist block:', error);
+        return `<div style="padding: 10px; background: #fee; border: 1px solid #f00; color: #c00;">Error rendering table list: ${error.message}</div>`;
       }
-      return [
-        `<div style="padding: ${getPadding(data)};">`,
-        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; margin-bottom: ${rowGap};">`,
-        tableRows.join(''),
-        `</table>`,
-        `</div>`
-      ].join('');
     case 'spacer':
-      return `<div style="height: ${data.height};"></div>`;
+      const spacerStyles = getBlockStyles(data);
+      return `<div style="height: ${data.height}; ${spacerStyles}"></div>`;
     default:
       return `<div style="padding: 10px; background: #f9fafb; border: 1px dashed #d1d5db; text-align: center; color: #6b7280;">Unknown block type: ${type}</div>`;
   }
@@ -1916,6 +2025,14 @@ function saveBlockSettings() {
   const borderValue = blockBorder.value === 'custom' 
     ? `${blockBorderWidth.value} ${blockBorderStyle.value} ${blockBorderColor.value}`
     : blockBorder.value;
+  
+  console.log('[EmailBuilder] saveBlockSettings called with:', {
+    blockId: editingBlock.value,
+    margin: blockMargin.value,
+    padding: blockPadding.value,
+    blockBackground: blockBackground.value,
+    border: blockBorder.value,
+  });
   
   updateBlockData(editingBlock.value, {
     margin: blockMargin.value,
@@ -1954,6 +2071,7 @@ function editBlock(blockId) {
       buttonText.value = block.data.text || 'Click Here';
       buttonUrl.value = block.data.url || '#';
       buttonTextColor.value = block.data.color || '#ffffff';
+      buttonBackground.value = block.data.buttonBackground || '#c8102e';
       showButtonEditor.value = true;
     } else if (block.type === 'columns') {
       // Initialize columns editor state from block
@@ -2578,6 +2696,7 @@ function handlePreviewBackdropClick(event) {
 const buttonText = ref('');
 const buttonUrl = ref('');
 const buttonTextColor = ref('#ffffff');
+const buttonBackground = ref('#c8102e');
 
 function saveButtonChanges() {
   if (editingTableListNested.value) {
@@ -2586,6 +2705,7 @@ function saveButtonChanges() {
       text: buttonText.value,
       url: buttonUrl.value,
       color: buttonTextColor.value,
+      buttonBackground: buttonBackground.value,
     });
     showButtonEditor.value = false;
     editingTableListNested.value = null;
@@ -2595,6 +2715,7 @@ function saveButtonChanges() {
       text: buttonText.value,
       url: buttonUrl.value,
       color: buttonTextColor.value,
+      buttonBackground: buttonBackground.value,
     });
     showButtonEditor.value = false;
     editingNested.value = null;
@@ -2602,7 +2723,8 @@ function saveButtonChanges() {
     updateBlockData(editingBlock.value, {
       text: buttonText.value,
       url: buttonUrl.value,
-      color: buttonTextColor.value
+      color: buttonTextColor.value,
+      buttonBackground: buttonBackground.value,
     });
     showButtonEditor.value = false;
     editingBlock.value = null;
@@ -3156,7 +3278,12 @@ function insertTokenIntoEditor(token) {
                 >
                   <div
                     class="w-full"
-                    :style="{ padding: (block.data && block.data.fullWidth) ? '0' : (block.data?.padding || '20px 12px') }"
+                    :style="{ 
+                      padding: (block.data && block.data.fullWidth) ? '0' : (block.data?.padding || '20px 12px'),
+                      background: block.data?.blockBackground || 'transparent',
+                      margin: block.data?.margin || '0',
+                      border: block.data?.border && block.data.border !== 'none' ? (block.data.border === 'custom' ? `${block.data.borderWidth || '1px'} ${block.data.borderStyle || 'solid'} ${block.data.borderColor || '#e5e7eb'}` : block.data.border) : 'none'
+                    }"
                   >
                     <div class="grid grid-cols-2"
                          :style="{ gap: block.data?.gap || '20px' }">
@@ -3238,7 +3365,12 @@ function insertTokenIntoEditor(token) {
                 >
                   <div
                     class="w-full"
-                    :style="{ padding: block.data?.padding || '10px 35px' }"
+                    :style="{ 
+                      padding: block.data?.padding || '10px 35px',
+                      background: block.data?.blockBackground || 'transparent',
+                      margin: block.data?.margin || '0',
+                      border: block.data?.border && block.data.border !== 'none' ? (block.data.border === 'custom' ? `${block.data.borderWidth || '1px'} ${block.data.borderStyle || 'solid'} ${block.data.borderColor || '#e5e7eb'}` : block.data.border) : 'none'
+                    }"
                   >
                     <table class="w-full border-collapse" :style="{ marginBottom: block.data?.gap || '10px' }">
                       <tbody>
@@ -3589,6 +3721,10 @@ function insertTokenIntoEditor(token) {
           <div>
             <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Text Color</label>
             <ColorPicker v-model="buttonTextColor" :showAlpha="false" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Button Background Color</label>
+            <ColorPicker v-model="buttonBackground" :showAlpha="false" />
           </div>
         </div>
         <div class="flex gap-2 mt-4">
