@@ -402,13 +402,16 @@ const addComment = async (commentData) => {
             parent_id: commentData.parent_id || null 
         };
 
+        // Get fresh CSRF token for Edge compatibility
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
         const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                    'X-CSRF-TOKEN': csrfToken
                 })
             },
             credentials: 'include',

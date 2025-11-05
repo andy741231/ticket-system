@@ -32,6 +32,15 @@ window.axios.interceptors.request.use(config => {
         config.headers['Accept'] = 'application/json';
         // Ensure credentials are sent with the request
         config.withCredentials = true;
+        
+        // Edge-specific: Ensure CSRF token is available for POST/PUT/DELETE requests
+        if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
+            // Try to get fresh CSRF token from meta tag first
+            const metaToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (metaToken) {
+                config.headers['X-CSRF-TOKEN'] = metaToken;
+            }
+        }
     }
 
     return config;
