@@ -52,18 +52,11 @@ const checkExternalUserSession = async () => {
     
     checkingSession.value = true;
     try {
-        const response = await fetch(`/external-auth/annotations/${props.image.id}/check-session`, {
-            headers: {
-                'Accept': 'application/json',
-            },
-            credentials: 'include'
-        });
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        const response = await window.axios.get(`/external-auth/annotations/${props.image.id}/check-session`);
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.authenticated) {
-                externalUser.value = data.user;
-            }
+        if (response.data.authenticated) {
+            externalUser.value = response.data.user;
         }
     } catch (err) {
         console.error('Error checking external user session:', err);
@@ -158,24 +151,12 @@ const loadAnnotations = async () => {
             ? `/api/public/annotations/${props.image.id}?token=${props.publicToken}`
             : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations`;
             
-        const response = await fetch(url, {
-            headers: {
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include'
-        });
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        const response = await window.axios.get(url);
         
-        if (response.ok) {
-            const data = await response.json();
-            annotations.value = data.data || [];
-            // Load comments for each annotation
-            await loadComments();
-        } else {
-            throw new Error('Failed to load annotations');
-        }
+        annotations.value = response.data.data || [];
+        // Load comments for each annotation
+        await loadComments();
     } catch (err) {
         console.error('Error loading annotations:', err);
         error.value = 'Failed to load annotations';
@@ -197,33 +178,17 @@ const createAnnotation = async (annotationData) => {
             ? `/api/public/annotations/${props.image.id}?token=${props.publicToken}`
             : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations`;
             
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include', // Include cookies for external user session
-            body: JSON.stringify(annotationData)
-        });
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        const response = await window.axios.post(url, annotationData);
         
-        if (response.ok) {
-            const data = await response.json();
-            annotations.value.push(data.data);
-        } else {
-            const error = await response.json();
-            if (error.message === 'Authentication required. Please verify your email.') {
-                showLoginModal.value = true;
-            } else {
-                alert('Failed to create annotation: ' + (error.message || 'Unknown error'));
-            }
-        }
+        annotations.value.push(response.data.data);
     } catch (error) {
         console.error('Error creating annotation:', error);
-        alert('Failed to create annotation');
+        if (error.response?.data?.message === 'Authentication required. Please verify your email.') {
+            showLoginModal.value = true;
+        } else {
+            alert('Failed to create annotation: ' + (error.response?.data?.message || error.message || 'Unknown error'));
+        }
     }
 };
 
@@ -240,37 +205,21 @@ const updateAnnotation = async (annotation) => {
             ? `/api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`
             : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`;
             
-        const response = await fetch(url, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                type: annotation.type,
-                coordinates: annotation.coordinates,
-                style: annotation.style,
-                content: annotation.content
-            })
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        const response = await window.axios.put(url, {
+            type: annotation.type,
+            coordinates: annotation.coordinates,
+            style: annotation.style,
+            content: annotation.content
         });
 
-        if (response.ok) {
-            const data = await response.json();
-            const idx = annotations.value.findIndex(a => a.id === annotation.id);
-            if (idx !== -1) {
-                annotations.value[idx] = data.data;
-            }
-        } else {
-            const error = await response.json();
-            alert('Failed to update annotation: ' + (error.message || 'Unknown error'));
+        const idx = annotations.value.findIndex(a => a.id === annotation.id);
+        if (idx !== -1) {
+            annotations.value[idx] = response.data.data;
         }
     } catch (error) {
         console.error('Error updating annotation:', error);
-        alert('Failed to update annotation');
+        alert('Failed to update annotation: ' + (error.response?.data?.message || error.message || 'Unknown error'));
     }
 };
 
@@ -281,32 +230,20 @@ const deleteAnnotation = async (annotation) => {
             ? `/api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`
             : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`;
             
-        const response = await fetch(url, {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include'
-        });
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        await window.axios.delete(url);
         
-        if (response.ok) {
-            // Remove the annotation from the list
-            const index = annotations.value.findIndex(a => a.id === annotation.id);
-            if (index !== -1) {
-                annotations.value.splice(index, 1);
-            }
-            
-            // Remove all comments associated with this annotation
-            comments.value = comments.value.filter(c => c.annotation_id !== annotation.id);
-        } else {
-            throw new Error('Failed to delete annotation');
+        // Remove the annotation from the list
+        const index = annotations.value.findIndex(a => a.id === annotation.id);
+        if (index !== -1) {
+            annotations.value.splice(index, 1);
         }
+        
+        // Remove all comments associated with this annotation
+        comments.value = comments.value.filter(c => c.annotation_id !== annotation.id);
     } catch (error) {
         console.error('Error deleting annotation:', error);
-        alert('Failed to delete annotation. Please try again.');
+        alert('Failed to delete annotation: ' + (error.response?.data?.message || error.message || 'Unknown error'));
     }
 };
 
@@ -321,21 +258,14 @@ const loadComments = async () => {
             ? `/api/public/annotations/${props.image.id}/image-comments?token=${props.publicToken}`
             : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`;
         console.log('[loadComments] Fetching image-level comments from:', imageUrl);
-        const respImage = await fetch(imageUrl, {
-            headers: {
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include'
-        });
-        if (respImage.ok) {
-            const data = await respImage.json();
-            console.log('[loadComments] Image-level comments fetched:', data.data?.length || 0, data.data);
-            allComments.push(...(data.data || []));
-        } else {
-            console.error('[loadComments] Failed to fetch image-level comments:', respImage.status);
+        
+        try {
+            // Use axios instead of fetch for better CSRF token handling across all browsers
+            const respImage = await window.axios.get(imageUrl);
+            console.log('[loadComments] Image-level comments fetched:', respImage.data.data?.length || 0, respImage.data.data);
+            allComments.push(...(respImage.data.data || []));
+        } catch (err) {
+            console.error('[loadComments] Failed to fetch image-level comments:', err);
         }
 
         // 2) Comments for each visible annotation (exclude root_comment to avoid duplicates)
@@ -345,18 +275,13 @@ const loadComments = async () => {
             const url = props.isPublic 
                 ? `/api/public/annotations/${props.image.id}/annotations/${annotation.id}/comments?token=${props.publicToken}`
                 : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}/comments`;
-            const response = await fetch(url, {
-                headers: {
-                    'Accept': 'application/json',
-                    ...(props.isPublic ? {} : {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                    })
-                },
-                credentials: 'include'
-            });
-            if (response.ok) {
-                const data = await response.json();
-                allComments.push(...(data.data || []));
+            
+            try {
+                // Use axios instead of fetch for better CSRF token handling across all browsers
+                const response = await window.axios.get(url);
+                allComments.push(...(response.data.data || []));
+            } catch (err) {
+                console.error(`[loadComments] Failed to fetch comments for annotation ${annotation.id}:`, err);
             }
         }
 
@@ -402,37 +327,20 @@ const addComment = async (commentData) => {
             parent_id: commentData.parent_id || null 
         };
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include',
-            body: JSON.stringify(requestBody)
-        });
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        const response = await window.axios.post(url, requestBody);
         
-        if (response.ok) {
-            const data = await response.json();
-            console.log('[addComment] Comment created successfully:', data);
-            // Reload all comments from server to ensure sync
-            await loadComments();
-            console.log('[addComment] Comments reloaded');
-        } else {
-            const error = await response.json();
-            console.error('[addComment] API error:', error);
-            if (error.message === 'Authentication required. Please verify your email.') {
-                showLoginModal.value = true;
-            } else {
-                alert('Failed to add comment: ' + (error.message || 'Unknown error'));
-            }
-        }
+        console.log('[addComment] Comment created successfully:', response.data);
+        // Reload all comments from server to ensure sync
+        await loadComments();
+        console.log('[addComment] Comments reloaded');
     } catch (error) {
-        console.error('Error adding comment:', error);
-        alert('Failed to add comment');
+        console.error('[addComment] API error:', error);
+        if (error.response?.data?.message === 'Authentication required. Please verify your email.') {
+            showLoginModal.value = true;
+        } else {
+            alert('Failed to add comment: ' + (error.response?.data?.message || error.message || 'Unknown error'));
+        }
     }
 };
 
@@ -457,31 +365,16 @@ const updateComment = async (comment) => {
             }
         }
 
-        const response = await fetch(url, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include',
-            body: JSON.stringify({ content: comment.content })
-        });
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        const response = await window.axios.put(url, { content: comment.content });
         
-        if (response.ok) {
-            const data = await response.json();
-            const index = comments.value.findIndex(c => c.id === comment.id);
-            if (index !== -1) {
-                comments.value[index] = data.data;
-            }
-        } else {
-            throw new Error('Failed to update comment');
+        const index = comments.value.findIndex(c => c.id === comment.id);
+        if (index !== -1) {
+            comments.value[index] = response.data.data;
         }
     } catch (error) {
         console.error('Error updating comment:', error);
-        alert('Failed to update comment');
+        alert('Failed to update comment: ' + (error.response?.data?.message || error.message || 'Unknown error'));
     }
 };
 
@@ -506,28 +399,16 @@ const deleteComment = async (comment) => {
             }
         }
 
-        const response = await fetch(url, {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json',
-                ...(props.isPublic ? {} : {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                })
-            },
-            credentials: 'include'
-        });
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        await window.axios.delete(url);
         
-        if (response.ok) {
-            const index = comments.value.findIndex(c => c.id === comment.id);
-            if (index !== -1) {
-                comments.value.splice(index, 1);
-            }
-        } else {
-            throw new Error('Failed to delete comment');
+        const index = comments.value.findIndex(c => c.id === comment.id);
+        if (index !== -1) {
+            comments.value.splice(index, 1);
         }
     } catch (error) {
         console.error('Error deleting comment:', error);
-        alert('Failed to delete comment');
+        alert('Failed to delete comment: ' + (error.response?.data?.message || error.message || 'Unknown error'));
     }
 };
 
@@ -607,30 +488,18 @@ const togglePublicAccess = async () => {
     try {
         const newPublicState = !props.image.is_public;
         
-        const response = await fetch(`/api/tickets/${props.ticket.id}/images/${props.image.id}/public-access`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-                is_public: newPublicState,
-                public_access_level: 'annotate' // Always full access when public
-            })
+        // Use axios instead of fetch for better CSRF token handling across all browsers
+        const response = await window.axios.put(`/api/tickets/${props.ticket.id}/images/${props.image.id}/public-access`, {
+            is_public: newPublicState,
+            public_access_level: 'annotate' // Always full access when public
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            // Update local state
-            props.image.is_public = data.data.is_public;
-            props.image.public_access_level = data.data.public_access_level;
-        } else {
-            throw new Error('Failed to update public access');
-        }
+        // Update local state
+        props.image.is_public = response.data.data.is_public;
+        props.image.public_access_level = response.data.data.public_access_level;
     } catch (error) {
         console.error('Error toggling public access:', error);
-        alert('Failed to update public access. Please try again.');
+        alert('Failed to update public access: ' + (error.response?.data?.message || error.message || 'Unknown error'));
     }
 };
 
