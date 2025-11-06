@@ -3,6 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import TiptapLink from '@tiptap/extension-link';
+import Subscript from '@tiptap/extension-subscript';
+import Superscript from '@tiptap/extension-superscript';
 import TextIndent from '@/Extensions/TextIndent';
 import Image from '@tiptap/extension-image';
 import { Table } from '@tiptap/extension-table';
@@ -43,6 +45,8 @@ import {
   faTextHeight,
   faArrowLeft,
   faArrowRight,
+  faSubscript,
+  faSuperscript,
 } from '@fortawesome/free-solid-svg-icons';
 
 // Add icons to the library
@@ -66,7 +70,9 @@ library.add(
   faHighlighter,
   faTextHeight,
   faArrowLeft,
-  faArrowRight
+  faArrowRight,
+  faSubscript,
+  faSuperscript
 );
 
 // Extend Image to support dynamic width/height/class/style attributes
@@ -171,6 +177,8 @@ const editor = useEditor({
     // Override paragraph to allow class attribute (for drop cap)
     ParagraphWithClass,
     Underline,
+    Subscript,
+    Superscript,
     TiptapLink.configure({
       openOnClick: false,
       HTMLAttributes: {
@@ -801,6 +809,12 @@ onMounted(() => {
             </button>
             <button type="button" @click="editor.chain().focus().toggleStrike().run()" :class="{'bg-gray-200': editor.isActive('strike')}" class="p-2 rounded hover:bg-gray-200" title="Strikethrough (Ctrl/Cmd + Shift + X)">
               <font-awesome-icon :icon="['fas', 'strikethrough']" class="w-5 h-5" />
+            </button>
+            <button type="button" @click="editor.chain().focus().toggleSubscript().run()" :class="{'bg-gray-200': editor.isActive('subscript')}" class="p-2 rounded hover:bg-gray-200" title="Subscript">
+              <font-awesome-icon :icon="['fas', 'subscript']" class="w-5 h-5" />
+            </button>
+            <button type="button" @click="editor.chain().focus().toggleSuperscript().run()" :class="{'bg-gray-200': editor.isActive('superscript')}" class="p-2 rounded hover:bg-gray-200" title="Superscript">
+              <font-awesome-icon :icon="['fas', 'superscript']" class="w-5 h-5" />
             </button>
           </div>
 
