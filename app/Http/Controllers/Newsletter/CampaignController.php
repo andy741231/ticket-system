@@ -140,7 +140,7 @@ class CampaignController extends Controller
             ],
             'send_to_all' => 'boolean',
             'enable_tracking' => 'sometimes|boolean',
-            'status' => 'sometimes|in:draft,pending,scheduled,sending,sent,paused,cancelled',
+            'status' => 'sometimes|in:draft,scheduled,sending,sent,paused,cancelled',
             'recurring_config' => 'required_if:send_type,recurring|array',
             'recurring_config.frequency' => 'required_if:send_type,recurring|in:daily,weekly,monthly,quarterly',
             'recurring_config.days_of_week' => 'required_if:recurring_config.frequency,weekly|array',
@@ -505,7 +505,7 @@ class CampaignController extends Controller
             ],
             'send_to_all' => ['boolean'],
             'enable_tracking' => ['sometimes', 'boolean'],
-            'status' => ['sometimes', 'in:draft,pending,scheduled,sending,sent,paused,cancelled'],
+            'status' => ['sometimes', 'in:draft,scheduled,sending,sent,paused,cancelled'],
         ]);
 
         if ($validator->fails()) {

@@ -552,7 +552,7 @@ onMounted(() => {
   });
 });
 
-const submit = (status = 'pending') => {
+const submit = (status = null) => {
   // Clear any existing form errors
   form.clearErrors();
   
@@ -585,6 +585,17 @@ const submit = (status = 'pending') => {
   // Ensure html content respects tracking setting at submit time
   if (!form.enable_tracking && form.html_content) {
     form.html_content = stripTrackingFromHtml(form.html_content);
+  }
+
+  // Determine the correct status based on send_type if not explicitly provided
+  if (!status) {
+    if (form.send_type === 'scheduled') {
+      status = 'scheduled';
+    } else if (form.send_type === 'recurring') {
+      status = 'scheduled';
+    } else {
+      status = 'draft';
+    }
   }
 
   const payload = { ...form.data(), status };
@@ -740,7 +751,7 @@ function safeParseJson(str) {
 
     <div class="py-12">
       <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-        <form @submit.prevent="submit('pending')">
+        <form @submit.prevent="submit()">
           <!-- Campaign Details Section -->
           <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg mb-6">
             <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
