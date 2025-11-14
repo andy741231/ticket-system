@@ -11,6 +11,9 @@ const props = defineProps({
 
 const page = usePage();
 
+// Load affiliate programs if they exist
+const affiliatePrograms = props.team.affiliate_programs || [];
+
 // Permission: directory managers OR users viewing their own profile can edit
 const canManageDirectory = useHasAny(['directory.profile.manage']);
 const isOwnProfile = computed(() => {
@@ -75,6 +78,17 @@ const canEditProfile = computed(() => canManageDirectory.value || isOwnProfile.v
                                 <h4 class="text-lg font-semibold">Biography</h4>
                                 <div v-html="team.bio" class="mt-2 space-y-4 leading-relaxed"></div>
                             </div>
+                            
+                            <!-- Affiliate Programs Section -->
+                            <!-- <div v-if="affiliatePrograms.length > 0" class="mt-8">
+                                <h4 class="text-lg font-semibold">Affiliate Programs</h4>
+                                <div class="mt-4 space-y-4">
+                                    <div v-for="(program, index) in affiliatePrograms" :key="index" class="border rounded-lg p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                                        <h5 class="font-medium text-gray-900 dark:text-gray-100 mb-2">{{ program.title }}</h5>
+                                        <p class="text-gray-700 dark:text-gray-300">{{ program.program }}</p>
+                                    </div>
+                                </div>
+                            </div> -->
                         </div>
                     </div>
                 </div>

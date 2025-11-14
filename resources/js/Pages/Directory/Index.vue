@@ -13,6 +13,7 @@ const props = defineProps({
   group: String,
   program: String,
   availablePrograms: Array,
+  availableGroups: Array,
   availableLogos: Array,
 });
 
@@ -53,6 +54,22 @@ watch(() => searchForm.program, () => {
 
 // Export modal state
 const showExportModal = ref(false);
+
+const getDisplayTitle = (team, selectedProgram) => {
+  if (!selectedProgram) {
+    return team.title;
+  }
+
+  if (!team.affiliate_programs || team.affiliate_programs.length === 0) {
+    return team.title;
+  }
+
+  const matchedAffiliate = team.affiliate_programs.find(
+    (affiliate) => affiliate.program === selectedProgram,
+  );
+
+  return matchedAffiliate ? matchedAffiliate.title : team.title;
+};
 </script>
 
 <template>
@@ -88,8 +105,15 @@ const showExportModal = ref(false);
             class="rounded-md border-gray-300 focus:border-uh-teal focus:ring-uh-teal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             title="Filter by Group"
           >
-            <option value="default">Team</option>
-            <option value="external advisory board">External Advisory Board</option>
+            <option value="default">UHPH Team</option>
+            <option value="">All</option>
+            <option
+              v-for="groupOption in availableGroups"
+              :key="groupOption"
+              :value="groupOption"
+            >
+              {{ groupOption }}
+            </option>
           </select>
           <select
             v-model="searchForm.program"
@@ -135,7 +159,9 @@ const showExportModal = ref(false);
                         <span class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ team.degree }}</span>
                       </h3>
                     </Link>
-                    <p class="text-sm text-uh-teal dark:text-uh-teal-light mt-1">{{ team.title }}</p>
+                    <p class="text-sm text-uh-teal dark:text-uh-teal-light mt-1">
+                      {{ getDisplayTitle(team, searchForm.program) }}
+                    </p>
                     <div class="flex justify-center space-x-4 mt-2">
                       <a :href="`mailto:${team.email}`" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

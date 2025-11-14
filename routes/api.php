@@ -97,6 +97,7 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     // Newsletter logos management
     Route::get('/newsletter/logos', [LogoController::class, 'index']);
+    Route::post('/newsletter/logos', [LogoController::class, 'store']);
     Route::delete('/newsletter/logos/{filename}', [LogoController::class, 'destroy']);
     Route::put('/newsletter/logos/{filename}/rename', [LogoController::class, 'rename']);
 });

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Team;
+use App\Models\DirectoryAffiliateProgram;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +20,9 @@ class DirectoryController extends Controller
 
         $teams = Team::query()
             ->select(['id', 'first_name', 'last_name', 'description', 'img', 'title', 'degree', 'email', 'bio', 'group_1', 'program', 'team'])
+            ->with(['affiliatePrograms' => function ($query) {
+                $query->select('directory_team_id', 'title', 'program');
+            }])
             ->when($group === 'default', function ($q) {
                 $q->whereIn('group_1', ['leadership', 'team']);
             })
@@ -28,11 +32,15 @@ class DirectoryController extends Controller
             ->when($program, function ($q, $program) {
                 // Handle comma-separated program values
                 // Match: exact, start with comma after, middle with commas, end with comma before (with optional trailing comma/space)
+                // Also search in affiliate programs
                 $q->where(function ($qq) use ($program) {
                     $qq->where('program', $program)
                        ->orWhere('program', 'like', "{$program},%")
                        ->orWhere('program', 'like', "%, {$program},%")
-                       ->orWhere('program', 'like', "%, {$program}");
+                       ->orWhere('program', 'like', "%, {$program}")
+                       ->orWhereHas('affiliatePrograms', function ($aq) use ($program) {
+                           $aq->where('program', $program);
+                       });
                 });
             })
             ->when($query, function ($q, $query) {
@@ -51,7 +59,7 @@ class DirectoryController extends Controller
 
         // Get available programs for filter dropdown
         // Split comma-separated values into individual programs
-        $availablePrograms = Team::query()
+        $teamPrograms = Team::query()
             ->whereNotNull('program')
             ->where('program', '!=', '')
             ->distinct()
@@ -63,9 +71,32 @@ class DirectoryController extends Controller
             ->filter(function ($program) {
                 // Remove empty strings
                 return !empty($program);
-            })
+            });
+
+        // Get affiliate program names
+        $affiliatePrograms = \App\Models\DirectoryAffiliateProgram::query()
+            ->whereNotNull('program')
+            ->where('program', '!=', '')
+            ->distinct()
+            ->pluck('program')
+            ->filter(function ($program) {
+                return !empty($program);
+            });
+
+        // Combine and deduplicate all programs
+        $availablePrograms = $teamPrograms
+            ->merge($affiliatePrograms)
             ->unique()
             ->sort()
+            ->values();
+
+        // Get distinct group values for group filter dropdown
+        $availableGroups = Team::query()
+            ->whereNotNull('group_1')
+            ->where('group_1', '!=', '')
+            ->distinct()
+            ->orderBy('group_1')
+            ->pluck('group_1')
             ->values();
 
         // Get available logos from the logos folder
@@ -90,12 +121,15 @@ class DirectoryController extends Controller
             'group' => $group,
             'program' => $program,
             'availablePrograms' => $availablePrograms,
+            'availableGroups' => $availableGroups,
             'availableLogos' => $availableLogos,
         ]);
     }
 
     public function show(Team $team)
     {
+        $team->load('affiliatePrograms');
+        
         return Inertia::render('Directory/Show', [
             'team' => $team,
         ]);
@@ -103,6 +137,8 @@ class DirectoryController extends Controller
 
     public function edit(Team $team)
     {
+        $team->load('affiliatePrograms');
+        
         return Inertia::render('Directory/Edit', [
             'team' => $team,
         ]);
@@ -126,6 +162,9 @@ class DirectoryController extends Controller
                 'department' => 'nullable|string|max:128',
                 'tmp_folder' => 'nullable|string',
                 'tmp_filename' => 'nullable|string',
+                'affiliate_programs' => 'nullable|array',
+                'affiliate_programs.*.title' => 'required|string|max:100',
+                'affiliate_programs.*.program' => 'required|string|max:500',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()
@@ -178,6 +217,23 @@ class DirectoryController extends Controller
         }
 
         $team->update($validated);
+
+        // Handle affiliate programs
+        if (isset($validated['affiliate_programs'])) {
+            // Delete existing affiliate programs
+            $team->affiliatePrograms()->delete();
+            
+            // Create new affiliate programs
+            foreach ($validated['affiliate_programs'] as $programData) {
+                $team->affiliatePrograms()->create([
+                    'title' => $programData['title'],
+                    'program' => $programData['program'],
+                ]);
+            }
+        } else {
+            // If no affiliate programs sent, delete all existing ones
+            $team->affiliatePrograms()->delete();
+        }
 
         return redirect()
             ->route('directory.show', $team)

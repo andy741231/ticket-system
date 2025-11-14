@@ -22,7 +22,6 @@ class Ticket extends Model
         'title',
         'description',
         'status',
-        'priority',
         'due_date',
     ];
 
@@ -116,5 +115,25 @@ class Ticket extends Model
     public function images(): HasMany
     {
         return $this->hasMany(TicketImage::class);
+    }
+
+    /**
+     * Tags associated with the ticket.
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'ticket_tag')->withTimestamps();
+    }
+
+    /**
+     * Sync tags for the ticket.
+     */
+    public function syncTags(array $tagNames): void
+    {
+        $tagIds = collect($tagNames)->map(function ($name) {
+            return Tag::findOrCreateByName($name)->id;
+        });
+
+        $this->tags()->sync($tagIds);
     }
 }

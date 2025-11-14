@@ -8,7 +8,7 @@ Reason:
 
 @endif
 Title: {{ $title }}
-Priority: {{ $priority }}
+Tags: {{ $tags }}
 Status: {{ $status }}
 Reviewed by: {{ $reviewerName }}
 

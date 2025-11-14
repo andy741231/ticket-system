@@ -10,6 +10,7 @@ use App\Models\TicketImage;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Team;
+use App\Models\Tag;
 use App\Mail\TicketCreated;
 use App\Mail\TicketApproved;
 use App\Mail\TicketRejected;
@@ -39,7 +40,7 @@ class TicketController extends Controller
             ? $rawScope
             : null; // default: no explicit scope; we'll apply a base filter for non-managers
 
-        $tickets = Ticket::with(['user', 'assignees'])
+        $tickets = Ticket::with(['user', 'assignees', 'tags'])
             // Base ownership filter for non-managers when no explicit scope is selected:
             // include tickets submitted by me OR assigned to me.
             ->when(!$canManage && $scope === null, function ($query) {
@@ -68,8 +69,18 @@ class TicketController extends Controller
             ->when($request->status, function ($query, $status) {
                 $query->whereIn('status', explode(',', $status));
             })
-            ->when($request->priority, function ($query, $priority) {
-                $query->where('priority', $priority);
+            ->when($request->tags, function ($query, $tags) {
+                $names = collect(explode(',', (string) $tags))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (!empty($names)) {
+                    $query->whereHas('tags', function($sub) use ($names) {
+                        $sub->whereIn('tags.name', $names);
+                    });
+                }
             })
             ->when($request->assignee, function ($query, $assignee) {
                 $ids = collect(explode(',', (string) $assignee))
@@ -95,12 +106,16 @@ class TicketController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+        // Get all tags for filtering
+        $allTags = Tag::orderBy('name')->get()->pluck('name');
+
         return Inertia::render('Tickets/Index', [
             'tickets' => $tickets,
             'filters' => array_merge(
-                $request->only(['search', 'status', 'priority', 'assignee', 'date_from', 'date_to', 'sort_field', 'sort_direction']),
+                $request->only(['search', 'status', 'tags', 'assignee', 'date_from', 'date_to', 'sort_field', 'sort_direction']),
                 ['scope' => $scope]
             ),
+            'allTags' => $allTags,
             'status' => session('status'),
         ]);
     }
@@ -112,14 +127,17 @@ class TicketController extends Controller
     {
         $this->authorize('create', Ticket::class);
 
+        // Get all existing tags
+        $allTags = Tag::orderBy('name')->get()->pluck('name');
+
         return Inertia::render('Tickets/Create', [
-            'priorities' => ['Low', 'Medium', 'High'],
             'users' => User::all()->map(function($user) {
                 return [
                     'id' => $user->id,
                     'name' => $user->name,
                 ];
             }),
+            'allTags' => $allTags,
         ]);
     }
 
@@ -133,7 +151,6 @@ class TicketController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'priority' => 'required|in:Low,Medium,High',
             'due_date' => 'nullable|date',
             'assigned_user_ids' => 'sometimes|array',
             'assigned_user_ids.*' => 'integer|exists:users,id',
@@ -141,6 +158,8 @@ class TicketController extends Controller
             'temp_file_ids.*' => 'integer',
             'temp_image_ids' => 'sometimes|array',
             'temp_image_ids.*' => 'integer',
+            'tags' => 'sometimes|array',
+            'tags.*' => 'string|max:50',
         ]);
 
         $ticket = new Ticket($validated);
@@ -158,6 +177,11 @@ class TicketController extends Controller
 
         if ($assignedIds->isNotEmpty()) {
             $ticket->assignees()->sync($assignedIds->all());
+        }
+
+        // Sync tags
+        if ($request->has('tags')) {
+            $ticket->syncTags($request->input('tags', []));
         }
 
         // If there are temporary files, move them to the ticket and create TicketFile records
@@ -283,10 +307,10 @@ class TicketController extends Controller
                                         (new TicketCreated(
                                             ticketId: $ticket->id,
                                             title: $ticket->title,
-                                            priority: $ticket->priority,
                                             status: $ticket->status,
                                             submitterName: $submitterName,
                                             ticketUrl: $ticketUrl,
+                                            ticketTags: $ticket->tags->pluck('name')->join(', '),
                                         ))->mailer('campus_smtp')
                                     );
                                 $queuedCount++;
@@ -362,10 +386,10 @@ class TicketController extends Controller
                                 (new TicketApproved(
                                     ticketId: $ticket->id,
                                     title: $ticket->title,
-                                    priority: $ticket->priority,
                                     status: $ticket->status,
                                     submitterName: $submitterName,
                                     ticketUrl: $ticketUrl,
+                                    ticketTags: $ticket->tags->pluck('name')->join(', '),
                                 ))->mailer('campus_smtp')
                             );
                         $queuedCount++;
@@ -432,6 +456,7 @@ class TicketController extends Controller
             'files',
             'assignees',
             'updatedBy',
+            'tags',
             'comments' => function ($q) {
                 $q->with(['user:id,first_name,last_name,email'])
                   ->orderBy('created_at', 'asc');
@@ -517,19 +542,22 @@ class TicketController extends Controller
     {
         $this->authorize('update', $ticket);
         
-        // Load relationships needed for edit (files and assignees)
-        $ticket->load(['files', 'assignees']);
+        // Load relationships needed for edit (files, assignees, and tags)
+        $ticket->load(['files', 'assignees', 'tags']);
+
+        // Get all existing tags
+        $allTags = Tag::orderBy('name')->get()->pluck('name');
 
         return Inertia::render('Tickets/Edit', [
             'ticket' => $ticket,
-            'priorities' => ['Low', 'Medium', 'High'],
-            'statuses' => ['Received', 'Approved', 'Rejected', 'Completed'],
+            'statuses' => ['Received', 'Rejected', 'Completed'],
             'users' => User::all()->map(function($user) {
                 return [
                     'id' => $user->id,
                     'name' => $user->name,
                 ];
             }),
+            'allTags' => $allTags,
             'can' => [
                 'update' => auth()->user()->can('update', $ticket),
                 'delete' => auth()->user()->can('delete', $ticket),
@@ -549,11 +577,12 @@ class TicketController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'priority' => 'required|in:Low,Medium,High',
             'status' => 'sometimes|required|in:Received,Approved,Rejected,Completed',
             'due_date' => 'nullable|date',
             'assigned_user_ids' => 'sometimes|array',
             'assigned_user_ids.*' => 'integer|exists:users,id',
+            'tags' => 'sometimes|array',
+            'tags.*' => 'string|max:50',
         ]);
 
         // Fill allowed fields and update modifier
@@ -571,6 +600,11 @@ class TicketController extends Controller
         // If the field is present, sync (including empty to detach all)
         if ($request->has('assigned_user_ids')) {
             $ticket->assignees()->sync($assignedIds->all());
+        }
+
+        // Sync tags
+        if ($request->has('tags')) {
+            $ticket->syncTags($request->input('tags', []));
         }
 
         return redirect()
@@ -629,10 +663,10 @@ class TicketController extends Controller
                                     (new TicketApproved(
                                         ticketId: $ticket->id,
                                         title: $ticket->title,
-                                        priority: $ticket->priority,
                                         status: $ticket->status,
                                         submitterName: $submitterName,
                                         ticketUrl: $ticketUrl,
+                                        ticketTags: $ticket->tags->pluck('name')->join(', '),
                                     ))->mailer('campus_smtp')
                                 );
                             $queuedCount++;
@@ -698,10 +732,10 @@ class TicketController extends Controller
                                 (new TicketCompleted(
                                     ticketId: $ticket->id,
                                     title: $ticket->title,
-                                    priority: $ticket->priority,
                                     status: $ticket->status,
                                     resolverName: $resolverName,
                                     ticketUrl: $ticketUrl,
+                                    ticketTags: $ticket->tags->pluck('name')->join(', '),
                                 ))->mailer('campus_smtp')
                             );
                     } catch (\Throwable $t) {
@@ -759,11 +793,11 @@ class TicketController extends Controller
                                 (new TicketRejected(
                                     ticketId: $ticket->id,
                                     title: $ticket->title,
-                                    priority: $ticket->priority,
                                     status: $ticket->status,
                                     reviewerName: $reviewerName,
                                     ticketUrl: $ticketUrl,
                                     rejectionMessage: $rejectionMessage,
+                                    ticketTags: $ticket->tags->pluck('name')->join(', '),
                                 ))->mailer('campus_smtp')
                             );
                     } catch (\Throwable $t) {

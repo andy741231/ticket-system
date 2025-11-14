@@ -35,6 +35,7 @@ const form = useForm({
     program: props.team.program,
     team: props.team.team,
     department: props.team.department,
+    affiliate_programs: props.team.affiliate_programs || [],
 });
 
 const submit = () => {
@@ -98,6 +99,18 @@ const deleteTeam = () => {
     onFinish: () => { confirmingDeletion.value = false; },
   });
 };
+
+// Affiliate programs management
+const addAffiliateProgram = () => {
+  form.affiliate_programs.push({
+    title: '',
+    program: '',
+  });
+};
+
+const removeAffiliateProgram = (index) => {
+  form.affiliate_programs.splice(index, 1);
+};
 </script>
 
 <template>
@@ -155,6 +168,12 @@ const deleteTeam = () => {
                                 <TextInput id="degree" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.degree" />
                                 <InputError class="mt-2" :message="form.errors.degree" />
                             </div>
+
+                             <div>
+                                    <InputLabel for="program" value="Program" />
+                                    <TextInput id="program" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.program" />
+                                    <InputError class="mt-2" :message="form.errors.program" />
+                                </div>
                         
                         
                             <div>
@@ -162,13 +181,79 @@ const deleteTeam = () => {
                                 <TextInput id="title" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.title" />
                                 <InputError class="mt-2" :message="form.errors.title" />
                             </div>
-
-                             <div>
-                                <InputLabel for="group_1" value="Group" />
-                                <TextInput id="group_1" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.group_1" />
-                                <InputError class="mt-2" :message="form.errors.group_1" />
-                            </div>
                         </div>
+
+                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                               
+
+                                <div>
+                                    <InputLabel for="team" value="Team" />
+                                    <TextInput id="team" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.team" />
+                                    <InputError class="mt-2" :message="form.errors.team" />
+                                </div>
+
+                                <div>
+                                    <InputLabel for="department" value="Department" />
+                                    <TextInput id="department" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.department" />
+                                    <InputError class="mt-2" :message="form.errors.department" />
+                                </div>
+
+                                 <div>
+                                    <InputLabel for="group_1" value="Group" />
+                                    <TextInput id="group_1" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.group_1" />
+                                    <InputError class="mt-2" :message="form.errors.group_1" />
+                                </div>
+
+                            </div>
+
+                        <!-- Affiliate Programs Section -->
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <SecondaryButton type="button" @click="addAffiliateProgram">
+                                        Add Affiliate Program
+                                    </SecondaryButton>
+                                </div>
+                                
+                                <div v-if="form.affiliate_programs.length === 0" class="text-sm text-gray-500 dark:text-gray-400 text-center py-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                                    No affiliate programs added yet. Click "Add Affiliate Program" to add one.
+                                </div>
+
+                                <div v-for="(program, index) in form.affiliate_programs" :key="index" class="border rounded-lg p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h4 class="font-medium text-gray-900 dark:text-gray-100">Affiliate Program {{ index + 1 }}</h4>
+                                        <DangerButton type="button" @click="removeAffiliateProgram(index)" class="text-sm">
+                                            Remove
+                                        </DangerButton>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <InputLabel :for="`affiliate_program_${index}`" value="Program Name" />
+                                            <TextInput 
+                                                :id="`affiliate_program_${index}`" 
+                                                class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                                                v-model="program.program" 
+                                                rows="3"
+                                                placeholder=""
+                                                maxlength="500"
+                                            ></textInput>
+                                            <InputError class="mt-2" :message="form.errors[`affiliate_programs.${index}.program`]" />
+                                        </div>
+                                        <div>
+                                            <InputLabel :for="`affiliate_title_${index}`" value="Program Title" />
+                                            <TextInput 
+                                                :id="`affiliate_title_${index}`" 
+                                                type="text" 
+                                                class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" 
+                                                v-model="program.title" 
+                                                placeholder=""
+                                                maxlength="500"
+                                            />
+                                            <InputError class="mt-2" :message="form.errors[`affiliate_programs.${index}.title`]" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="border rounded-md dark:border-gray-700">
                                  <button
                                   type="button"
@@ -218,27 +303,6 @@ const deleteTeam = () => {
                                   <TicketEditor class="dark:text-gray-100" id="message" label="" v-model="form.message" :error="form.errors.message" />
                                 </div>
                             </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div>
-                                    <InputLabel for="program" value="Program" />
-                                    <TextInput id="program" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.program" />
-                                    <InputError class="mt-2" :message="form.errors.program" />
-                                </div>
-
-                                <div>
-                                    <InputLabel for="team" value="Team" />
-                                    <TextInput id="team" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.team" />
-                                    <InputError class="mt-2" :message="form.errors.team" />
-                                </div>
-
-                                <div>
-                                    <InputLabel for="department" value="Department" />
-                                    <TextInput id="department" type="text" class="dark:bg-gray-700 dark:text-gray-100 mt-1 block w-full" v-model="form.department" />
-                                    <InputError class="mt-2" :message="form.errors.department" />
-                                </div>
-                            </div>
-
                             <div class="flex items-center gap-4">
                                 <PrimaryButton type="submit" :disabled="form.processing">Save</PrimaryButton>
                                 <DangerButton type="button" @click="confirmDeletion" :disabled="deleteForm.processing">Delete</DangerButton>

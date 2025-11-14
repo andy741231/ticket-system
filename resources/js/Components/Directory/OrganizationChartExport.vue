@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import axios from 'axios';
 
 const props = defineProps({
   show: Boolean,
@@ -24,12 +25,35 @@ const width = ref(1920);
 const height = ref(1080);
 const title = ref('');
 const selectedLogo = ref('');
+const isUploading = ref(false);
+const uploadError = ref('');
+const logoUploadInput = ref(null);
+const logos = ref([]);
+
+// Load logos on mount
+onMounted(() => {
+  loadLogos();
+});
+
+// Load logos from API
+const loadLogos = async () => {
+  try {
+    const response = await axios.get('/api/newsletter/logos');
+    logos.value = response.data.logos || [];
+  } catch (error) {
+    console.error('Failed to load logos:', error);
+  }
+};
 
 // Computed logos list with "No Logo" option prepended
 const logoOptions = computed(() => {
+  const dynamicLogos = logos.value.map(logo => ({
+    value: logo.url,
+    label: logo.filename
+  }));
   return [
     { value: '', label: 'No Logo' },
-    ...props.availableLogos
+    ...dynamicLogos
   ];
 });
 
@@ -390,27 +414,170 @@ const loadImage = (src) => {
     img.src = src;
   });
 };
+
+// Handle logo upload
+const handleLogoUpload = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  isUploading.value = true;
+  uploadError.value = '';
+
+  try {
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    const response = await axios.post('/api/newsletter/logos', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    // Add the new logo to the list
+    logos.value.unshift(response.data);
+    
+    // Auto-select the newly uploaded logo
+    selectedLogo.value = response.data.url;
+    
+    // Clear the input
+    if (logoUploadInput.value) {
+      logoUploadInput.value.value = '';
+    }
+  } catch (error) {
+    console.error('Upload failed:', error);
+    uploadError.value = error.response?.data?.message || 'Failed to upload logo';
+  } finally {
+    isUploading.value = false;
+  }
+};
+
+// Handle logo delete
+const handleLogoDelete = async (logo) => {
+  if (!confirm(`Are you sure you want to delete "${logo.filename}"?`)) {
+    return;
+  }
+
+  try {
+    await axios.delete(`/api/newsletter/logos/${logo.filename}`);
+    
+    // Remove from list
+    logos.value = logos.value.filter(l => l.filename !== logo.filename);
+    
+    // Clear selection if deleted logo was selected
+    if (selectedLogo.value === logo.url) {
+      selectedLogo.value = '';
+    }
+  } catch (error) {
+    console.error('Delete failed:', error);
+    alert('Failed to delete logo');
+  }
+};
+
+// Format file size
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+// Format date
+const formatDate = (timestamp) => {
+  return new Date(timestamp * 1000).toLocaleDateString();
+};
 </script>
 
 <template>
-  <Modal :show="show" @close="closeModal" max-width="md">
+  <Modal :show="show" @close="closeModal" max-width="lg">
     <div class="p-6 dark:bg-gray-800">
       <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
         Export Organization Chart
       </h2>
       
-      <div class="space-y-4">
+      <div class="space-y-6">
+        <!-- Logo Selection and Upload -->
         <div>
-          <InputLabel for="logo" value="Logo (optional)" />
-          <select
-            id="logo"
-            v-model="selectedLogo"
-            class="mt-1 block w-full rounded-md border-gray-300 focus:border-uh-teal focus:ring-uh-teal dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-          >
-            <option v-for="logo in logoOptions" :key="logo.value" :value="logo.value">
-              {{ logo.label }}
-            </option>
-          </select>
+          
+          
+          <!-- Logo Upload -->
+          <div class="mt-3">
+            <input
+              ref="logoUploadInput"
+              type="file"
+              accept="image/*"
+              @change="handleLogoUpload"
+              class="hidden"
+              id="logo-upload"
+            />
+            <label
+              for="logo-upload"
+              class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+              :class="{ 'opacity-50 cursor-not-allowed': isUploading }"
+            >
+              <font-awesome-icon icon="upload" class="h-4 w-4 mr-2" />
+              <span v-if="isUploading">Uploading...</span>
+              <span v-else>Upload New Logo</span>
+            </label>
+            
+            <!-- Upload Error -->
+            <div v-if="uploadError" class="mt-2 text-sm text-red-600 dark:text-red-400">
+              {{ uploadError }}
+            </div>
+          </div>
+          
+          <!-- Logo Preview -->
+          <div v-if="logos.length > 0" class="mt-4">
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Available Logos ({{ logos.length }})
+            </p>
+            <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 dark:border-gray-600">
+              <div class="grid grid-cols-2 gap-3">
+                <div
+                  v-for="logo in logos"
+                  :key="logo.filename"
+                  class="relative group border rounded-lg p-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:border-gray-600"
+                  :class="{ 'ring-2 ring-uh-teal': selectedLogo === logo.url }"
+                >
+                  <!-- Logo Thumbnail -->
+                  <div class="flex items-center space-x-3">
+                    <img
+                      :src="logo.url"
+                      :alt="logo.filename"
+                      class="h-12 w-12 object-contain rounded"
+                      @error="$event.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yNCAzMkMxOS41ODE3IDMyIDE2IDI4LjQxODMgMTYgMjRDMTYgMTkuNTgxNyAxOS41ODE3IDE2IDI0IDE2QzI4LjQxODMgMTYgMzIgMTkuNTgxNyAzMiAyNEMzMiAyOC40MTgzIDI4LjQxODMgMzIgMjQgMzJaIiBmaWxsPSIjOUNBM0FGIi8+Cjwvc3ZnPgo='"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                        {{ logo.filename }}
+                      </p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ formatFileSize(logo.size) }} • {{ formatDate(logo.modified_at) }}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <!-- Actions -->
+                  <div class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      @click="selectedLogo = logo.url"
+                      class="p-1 text-uh-teal hover:text-uh-teal-dark dark:text-uh-teal-light dark:hover:text-uh-teal"
+                      title="Select this logo"
+                    >
+                      <font-awesome-icon icon="check" class="h-3 w-3" />
+                    </button>
+                    <button
+                      @click="handleLogoDelete(logo)"
+                      class="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                      title="Delete logo"
+                    >
+                      <font-awesome-icon icon="trash" class="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div>

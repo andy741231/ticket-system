@@ -3,7 +3,7 @@ New Ticket #{{ $ticketId }}
 A new ticket has been created in The Hub.
 
 Title: {{ $title }}
-Priority: {{ $priority }}
+Tags: {{ $tags }}
 Submitted by: {{ $submitterName }}
 
 View Ticket: {{ $ticketUrl }}

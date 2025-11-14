@@ -63,11 +63,6 @@ const handlePinToggled = (comment) => {
     });
 };
 
-const priorityClasses = {
-    'Low': 'dark:text-uh-cream bg-uh-slate/20 text-uh-slate',
-    'Medium': 'dark:text-uh-cream bg-uh-teal/20 text-uh-forest',
-    'High': 'dark:text-uh-cream bg-uh-red/20 text-uh-brick',
-};
 
 const statusOptions = {
     'Rejected': 'Reject',
@@ -186,6 +181,20 @@ const isImage = (mime) => !!mime && mime.startsWith('image/');
 const getFileUrl = (file) => {
     if (!file) return '#';
     return '/storage/' + file.file_path;
+};
+
+// Get color for tag badge (matching TagSelector component)
+const getTagColor = (index) => {
+    const colors = [
+        'bg-uh-red/20 text-uh-red border-uh-red/30 dark:bg-uh-red/20 dark:text-uh-red dark:border-uh-red/30',
+        'bg-uh-teal/20 text-uh-teal border-uh-teal/30 dark:bg-uh-teal/20 dark:text-uh-teal dark:border-uh-teal/30',
+        'bg-uh-gold/20 text-uh-ocher border-uh-gold/30 dark:bg-uh-gold/20 dark:text-uh-ocher dark:border-uh-gold/30',
+        'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700',
+        'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-700',
+        'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-700',
+        'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-700',
+    ];
+    return colors[index % colors.length];
 };
 
 // Ticket URL and clipboard helpers
@@ -584,12 +593,7 @@ const closeProofModal = () => {
                                         />
                                         {{ ticket.status }}
                                     </span>
-                                    <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                        <font-awesome-icon icon="flag" class="w-4 h-4" />
-                                        <span :class="[priorityClasses[ticket.priority], 'px-2 py-1 rounded-full text-xs font-medium']">
-                                            {{ ticket.priority }} Priority
-                                        </span>
-                                    </div>
+                                  
                                 </div>
                             </div>
 
@@ -895,6 +899,27 @@ const closeProofModal = () => {
                                             </span>
                                         </template>
                                         <span v-else class="text-gray-400">Unassigned</span>
+                                    </div>
+                                </div>
+
+                                <!-- Labels Info -->
+                                <div class="bg-gray-50 dark:bg-gray-700 p-5 rounded-lg border border-gray-200 dark:border-gray-600">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <font-awesome-icon icon="tag" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                        Labels
+                                    </h3>
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <template v-if="ticket.tags && ticket.tags.length">
+                                            <span 
+                                                v-for="(tag, index) in ticket.tags" 
+                                                :key="tag.id || tag.name"
+                                                :class="getTagColor(index)"
+                                                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
+                                            >
+                                                {{ tag.name }}
+                                            </span>
+                                        </template>
+                                        <span v-else class="text-sm text-gray-400 dark:text-gray-500">No labels</span>
                                     </div>
                                 </div>
                                 

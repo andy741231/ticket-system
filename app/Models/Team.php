@@ -61,6 +61,14 @@ class Team extends Model
     ];
 
     /**
+     * Get the affiliate programs for this team.
+     */
+    public function affiliatePrograms()
+    {
+        return $this->hasMany(DirectoryAffiliateProgram::class, 'directory_team_id');
+    }
+
+    /**
      * Accessor for a combined full name for backward compatibility.
      */
     public function getNameAttribute(): string

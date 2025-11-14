@@ -53,7 +53,6 @@ const props = defineProps({
         type: Object,
         default: () => ({
             status: '',
-            priority: '',
             search: '',
             assignee: '',
             date_from: '',
@@ -67,11 +66,19 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    allTags: {
+        type: Array,
+        default: () => [],
+    },
 });
 
-const statuses = ['Received', 'Approved', 'Rejected', 'Completed'];
+const statuses = ['Received', 'Rejected', 'Completed'];
 const statusOptions = statuses.map(s => ({ id: s, name: s }));
 const selectedStatuses = ref(props.filters.status ? props.filters.status.split(',') : []);
+
+// Tag / label filters
+const tagOptions = computed(() => (props.allTags || []).map(name => ({ id: name, name })));
+const selectedTags = ref(props.filters.tags ? props.filters.tags.split(',') : []);
 
 // Select all statuses
 const selectAllStatuses = () => {
@@ -97,6 +104,7 @@ const canUpdateTickets = useHasAny(['tickets.ticket.update', 'tickets.ticket.man
 // Local storage keys (scoped per user)
 const getViewModeKey = () => `tickets.index.viewMode.${authUser.value?.id ?? 'guest'}`;
 const getStatusesKey = () => `tickets.index.statuses.${authUser.value?.id ?? 'guest'}`;
+const getTagsKey = () => `tickets.index.tags.${authUser.value?.id ?? 'guest'}`;
 const getScopeKey = () => `tickets.index.scope.${authUser.value?.id ?? 'guest'}`;
 
 // Initialize user preferences from localStorage
@@ -115,6 +123,17 @@ onMounted(() => {
             if (Array.isArray(parsed)) {
                 // Only keep valid statuses
                 selectedStatuses.value = parsed.filter(s => statuses.includes(s));
+            }
+        }
+    } catch (e) { /* noop */ }
+
+    try {
+        const savedTags = localStorage.getItem(getTagsKey());
+        if (savedTags) {
+            const parsed = JSON.parse(savedTags);
+            if (Array.isArray(parsed)) {
+                const valid = parsed.filter(t => (props.allTags || []).includes(t));
+                selectedTags.value = valid;
             }
         }
     } catch (e) { /* noop */ }
@@ -203,7 +222,6 @@ const canEdit = (ticket) => {
     return isOwner && isEditable;
 };
 
-// Status and priority styling with icons and colors
 const statusBadgeClasses = {
     'Received': { 
         class: 'bg-uh-teal/20 dark:text-uh-cream',
@@ -223,24 +241,12 @@ const statusBadgeClasses = {
     },
 };
 
-const priorityBadgeClasses = {
-    'Low': { 
-        class: 'bg-uh-teal/30 dark:text-uh-cream text-uh-slate',
-    },
-    'Medium': { 
-        class: 'bg-uh-gold/50 dark:text-uh-cream text-uh-slate',
-    },
-    'High': { 
-        class: 'bg-uh-brick/70 dark:bg-uh-brick/50 text-white',
-    },
-};
     
 // Visible columns based on role
 const visibleColumns = ref({
     id: true,
     title: true,
     status: true,
-    priority: true,
     assignee: false, // Will be set by the watcher
     created_at: true,
     updated_at: false,
@@ -266,7 +272,7 @@ const performSearch = () => {
     const params = {
         search: search.value,
         status: selectedStatuses.value.join(','),
-        priority: props.filters.priority,
+        tags: selectedTags.value.join(','),
         assignee: props.filters.assignee,
         date_from: props.filters.date_from,
         date_to: props.filters.date_to,
@@ -296,13 +302,18 @@ watch(selectedStatuses, (val) => {
     performSearch();
 }, { deep: true });
 
+watch(selectedTags, (val) => {
+    try { localStorage.setItem(getTagsKey(), JSON.stringify(val)); } catch (e) { /* noop */ }
+    performSearch();
+}, { deep: true });
+
 // Trigger search on ownership scope change
 watch(ownershipScope, () => {
     performSearch();
 });
 
 // Perform initial search if there's an initial search query
-if (props.filters.search || props.filters.status || props.filters.scope) {
+if (props.filters.search || props.filters.status || props.filters.tags || props.filters.scope) {
     performSearch();
 }
 
@@ -413,24 +424,37 @@ const timeAgo = (dateString) => {
                                 </div>
 
                                 <!-- Status Filters -->
-                                <div class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                                <div class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4 flex flex-col gap-3">
                                     <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full">
-                                      <div class="w-full sm:w-64 sm:flex-none min-w-0">
-                                        <MultiSelectCheckbox
-                                          v-model="selectedStatuses"
-                                          :options="statusOptions"
-                                          placeholder="Filter by status"
-                                          class="ms-status"
-                                        />
-                                      </div>
-                                      <button 
-                                        @click="clearAllStatuses" 
-                                        class="w-full sm:w-auto shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal/50"
-                                      >
-                                        Clear All
-                                      </button>
+                                        <div class="w-full sm:w-64 sm:flex-none min-w-0">
+                                            <MultiSelectCheckbox
+                                                v-model="selectedStatuses"
+                                                :options="statusOptions"
+                                                placeholder="Filter by status"
+                                                class="ms-status"
+                                            />
+                                        </div>
+                                        <button 
+                                            @click="clearAllStatuses" 
+                                            class="w-full sm:w-auto shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 dark:text-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-uh-teal/50"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
+
+                                    <!-- Labels / Tags Filter -->
+                                    <div class="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 w-full">
+                                        <div class="w-full sm:w-64 sm:flex-none min-w-0">
+                                            <MultiSelectCheckbox
+                                                v-model="selectedTags"
+                                                :options="tagOptions"
+                                                placeholder="Filter by labels"
+                                                class="ms-tags"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
+
                                 <!-- View Mode -->
                                 <div class="border border-gray-200 dark:border-gray-600 flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                                     <button 
@@ -490,6 +514,16 @@ const timeAgo = (dateString) => {
                                             <span class="ml-2 text-sm text-uh-slate dark:text-uh-cream">{{ ticket.user.name }}</span>
                                         </div>
                                     </div>
+                                    <!-- Tags -->
+                                    <div v-if="ticket.tags && ticket.tags.length > 0" class="mt-3 flex flex-wrap gap-1.5">
+                                        <span
+                                            v-for="tag in ticket.tags"
+                                            :key="tag.id"
+                                            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/20 text-uh-slate dark:text-uh-cream border border-uh-teal/30"
+                                        >
+                                            {{ tag.name }}
+                                        </span>
+                                    </div>
                                 </div>
                             </Link>
                             </div>
@@ -515,12 +549,6 @@ const timeAgo = (dateString) => {
                                                                 <span class="ml-1">{{ getSortIndicator('status') }}</span>
                                                             </div>
                                                         </th>
-                                                        <th @click="sortBy('priority')" scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-uh-slate dark:text-uh-cream sm:table-cell cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                                            <div class="flex items-center">
-                                                                Priority
-                                                                <span class="ml-1">{{ getSortIndicator('priority') }}</span>
-                                                            </div>
-                                                        </th>
                                                         <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-uh-slate dark:text-uh-cream lg:table-cell">
                                                         <div class="flex items-center">
                                                             Assignee
@@ -536,7 +564,7 @@ const timeAgo = (dateString) => {
                                                 </thead>
                                                 <tbody class="bg-uh-white dark:bg-uh-slate/10 divide-y divide-uh-slate/10 dark:divide-uh-slate/20">
                                                     <tr v-if="sortedTickets.length === 0">
-                                                        <td colspan="6" class="px-6 py-12 text-center">
+                                                        <td colspan="5" class="px-6 py-12 text-center">
                                                             <font-awesome-icon icon="ticket" class="mx-auto h-12 w-12 text-uh-gray" />
                                                             <h3 class="mt-2 text-sm font-medium text-uh-slate dark:text-uh-cream">No tickets</h3>
                                                             <p class="mt-1 text-sm text-uh-gray dark:text-uh-cream/70">
@@ -555,12 +583,20 @@ const timeAgo = (dateString) => {
     @click="$inertia.visit(route('tickets.show', ticket.id))"
     class="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
 >
-                                                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-gray-100 sm:pl-6">
-                                                            <div class="flex items-center">
-                                                                <div class="">
-                                                                    <Link :href="route('tickets.show', ticket.id)" class="font-medium text-uh-slate dark:text-uh-cream hover:text-uh-teal dark:hover:text-uh-teal/80 transition-colors">
-                                                                        {{ ticket.title }}
-                                                                    </Link>
+                                                        <td class="py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-gray-100 sm:pl-6">
+                                                            <div class="flex flex-col gap-2">
+                                                                <Link :href="route('tickets.show', ticket.id)" class="font-medium text-uh-slate dark:text-uh-cream hover:text-uh-teal dark:hover:text-uh-teal/80 transition-colors">
+                                                                    {{ ticket.title }}
+                                                                </Link>
+                                                                <!-- Tags -->
+                                                                <div v-if="ticket.tags && ticket.tags.length > 0" class="flex flex-wrap gap-1">
+                                                                    <span
+                                                                        v-for="tag in ticket.tags"
+                                                                        :key="tag.id"
+                                                                        class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-teal/20 text-uh-slate dark:text-uh-cream border border-uh-teal/30"
+                                                                    >
+                                                                        {{ tag.name }}
+                                                                    </span>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -568,12 +604,6 @@ const timeAgo = (dateString) => {
                                                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400 lg:table-cell">
                                                             <span :class="[statusBadgeClasses[ticket.status]?.class || 'bg-gray-100 text-gray-800', 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize']">
                                                                 {{ ticket.status }}
-                                                            </span>
-                                                        </td>
-                                                        <!-- Priority Badge -->
-                                                        <td class="whitespace-nowrap w-100 px-3 py-4 text-sm text-gray-500 dark:text-gray-400 sm:table-cell">
-                                                            <span :class="[priorityBadgeClasses[ticket.priority]?.class || 'bg-gray-100 text-gray-800', 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize']">
-                                                                {{ ticket.priority || 'Not set' }}
                                                             </span>
                                                         </td>
                                                         <!-- Assignees (Admin Only) -->

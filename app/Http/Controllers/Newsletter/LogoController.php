@@ -43,6 +43,41 @@ class LogoController extends Controller
         return response()->json(['logos' => $logos]);
     }
 
+    public function store(Request $request)
+    {
+        $request->validate([
+            'logo' => 'required|file|image|mimes:jpeg,jpg,png,gif,webp,svg|max:2048',
+        ]);
+
+        $file = $request->file('logo');
+        $originalName = $file->getClientOriginalName();
+        $extension = $file->getClientOriginalExtension();
+        $filename = pathinfo($originalName, PATHINFO_FILENAME);
+        
+        // Sanitize filename
+        $filename = preg_replace('/[^A-Za-z0-9_.-]/', '-', $filename);
+        $filename = ltrim($filename, '.');
+        
+        // Ensure unique filename
+        $counter = 1;
+        $finalName = $filename . '.' . $extension;
+        while (Storage::disk('public')->exists($this->baseFolder . '/' . $finalName)) {
+            $finalName = $filename . '-' . $counter . '.' . $extension;
+            $counter++;
+        }
+
+        $path = $file->storeAs($this->baseFolder, $finalName, 'public');
+
+        return response()->json([
+            'message' => 'Logo uploaded successfully',
+            'filename' => $finalName,
+            'path' => $path,
+            'url' => url(Storage::url($path)),
+            'size' => Storage::disk('public')->size($path),
+            'modified_at' => Storage::disk('public')->lastModified($path),
+        ]);
+    }
+
     public function destroy(Request $request, string $filename)
     {
         $filename = basename($filename); // prevent path traversal

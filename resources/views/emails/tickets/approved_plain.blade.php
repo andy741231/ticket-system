@@ -3,7 +3,7 @@ Ticket #{{ $ticketId }} Assigned
 A ticket has been assigned to you in The Hub.
 
 Title: {{ $title }}
-Priority: {{ $priority }}
+Tags: {{ $tags }}
 Status: {{ $status }}
 Submitted by: {{ $submitterName }}
 

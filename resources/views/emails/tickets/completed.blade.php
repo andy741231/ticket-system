@@ -23,7 +23,7 @@
 
         <div class="meta">
             <p><strong>Title:</strong> {{ $title }}</p>
-            <p><strong>Priority:</strong> {{ $priority }}</p>
+            <p><strong>Tags:</strong> {{ $tags }}</p>
             <p><strong>Status:</strong> {{ $status }}</p>
             <p><strong>Resolved by:</strong> {{ $resolverName }}</p>
         </div>

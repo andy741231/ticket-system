@@ -8,10 +8,10 @@ class TicketCompleted extends BaseTicketMailable
 {
     public int $ticketId;
     public string $title;
-    public string $priority;
     public string $status;
     public string $resolverName;
     public string $ticketUrl;
+    public string $ticketTags;
 
     /**
      * Create a new message instance.
@@ -19,17 +19,17 @@ class TicketCompleted extends BaseTicketMailable
     public function __construct(
         int $ticketId,
         string $title,
-        string $priority,
         string $status,
         string $resolverName,
         string $ticketUrl,
+        string $ticketTags = '',
     ) {
         $this->ticketId = $ticketId;
         $this->title = $title;
-        $this->priority = $priority;
         $this->status = $status;
         $this->resolverName = $resolverName;
         $this->ticketUrl = $ticketUrl;
+        $this->ticketTags = $ticketTags;
     }
 
     /**
@@ -45,7 +45,7 @@ class TicketCompleted extends BaseTicketMailable
             intro: 'Your ticket has been marked as completed in The Hub.',
             meta: [
                 'Title' => $this->title,
-                'Priority' => $this->priority,
+                'Tags' => $this->ticketTags ?: 'None',
                 'Status' => $this->status,
                 'Resolved by' => $this->resolverName,
             ],

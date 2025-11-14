@@ -8,11 +8,11 @@ class TicketRejected extends BaseTicketMailable
 {
     public int $ticketId;
     public string $title;
-    public string $priority;
     public string $status;
     public string $reviewerName;
     public string $ticketUrl;
     public ?string $rejectionMessage;
+    public string $ticketTags;
 
     /**
      * Create a new message instance.
@@ -20,19 +20,19 @@ class TicketRejected extends BaseTicketMailable
     public function __construct(
         int $ticketId,
         string $title,
-        string $priority,
         string $status,
         string $reviewerName,
         string $ticketUrl,
         ?string $rejectionMessage = null,
+        string $ticketTags = '',
     ) {
         $this->ticketId = $ticketId;
         $this->title = $title;
-        $this->priority = $priority;
         $this->status = $status;
         $this->reviewerName = $reviewerName;
         $this->ticketUrl = $ticketUrl;
         $this->rejectionMessage = $rejectionMessage;
+        $this->ticketTags = $ticketTags;
     }
 
     /**
@@ -48,7 +48,7 @@ class TicketRejected extends BaseTicketMailable
             ->with([
                 'ticketId' => $this->ticketId,
                 'title' => $this->title,
-                'priority' => $this->priority,
+                'tags' => $this->ticketTags ?: 'None',
                 'status' => $this->status,
                 'reviewerName' => $this->reviewerName,
                 'ticketUrl' => $this->ticketUrl,

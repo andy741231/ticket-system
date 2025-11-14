@@ -11,6 +11,7 @@ import TicketEditor from '@/Components/WYSIWYG/TicketEditor.vue';
 import FileUploader from '@/Components/FileUploader.vue';
 import MultiSelectCheckbox from '@/Components/MultiSelectCheckbox.vue';
 import AnnotationInterface from '@/Components/Annotation/AnnotationInterface.vue';
+import TagSelector from '@/Components/TagSelector.vue';
 import ProofUploadModal from '@/Components/ProofUploadModal.vue';
 import Datepicker from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
@@ -22,10 +23,6 @@ const props = defineProps({
         type: Object,
         required: true,
     },
-    priorities: {
-        type: Array,
-        default: () => ['Low', 'Medium', 'High'],
-    },
     statuses: {
         type: Array,
         default: () => ['Received', 'Rejected', 'Completed'],
@@ -33,6 +30,10 @@ const props = defineProps({
     users: {
         type: Array,
         required: true,
+    },
+    allTags: {
+        type: Array,
+        default: () => [],
     },
     can: {
         type: Object,
@@ -119,10 +120,10 @@ const formatFileSize = (bytes) => {
 const form = useForm({
     title: props.ticket.title,
     description: props.ticket.description,
-    priority: props.ticket.priority,
     status: props.ticket.status,
     due_date: formatDateForInput(props.ticket.due_date) || '',
     assigned_user_ids: (props.ticket.assignees || []).map(u => u.id),
+    tags: (props.ticket.tags || []).map(t => t.name),
     _method: 'PUT',
 });
 
@@ -178,11 +179,11 @@ watch(existingFiles, (newVal) => {
 watch(() => props.ticket, (newTicket) => {
     if (newTicket) {
         form.title = newTicket.title;
-        form.priority = newTicket.priority;
         form.status = newTicket.status;
         form.description = newTicket.description;
         form.due_date = formatDateForInput(newTicket.due_date) || '';
         form.assigned_user_ids = (newTicket.assignees || []).map(u => u.id);
+        form.tags = (newTicket.tags || []).map(t => t.name);
     }
 }, { deep: true });
 
@@ -225,97 +226,122 @@ const cancel = () => {
             
         </template>
 
-        <div class="py-6">
+        <div class="py-8">
             <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white dark:bg-gray-800 text-uh-slate dark:text-uh-cream overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 text-gray-900 dark:text-gray-100">
-                        <form @submit.prevent="submit" class="space-y-6">
-                            <!-- Title -->
-                            <div>
-                                <InputLabel class="text-uh-slate dark:text-uh-cream" for="title" value="Title" />
-                                <TextInput
-                                    id="title"
-                                    type="text"
-                                    class="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-uh-slate dark:text-uh-cream"
-                                    v-model="form.title"
-                                    required
-                                    autofocus
-                                />
-                                <InputError class="mt-2" :message="form.errors.title" />
-                            </div>
+                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-8">
+                        <!-- Page Header -->
+                        <div class="mb-8">
+                            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Edit Ticket #{{ props.ticket.id }}</h1>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Update the fields below and save your changes.</p>
+                        </div>
 
-                            <!-- Priority -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <InputLabel class="text-uh-slate dark:text-uh-cream" for="priority" value="Priority" />
-                                    <select
-                                        id="priority"
-                                        v-model="form.priority"
-                                        class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-uh-teal dark:focus:border-uh-teal focus:ring-uh-teal dark:focus:ring-uh-teal rounded-md shadow-sm"
-                                    >
-                                        <option v-for="priority in priorities" :key="priority" :value="priority">
-                                            {{ priority }}
-                                        </option>
-                                    </select>
-                                    <InputError class="mt-2" :message="form.errors.priority" />
+                        <form @submit.prevent="submit" class="space-y-8">
+                            <!-- Basic Information Section -->
+                            <div class="space-y-6">
+                                <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Basic Information</h2>
                                 </div>
 
-                                <!-- Status (requires manage or update permission) -->
-                                <div v-if="canChangeStatus">
-                                    <InputLabel class="text-uh-slate dark:text-uh-cream" for="status" value="Status" />
-                                    <select
-                                        id="status"
-                                        v-model="form.status"
-                                        class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-uh-teal dark:focus:border-uh-teal focus:ring-uh-teal dark:focus:ring-uh-teal rounded-md shadow-sm"
-                                    >
-                                        <option v-for="status in statuses" :key="status" :value="status">
-                                            {{ status }}
-                                        </option>
-                                    </select>
-                                    <InputError class="mt-2" :message="form.errors.status" />
-                                </div>
-                                <!-- Due Date -->
+                                <!-- Title -->
                                 <div>
-                                    <InputLabel class="text-uh-slate dark:text-uh-cream" for="due_date" value="Due Date" />
-                                    <Datepicker
-                                        id="due_date"
-                                        v-model="form.due_date"
-                                        model-type="yyyy-MM-dd"
-                                        :enable-time-picker="false"
-                                        :dark="isDark"
-                                        :teleport="true"
-                                        :auto-apply="true"
-                                        :hide-input-icon="false"
-                                        input-class-name="mt-1 block w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-uh-slate dark:text-uh-cream rounded-md shadow-sm"
-                                        placeholder="Select a due date"
+                                    <InputLabel class="text-sm font-medium text-gray-700 dark:text-gray-300" for="title" value="Title *" />
+                                    <TextInput
+                                        id="title"
+                                        type="text"
+                                        class="mt-2 block w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:border-uh-teal focus:ring-uh-teal rounded-md shadow-sm"
+                                        v-model="form.title"
+                                        required
+                                        autofocus
                                     />
-                                    <InputError class="mt-2" :message="form.errors.due_date" />
+                                    <InputError class="mt-2" :message="form.errors.title" />
                                 </div>
+
+                                <!-- Description (Tiptap Editor) -->
+                                <div>
+                                    <TicketEditor
+                                        v-model="form.description"
+                                        :error="form.errors.description"
+                                        label="Description"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.description" />
+                                </div>
+                            </div>
+
+                            <!-- Status (requires manage or update permission) -->
+                            <!-- Assignment & Organization Section -->
+                            <div class="space-y-6">
+                                <div class="border-b border-gray-200 dark:border-gray-700 pb-4">
+                                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Assignment & Organization</h2>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-4">
+                                        <!-- Status (requires manage or update permission) -->
+                                        <div v-if="canChangeStatus">
+                                            <InputLabel class="text-sm font-medium text-gray-700 dark:text-gray-300" for="status" value="Status" />
+                                            <select
+                                                id="status"
+                                                v-model="form.status"
+                                                class="mt-2 block w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-uh-teal dark:focus:border-uh-teal focus:ring-uh-teal dark:focus:ring-uh-teal rounded-md shadow-sm text-sm"
+                                            >
+                                                <option v-for="status in statuses" :key="status" :value="status">
+                                                    {{ status }}
+                                                </option>
+                                            </select>
+                                            <InputError class="mt-2" :message="form.errors.status" />
+                                        </div>
+
+                                        <!-- Due Date -->
+                                        <div>
+                                            <InputLabel class="text-sm font-medium text-gray-700 dark:text-gray-300" for="due_date" value="Due Date" />
+                                            <div class="mt-2">
+                                                <Datepicker
+                                                    id="due_date"
+                                                    v-model="form.due_date"
+                                                    model-type="yyyy-MM-dd"
+                                                    :enable-time-picker="false"
+                                                    :dark="isDark"
+                                                    :teleport="true"
+                                                    :auto-apply="true"
+                                                    :hide-input-icon="false"
+                                                    input-class-name="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 text-sm focus:border-uh-teal focus:ring-uh-teal focus:ring-2 focus:outline-none rounded-md shadow-sm"
+                                                    placeholder="Select a due date"
+                                                />
+                                            </div>
+                                            <InputError class="mt-2" :message="form.errors.due_date" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Labels -->
+                                    <div>
+                                        <InputLabel class="text-sm font-medium text-gray-700 dark:text-gray-300" for="tags" value="Labels" />
+                                        <div class="mt-2">
+                                            <TagSelector
+                                                v-model="form.tags"
+                                                :suggestions="allTags"
+                                                placeholder="Search labels"
+                                            />
+                                        </div>
+                                        <InputError class="mt-2" :message="form.errors.tags" />
+                                    </div>
+                                </div>
+
                                 <!-- Assign User -->
-                            <div class="">
-                                <InputLabel class="text-uh-slate dark:text-uh-cream" for="assigned_user_ids" value="Assign To" />
-                                <MultiSelectCheckbox
-                                    id="assigned_user_ids"
-                                    v-model="form.assigned_user_ids"
-                                    :options="props.users"
-                                    label-key="name"
-                                    value-key="id"
-                                    placeholder="Select assignees"
-                                />
-                                <InputError class="mt-2" :message="form.errors.assigned_user_ids" />
-                            </div>
-                            </div>
-
-                            
-
-                            <!-- Description (Tiptap Editor) -->
-                            <div>
-                                <TicketEditor
-                                    v-model="form.description"
-                                    :error="form.errors.description"
-                                    label="Description"
-                                />
-                                <InputError class="mt-2" :message="form.errors.description" />
+                                <div>
+                                    <InputLabel class="text-sm font-medium text-gray-700 dark:text-gray-300" for="assigned_user_ids" value="Assign To" />
+                                    <div class="mt-2">
+                                        <MultiSelectCheckbox
+                                            id="assigned_user_ids"
+                                            v-model="form.assigned_user_ids"
+                                            :options="props.users"
+                                            label-key="name"
+                                            value-key="id"
+                                            placeholder="Select assignees"
+                                        />
+                                    </div>
+                                    <InputError class="mt-2" :message="form.errors.assigned_user_ids" />
+                                </div>
                             </div>
 
                             <!-- File Uploader and Add Proof Button -->

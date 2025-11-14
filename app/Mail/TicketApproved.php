@@ -8,10 +8,10 @@ class TicketApproved extends BaseTicketMailable
 {
     public int $ticketId;
     public string $title;
-    public string $priority;
     public string $status;
     public string $submitterName;
     public string $ticketUrl;
+    public string $ticketTags;
 
     /**
      * Create a new message instance.
@@ -19,17 +19,17 @@ class TicketApproved extends BaseTicketMailable
     public function __construct(
         int $ticketId,
         string $title,
-        string $priority,
         string $status,
         string $submitterName,
         string $ticketUrl,
+        string $ticketTags = '',
     ) {
         $this->ticketId = $ticketId;
         $this->title = $title;
-        $this->priority = $priority;
         $this->status = $status;
         $this->submitterName = $submitterName;
         $this->ticketUrl = $ticketUrl;
+        $this->ticketTags = $ticketTags;
     }
 
     /**
@@ -45,7 +45,7 @@ class TicketApproved extends BaseTicketMailable
             intro: 'A ticket you are assigned to has been approved in The Hub.',
             meta: [
                 'Title' => $this->title,
-                'Priority' => $this->priority,
+                'Tags' => $this->ticketTags ?: 'None',
                 'Status' => $this->status,
                 'Submitted by' => $this->submitterName,
             ],
