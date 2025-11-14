@@ -549,7 +549,7 @@ onBeforeUnmount(() => {
                 </div>
                 
                 <!-- Editor Content -->
-                <div class="p-4 bg-white dark:bg-gray-900 min-h-[300px] max-h-[600px] overflow-y-auto focus:outline-none" :class="{ 'border-red-500': error }">
+                <div class="p-4 bg-white dark:text-gray-200 dark:bg-gray-900 min-h-[300px] max-h-[600px] overflow-y-auto focus:outline-none" :class="{ 'border-red-500': error }">
                     <EditorContent 
                         :editor="editor" 
                         class="prose dark:prose-invert max-w-none focus:outline-none"

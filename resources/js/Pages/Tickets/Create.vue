@@ -191,7 +191,7 @@ const cancel = () => {
                                     <TicketEditor
                                         v-model="form.description"
                                         :error="form.errors.description"
-                                        label="Description"
+                                        label="Description *"
                                     />
                                     <InputError class="mt-2" :message="form.errors.description" />
                                 </div>

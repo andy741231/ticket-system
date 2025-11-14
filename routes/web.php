@@ -160,6 +160,7 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
 // Tickets Routes (now using TicketController)
 Route::middleware(['auth', 'verified'])->prefix('tickets')->name('tickets.')->group(function () {
     Route::get('/', [TicketController::class, 'index'])->name('index');
+    Route::get('/analytics', [\App\Http\Controllers\TicketAnalyticsController::class, 'index'])->name('analytics');
     Route::get('/create', [TicketController::class, 'create'])->name('create');
     Route::post('/', [TicketController::class, 'store'])->name('store');
     Route::get('/{ticket}', [TicketController::class, 'show'])->name('show');

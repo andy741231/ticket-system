@@ -95,6 +95,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     // Dashboard stats
     Route::get('/dashboard-stats', [DashboardController::class, 'stats']);
 
+    // Ticket analytics data
+    Route::get('/tickets/analytics/data', [\App\Http\Controllers\TicketAnalyticsController::class, 'data']);
+
     // Newsletter logos management
     Route::get('/newsletter/logos', [LogoController::class, 'index']);
     Route::post('/newsletter/logos', [LogoController::class, 'store']);

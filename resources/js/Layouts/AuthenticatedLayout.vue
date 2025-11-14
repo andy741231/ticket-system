@@ -123,6 +123,8 @@ const userMenuOpen = ref(false);
 const userMgmtOpen = ref(route().current('admin.*'));
 // Collapsible state for Newsletter submenu (open when on any authenticated newsletter route)
 const newsletterOpen = ref(route().current('newsletter.*'));
+// Collapsible state for Tickets submenu (open when on any tickets route)
+const ticketsOpen = ref(route().current('tickets.*'));
 
 // Media query references for cleanup
 let darkModeMediaQuery = null;
@@ -328,17 +330,20 @@ const navigate = (url) => {
                             <span class="ml-3 font-medium">Dashboard</span>
                         </NavLink>
 
-                        <NavLink 
+                        <!-- Tickets: Top-level toggle-only (no direct navigation) -->
+                        <button
                             v-if="isSuperAdmin || hasAny(['tickets.app.access'])"
-                            :href="route('tickets.index')" 
-                            :active="route().current('tickets.*')"
-                            class="group flex items-center px-3 py-2.5 rounded-md text-sm font-medium"
+                            type="button"
+                            class="group flex w-full items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
                             :class="[
-                                route().current('tickets.*')
-                                    ? 'bg-uh-red text-white shadow-md'
-                                    : 'text-uh-slate dark:text-gray-400     hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                (ticketsOpen || route().current('tickets.*'))
+                                    ? 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
                             ]"
-                            @click="navigate(route('tickets.index'))"
+                            @click="ticketsOpen = !ticketsOpen"
+                            :aria-expanded="ticketsOpen"
+                            :aria-controls="'tickets-submenu'"
+                            title="Toggle tickets menu"
                         >
                             <font-awesome-icon 
                                 :icon="['fas', 'ticket']" 
@@ -346,11 +351,70 @@ const navigate = (url) => {
                                 :class="[
                                     route().current('tickets.*')
                                         ? 'text-white'
-                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
                                 ]"
                             />
-                            <span class="ml-3 font-medium">Tickets</span>
-                        </NavLink>
+                            <span class="ml-3 font-medium flex-1 text-left">Tickets</span>
+                            <font-awesome-icon 
+                                :icon="['fas','chevron-down']" 
+                                class="h-4 w-4 transition-transform duration-200 ml-auto"
+                                :class="{ 'rotate-180': ticketsOpen }"
+                            />
+                        </button>
+
+                        <!-- Tickets Submenu -->
+                        <div
+                            v-if="isSuperAdmin || hasAny(['tickets.app.access'])"
+                            v-show="ticketsOpen"
+                            id="tickets-submenu"
+                            class="pl-5 space-y-1 mt-2"
+                        >
+                            <NavLink 
+                                :href="route('tickets.index')" 
+                                :active="route().current('tickets.index')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('tickets.index')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('tickets.index'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'list']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('tickets.index')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">All Tickets</span>
+                            </NavLink>
+
+                            <NavLink 
+                                :href="route('tickets.analytics')" 
+                                :active="route().current('tickets.analytics')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('tickets.analytics')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('tickets.analytics'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'chart-bar']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('tickets.analytics')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Analytics</span>
+                            </NavLink>
+                        </div>
 
                         <NavLink 
                             v-if="isSuperAdmin || hasAny(['directory.app.access'])"
