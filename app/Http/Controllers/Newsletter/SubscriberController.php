@@ -78,14 +78,6 @@ class SubscriberController extends Controller
         $subscribers = $query->orderBy('created_at', 'desc')->paginate($perPage);
         $groups = Group::active()->get();
 
-        // If this is an explicit JSON API request (and not an Inertia navigation),
-        // return JSON. Inertia requests include the X-Inertia header and must
-        // receive an Inertia response, even though they also send JSON Accept headers.
-        $isInertia = (bool) $request->header('X-Inertia');
-        if (!$isInertia && $request->acceptsJson()) {
-            return response()->json($subscribers);
-        }
-
         // Default: return Inertia response for web requests (including Inertia navigations)
         return Inertia::render('Newsletter/Subscribers/Index', [
             'subscribers' => $subscribers,
