@@ -42,7 +42,7 @@ class SubscriberController extends Controller
             // Allow empty values from the UI without failing validation
             'status' => 'nullable|string|in:active,unsubscribed,bounced,pending',
             'search' => 'nullable|string|max:255',
-            'per_page' => 'sometimes|integer|min:1|max:100',
+            'per_page' => 'sometimes|integer|min:1|max:500',
             'page' => 'sometimes|integer|min:1',
             'group_id' => 'nullable|exists:newsletter_groups,id'
         ]);
@@ -90,7 +90,7 @@ class SubscriberController extends Controller
         return Inertia::render('Newsletter/Subscribers/Index', [
             'subscribers' => $subscribers,
             'groups' => $groups,
-            'filters' => $request->only(['search', 'status', 'group_id'])
+            'filters' => $request->only(['search', 'status', 'group_id', 'per_page'])
         ]);
     }
 

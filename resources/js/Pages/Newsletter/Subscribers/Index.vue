@@ -26,6 +26,7 @@ const searchForm = useForm({
   search: props.filters.search || '',
   status: props.filters.status || '',
   group_id: props.filters.group_id || '',
+  per_page: props.filters.per_page || 15,
 });
 
 const selectedSubscribers = ref([]);
@@ -286,6 +287,19 @@ function deleteGroup(group) {
                 >
                   Clear
                 </button>
+                
+                <select
+                  v-model="searchForm.per_page"
+                  @change="search"
+                  class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-blue-500 dark:focus:border-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 rounded-md shadow-sm"
+                  title="Items per page"
+                >
+                  <option :value="15">15 per page</option>
+                  <option :value="25">25 per page</option>
+                  <option :value="50">50 per page</option>
+                  <option :value="100">100 per page</option>
+                  <option :value="500">500 per page</option>
+                </select>
 
                 <button
                   @click="exportSubscribers"
