@@ -25,14 +25,15 @@ import {
     faChevronDown,
     faNewspaper,
     faChartBar,
-    faArchive
+    faArchive,
+    faTag
 } from '@fortawesome/free-solid-svg-icons';
 
 // RBAC composable
 import { useHasAny } from '@/Extensions/useAuthz';
 
 // Add icons to the library
-library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper, faChartBar, faArchive);
+library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper, faChartBar, faArchive, faTag);
 
 // Permission helpers (team-aware)
 const isSuperAdmin = computed(() => usePage().props.auth?.user?.isSuperAdmin === true);
@@ -413,6 +414,30 @@ const navigate = (url) => {
                                     ]"
                                 />
                                 <span class="ml-3 font-medium">Analytics</span>
+                            </NavLink>
+
+                            <NavLink 
+                                v-if="isSuperAdmin || hasAny(['tickets.ticket.manage'])"
+                                :href="route('tickets.labels.index')" 
+                                :active="route().current('tickets.labels.*')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('tickets.labels.*')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('tickets.labels.index'))"
+                            >
+                                <font-awesome-icon 
+                                    :icon="['fas', 'tag']" 
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('tickets.labels.*')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Label Manager</span>
                             </NavLink>
                         </div>
 

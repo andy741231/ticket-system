@@ -109,7 +109,7 @@ const filteredUsers = computed(() => {
   // Ensure availableUsers is always an array
   const users = Array.isArray(availableUsers.value) ? availableUsers.value : [];
   if (!mentionInfo.value || !mentionInfo.value.query) {
-    return users.slice(0, 5);
+    return users.slice(0, 50);
   }
   return searchUsers(mentionInfo.value.query, users);
 });

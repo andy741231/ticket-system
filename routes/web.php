@@ -161,6 +161,13 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
 Route::middleware(['auth', 'verified'])->prefix('tickets')->name('tickets.')->group(function () {
     Route::get('/', [TicketController::class, 'index'])->name('index');
     Route::get('/analytics', [\App\Http\Controllers\TicketAnalyticsController::class, 'index'])->name('analytics');
+    
+    // Label Manager
+    Route::get('/labels', [\App\Http\Controllers\TagController::class, 'index'])->name('labels.index');
+    Route::post('/labels', [\App\Http\Controllers\TagController::class, 'store'])->name('labels.store');
+    Route::put('/labels/{tag}', [\App\Http\Controllers\TagController::class, 'update'])->name('labels.update');
+    Route::delete('/labels/{tag}', [\App\Http\Controllers\TagController::class, 'destroy'])->name('labels.destroy');
+
     Route::get('/create', [TicketController::class, 'create'])->name('create');
     Route::post('/', [TicketController::class, 'store'])->name('store');
     Route::get('/{ticket}', [TicketController::class, 'show'])->name('show');

@@ -296,12 +296,6 @@ const drawCard = async (ctx, member, x, y, cardWidth, cardHeight, scale = 1) => 
   const textY = imgY + imgSize + 15 * scale;
   const textX = x + cardWidth / 2;
   
-  // Helper function to get first value before comma
-  const getFirstValue = (text) => {
-    if (!text) return '';
-    return text.split(',')[0].trim();
-  };
-  
   // Name
   ctx.fillStyle = '#111827';
   ctx.font = `bold ${16 * scale}px Arial, sans-serif`;
@@ -314,7 +308,7 @@ const drawCard = async (ctx, member, x, y, cardWidth, cardHeight, scale = 1) => 
   if (member.degree) {
     ctx.fillStyle = '#6b7280';
     ctx.font = `${12 * scale}px Arial, sans-serif`;
-    const degreeText = getFirstValue(member.degree);
+    const degreeText = member.degree;
     wrapText(ctx, degreeText, textX, textY + 25 * scale, cardWidth - 20 * scale, 16 * scale, 1);
   }
   
@@ -322,7 +316,7 @@ const drawCard = async (ctx, member, x, y, cardWidth, cardHeight, scale = 1) => 
   if (member.title) {
     ctx.fillStyle = '#0d9488';
     ctx.font = `${14 * scale}px Arial, sans-serif`;
-    const titleText = getFirstValue(member.title);
+    const titleText = member.title;
     wrapText(ctx, titleText, textX, textY + (member.degree ? 45 : 25) * scale, cardWidth - 20 * scale, 18 * scale, 2);
   }
 };

@@ -290,7 +290,7 @@ class CampaignController extends Controller
         $campaign->update(['total_recipients' => $data['total_recipients']]);
         
         // Check if this is a draft save
-        $isDraftSave = $campaign->status === 'draft' && $request->input('status') === 'draft';
+        // $isDraftSave = $campaign->status === 'draft' && $request->input('status') === 'draft';
 
         // Handle different send types
         if ($campaign->isRecurring()) {
@@ -313,8 +313,11 @@ class CampaignController extends Controller
                            ->setStatusCode(303);
                            
         } elseif ($campaign->send_type === 'immediate') {
-            // Check if this is a draft save - stay on edit page
-            if ($isDraftSave && $request->header('X-Inertia')) {
+            // Check if this is an explicit draft save - stay on edit page
+            // We check specifically for the 'save_as_draft' flag from the frontend
+            $isExplicitDraftSave = $request->boolean('save_as_draft', false);
+
+            if ($isExplicitDraftSave && $request->header('X-Inertia')) {
                 return redirect()->route('newsletter.campaigns.edit', $campaign)
                                ->with('success', 'Draft saved successfully.')
                                ->setStatusCode(303);

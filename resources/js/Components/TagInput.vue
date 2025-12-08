@@ -123,7 +123,22 @@ watch(inputValue, (newVal) => {
             @click="inputRef?.focus()"
         >
             <div class="flex flex-wrap gap-2 items-center">
-                
+                <!-- Selected Tags -->
+                <span
+                    v-for="(tag, index) in modelValue"
+                    :key="index"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-uh-teal/20 text-uh-slate dark:text-uh-cream border border-uh-teal/30 dark:border-uh-teal/50"
+                >
+                    {{ tag }}
+                    <button
+                        type="button"
+                        @click.stop="removeTag(index)"
+                        class="ml-1 hover:text-uh-red transition-colors"
+                        :aria-label="`Remove ${tag} tag`"
+                    >
+                        <FontAwesomeIcon icon="times" class="w-3 h-3" />
+                    </button>
+                </span>
                 
                 <!-- Input Field -->
                 <input
@@ -135,8 +150,6 @@ watch(inputValue, (newVal) => {
                     @keydown="handleKeyDown"
                     @focus="handleFocus"
                 />
-
-                
             </div>
         </div>
         

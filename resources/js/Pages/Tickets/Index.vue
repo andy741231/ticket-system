@@ -282,6 +282,33 @@ const performSearch = () => {
     if (ownershipScope.value === 'assigned' || ownershipScope.value === 'submitted') {
         params.scope = ownershipScope.value;
     }
+
+    // Check if filters effectively changed to decide whether to reset page
+    const currentUrlParams = new URLSearchParams(window.location.search);
+    let filtersChanged = false;
+    const keysToCheck = ['search', 'status', 'tags', 'assignee', 'date_from', 'date_to', 'sort_field', 'sort_direction', 'scope'];
+
+    for (const key of keysToCheck) {
+        const rawVal = params[key];
+        // Normalize to string; treat null/undefined as empty string
+        const newVal = (rawVal === null || rawVal === undefined) ? '' : String(rawVal);
+        const currentVal = currentUrlParams.get(key) || '';
+        
+        if (newVal !== currentVal) {
+            // Handle default sort values which might be implicit in URL
+            if (key === 'sort_field' && currentVal === '' && newVal === 'created_at') continue;
+            if (key === 'sort_direction' && currentVal === '' && newVal === 'desc') continue;
+            
+            filtersChanged = true;
+            break;
+        }
+    }
+
+    // If filters haven't changed, preserve the current page
+    if (!filtersChanged && currentUrlParams.has('page')) {
+        params.page = currentUrlParams.get('page');
+    }
+
     // Fetch filtered/sorted results from the server
     router.get(route('tickets.index'), params, {
         preserveState: true,
@@ -312,10 +339,7 @@ watch(ownershipScope, () => {
     performSearch();
 });
 
-// Perform initial search if there's an initial search query
-if (props.filters.search || props.filters.status || props.filters.tags || props.filters.scope) {
-    performSearch();
-}
+
 
 // Format date with date-fns
 const formatDateTime = (dateString, formatString = 'MMM d, yyyy h:mm a') => {

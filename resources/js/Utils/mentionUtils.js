@@ -78,7 +78,7 @@ export function searchUsers(query, availableUsers = []) {
                email.includes(searchTerm) ||
                firstName.includes(searchTerm) ||
                lastName.includes(searchTerm);
-    }).slice(0, 10); // Limit to 10 results
+    }).slice(0, 20); // Limit to 20 results
 }
 
 /**

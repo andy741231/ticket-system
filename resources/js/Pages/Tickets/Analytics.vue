@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import MultiSelect from '@/Components/MultiSelect.vue';
 import { Chart, registerables } from 'chart.js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -387,19 +388,19 @@ onBeforeUnmount(() => {
     <Head title="Ticket Analytics" />
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between">
-                <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">Ticket Analytics</h2>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 class="font-bold text-2xl text-gray-800 dark:text-gray-200 leading-tight">Ticket Analytics</h2>
                 <div class="flex items-center space-x-3">
-                    <div class="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800">
-                        <button @click="toggleViewMode('table')" :class="['px-4 py-2 text-sm font-medium rounded-l-lg transition-colors', viewMode === 'table' ? 'bg-uh-red text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700']">
+                    <div class="inline-flex rounded-lg shadow-sm">
+                        <button @click="toggleViewMode('table')" :class="['px-4 py-2 text-sm font-medium rounded-l-lg border transition-all duration-200 focus:z-10 focus:ring-2 focus:ring-uh-red', viewMode === 'table' ? 'bg-uh-red border-uh-red text-white' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700']">
                             <font-awesome-icon :icon="['fas', 'table']" class="mr-2" />Table
                         </button>
-                        <button @click="toggleViewMode('chart')" :class="['px-4 py-2 text-sm font-medium rounded-r-lg transition-colors', viewMode === 'chart' ? 'bg-uh-red text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700']">
+                        <button @click="toggleViewMode('chart')" :class="['px-4 py-2 text-sm font-medium rounded-r-lg border-t border-b border-r transition-all duration-200 focus:z-10 focus:ring-2 focus:ring-uh-red', viewMode === 'chart' ? 'bg-uh-red border-uh-red text-white' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700']">
                             <font-awesome-icon :icon="['fas', 'chart-bar']" class="mr-2" />Charts
                         </button>
                     </div>
-                    <button @click="exportToPDF" :disabled="loading || !analyticsData" class="inline-flex items-center px-4 py-2 bg-uh-red border border-transparent rounded-lg font-semibold text-sm text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />Export PDF
+                    <button @click="exportToPDF" :disabled="loading || !analyticsData" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg font-semibold text-sm text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-uh-red focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2 text-red-600" />Export PDF
                     </button>
                 </div>
             </div>
@@ -407,51 +408,63 @@ onBeforeUnmount(() => {
 
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700">
                     <div class="p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Filters</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Date</label>
-                                <input v-model="dateFrom" type="date" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">To Date</label>
-                                <input v-model="dateTo" type="date" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red" />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-                                <select v-model="selectedStatuses" multiple class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red">
-                                    <option v-for="status in allStatuses" :key="status" :value="status">{{ status }}</option>
-                                </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Hold Ctrl/Cmd to select multiple</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
-                                <select v-model="selectedTags" multiple class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red">
-                                    <option v-for="tag in allTags" :key="tag" :value="tag">{{ tag }}</option>
-                                </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Hold Ctrl/Cmd to select multiple</p>
-                            </div>
-                            <div v-if="canManage">
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assignees</label>
-                                <select v-model="selectedAssignees" multiple class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red">
-                                    <option v-for="user in allUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
-                                </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Hold Ctrl/Cmd to select multiple</p>
-                            </div>
-                            <div v-if="viewMode === 'table'">
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Tickets</label>
-                                <input v-model="searchQuery" type="text" placeholder="Search by title, ID, or submitter..." class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red" />
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                                <font-awesome-icon :icon="['fas', 'filter']" class="mr-2 text-uh-red" />
+                                Filters
+                            </h3>
+                            <div class="flex items-center space-x-3">
+                                <button @click="resetFilters" :disabled="loading" class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline transition-colors disabled:opacity-50">
+                                    Reset
+                                </button>
+                                <button @click="applyFilters" :disabled="loading" class="inline-flex items-center px-4 py-2 bg-uh-red border border-transparent rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all disabled:opacity-50">
+                                    Apply Filters
+                                </button>
                             </div>
                         </div>
-                        <div class="mt-4 flex items-center space-x-3">
-                            <button @click="applyFilters" :disabled="loading" class="inline-flex items-center px-4 py-2 bg-uh-red border border-transparent rounded-md font-semibold text-sm text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50">
-                                <font-awesome-icon :icon="['fas', 'filter']" class="mr-2" />Apply Filters
-                            </button>
-                            <button @click="resetFilters" :disabled="loading" class="inline-flex items-center px-4 py-2 bg-gray-200 dark:bg-gray-700 border border-transparent rounded-md font-semibold text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors disabled:opacity-50">
-                                <font-awesome-icon :icon="['fas', 'rotate-right']" class="mr-2" />Reset
-                            </button>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div class="space-y-1">
+                                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Date Range</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input v-model="dateFrom" type="date" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red text-sm h-[42px]" />
+                                    <input v-model="dateTo" type="date" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red text-sm h-[42px]" />
+                                </div>
+                            </div>
+                            <div class="space-y-1">
+                                <MultiSelect 
+                                    v-model="selectedStatuses" 
+                                    :options="allStatuses" 
+                                    label="Status" 
+                                    placeholder="All Statuses" 
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <MultiSelect 
+                                    v-model="selectedTags" 
+                                    :options="allTags" 
+                                    label="Tags" 
+                                    placeholder="All Tags" 
+                                />
+                            </div>
+                            <div v-if="canManage" class="space-y-1">
+                                <MultiSelect 
+                                    v-model="selectedAssignees" 
+                                    :options="allUsers.map(u => ({ label: u.name, value: u.id }))" 
+                                    label="Assignees" 
+                                    placeholder="All Assignees" 
+                                />
+                            </div>
+                            <div v-if="viewMode === 'table'" class="md:col-span-2 lg:col-span-4 space-y-1">
+                                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Search</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <font-awesome-icon :icon="['fas', 'search']" class="text-gray-400" />
+                                    </div>
+                                    <input v-model="searchQuery" type="text" placeholder="Search by title, ID, or submitter..." class="w-full pl-10 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm focus:border-uh-red focus:ring-uh-red text-sm" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -463,68 +476,68 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <div v-if="!loading && analyticsData" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div v-if="!loading && analyticsData" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-300 group">
                         <div class="p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">New Tickets</p>
-                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ metrics.new_tickets || 0 }}</p>
+                                    <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">New Tickets</p>
+                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2 group-hover:text-uh-red transition-colors">{{ metrics.new_tickets || 0 }}</p>
                                 </div>
-                                <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
-                                    <font-awesome-icon :icon="['fas', 'inbox']" class="text-2xl text-blue-600 dark:text-blue-300" />
+                                <div class="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
+                                    <font-awesome-icon :icon="['fas', 'inbox']" class="text-2xl text-blue-600 dark:text-blue-400" />
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-300 group">
                         <div class="p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Completed</p>
-                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ metrics.completed_tickets || 0 }}</p>
+                                    <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Completed</p>
+                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2 group-hover:text-green-600 transition-colors">{{ metrics.completed_tickets || 0 }}</p>
                                 </div>
-                                <div class="p-3 bg-green-100 dark:bg-green-900 rounded-full">
-                                    <font-awesome-icon :icon="['fas', 'check-circle']" class="text-2xl text-green-600 dark:text-green-300" />
+                                <div class="p-3 bg-green-50 dark:bg-green-900/30 rounded-xl group-hover:bg-green-100 dark:group-hover:bg-green-900/50 transition-colors">
+                                    <font-awesome-icon :icon="['fas', 'check-circle']" class="text-2xl text-green-600 dark:text-green-400" />
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-300 group">
                         <div class="p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Rejected</p>
-                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ metrics.rejected_tickets || 0 }}</p>
+                                    <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rejected</p>
+                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2 group-hover:text-red-600 transition-colors">{{ metrics.rejected_tickets || 0 }}</p>
                                 </div>
-                                <div class="p-3 bg-red-100 dark:bg-red-900 rounded-full">
-                                    <font-awesome-icon :icon="['fas', 'times-circle']" class="text-2xl text-red-600 dark:text-red-300" />
+                                <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-xl group-hover:bg-red-100 dark:group-hover:bg-red-900/50 transition-colors">
+                                    <font-awesome-icon :icon="['fas', 'times-circle']" class="text-2xl text-red-600 dark:text-red-400" />
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-300 group">
                         <div class="p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Time Spent</p>
-                                    <p class="text-xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ metrics.avg_time_spent || 'N/A' }}</p>
+                                    <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg Time</p>
+                                    <p class="text-xl font-bold text-gray-900 dark:text-gray-100 mt-2 group-hover:text-purple-600 transition-colors">{{ metrics.avg_time_spent || 'N/A' }}</p>
                                 </div>
-                                <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
-                                    <font-awesome-icon :icon="['fas', 'clock']" class="text-2xl text-purple-600 dark:text-purple-300" />
+                                <div class="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-xl group-hover:bg-purple-100 dark:group-hover:bg-purple-900/50 transition-colors">
+                                    <font-awesome-icon :icon="['fas', 'clock']" class="text-2xl text-purple-600 dark:text-purple-400" />
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div v-if="canManage && metrics.total_users" class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                    <div v-if="canManage && metrics.total_users" class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-300 group">
                         <div class="p-6">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
-                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">{{ metrics.total_users }}</p>
+                                    <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Users</p>
+                                    <p class="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2 group-hover:text-indigo-600 transition-colors">{{ metrics.total_users }}</p>
                                 </div>
-                                <div class="p-3 bg-indigo-100 dark:bg-indigo-900 rounded-full">
-                                    <font-awesome-icon :icon="['fas', 'users']" class="text-2xl text-indigo-600 dark:text-indigo-300" />
+                                <div class="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/50 transition-colors">
+                                    <font-awesome-icon :icon="['fas', 'users']" class="text-2xl text-indigo-600 dark:text-indigo-400" />
                                 </div>
                             </div>
                         </div>
@@ -533,54 +546,69 @@ onBeforeUnmount(() => {
 
                 <div v-if="!loading && analyticsData && viewMode === 'chart'" class="space-y-6">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
+                        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 p-6">
                             <canvas id="statusChart" height="300"></canvas>
                         </div>
-                        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
+                        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 p-6">
                             <canvas id="tagDistributionChart" height="300"></canvas>
                         </div>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 p-6">
                         <canvas id="ticketsOverTimeChart" height="200"></canvas>
                     </div>
-                    <div v-if="canManage && metrics.assignee_performance?.length > 0" class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
+                    <div v-if="canManage && metrics.assignee_performance?.length > 0" class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700 p-6">
                         <canvas id="assigneePerformanceChart" height="300"></canvas>
                     </div>
                 </div>
 
-                <div v-if="!loading && analyticsData && viewMode === 'table'" class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div v-if="!loading && analyticsData && viewMode === 'table'" class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 dark:border-gray-700">
                     <div class="p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Ticket Details</h3>
-                        <div class="overflow-x-auto">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                            <font-awesome-icon :icon="['fas', 'list']" class="mr-2 text-uh-red" />
+                            Ticket Details
+                        </h3>
+                        <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead class="bg-gray-50 dark:bg-gray-900">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Title</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time Spent</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Submitter</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Assignees</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 bg-gray-50 dark:bg-gray-900">ID</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 bg-gray-50 dark:bg-gray-900">Title</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 bg-gray-50 dark:bg-gray-900">Status</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 bg-gray-50 dark:bg-gray-900">Created</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 bg-gray-50 dark:bg-gray-900">Time Spent</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 bg-gray-50 dark:bg-gray-900">Submitter</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 bg-gray-50 dark:bg-gray-900">Assignees</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    <tr v-for="ticket in filteredTickets" :key="ticket.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{{ ticket.id }}</td>
-                                        <td class="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{{ ticket.title }}</td>
+                                    <tr v-for="ticket in filteredTickets" :key="ticket.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">#{{ ticket.id }}</td>
+                                        <td class="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 font-medium">{{ ticket.title }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <span :class="['px-2 inline-flex text-xs leading-5 font-semibold rounded-full', getStatusColor(ticket.status)]">
+                                            <span :class="['px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full shadow-sm', getStatusColor(ticket.status)]">
                                                 {{ ticket.status }}
                                             </span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ formatDate(ticket.created_at) }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ ticket.time_spent }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{{ ticket.submitter }}</td>
-                                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ ticket.assignees || 'None' }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">{{ ticket.time_spent }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            <div class="flex items-center">
+                                                <div class="h-6 w-6 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-xs font-bold mr-2">
+                                                    {{ ticket.submitter.charAt(0).toUpperCase() }}
+                                                </div>
+                                                {{ ticket.submitter }}
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ ticket.assignees || 'Unassigned' }}</td>
                                     </tr>
                                     <tr v-if="filteredTickets.length === 0">
-                                        <td colspan="7" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                                            No tickets found matching your filters.
+                                        <td colspan="7" class="px-6 py-16 text-center text-gray-500 dark:text-gray-400">
+                                            <div class="flex flex-col items-center justify-center">
+                                                <font-awesome-icon :icon="['fas', 'search']" class="text-4xl text-gray-300 dark:text-gray-600 mb-4" />
+                                                <p class="text-lg font-medium">No tickets found</p>
+                                                <p class="text-sm mt-1">Try adjusting your filters or search query.</p>
+                                                <button @click="resetFilters" class="mt-4 text-uh-red hover:text-red-700 font-medium text-sm">Clear all filters</button>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
