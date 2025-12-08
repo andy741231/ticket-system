@@ -594,6 +594,9 @@ onMounted(() => {
 });
 
 const submit = (status = null) => {
+  // Identify if this is an explicit "Save Draft" action
+  const isExplicitDraftSave = status === 'draft';
+
   // Clear any existing form errors
   form.clearErrors();
   
@@ -642,8 +645,13 @@ const submit = (status = null) => {
   const payload = { ...form.data(), status };
   
   // If sending immediately (and not just saving draft), set send_now flag
-  if (form.send_type === 'immediate' && status !== 'draft') {
+  if (form.send_type === 'immediate' && !isExplicitDraftSave) {
     payload.send_now = true;
+  }
+
+  // Pass the explicit draft save flag to the backend to control redirection
+  if (isExplicitDraftSave) {
+    payload.save_as_draft = true;
   }
 
   // Ensure content is an object (backend expects array/object, not JSON string)
@@ -1002,7 +1010,7 @@ function safeParseJson(str) {
                     <span class="font-semibold">
                       <span v-if="form.processing">Sending...</span>
                       <span v-else-if="isValidating">Validating...</span>
-                      <span v-else>Send Campaign</span>
+                      <span v-else>{{ form.send_type === 'immediate' ? 'Send Campaign' : 'Schedule Campaign' }}</span>
                     </span>
                     <span class="absolute inset-0 rounded-lg bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></span>
                   </button>

@@ -616,8 +616,10 @@ class CampaignController extends Controller
                 $message = 'Scheduled campaign updated successfully.';
             }
             
-            // Check if this is a draft save (status is 'draft' in the request)
-            $isDraftSave = $request->input('status') === 'draft';
+            // Check if this is a draft save
+            // We prioritize the explicit flag if present, falling back to false if not provided
+            // This allows "Send Campaign" (which updates with status=draft for immediate sends) to redirect to show page
+            $isDraftSave = $request->boolean('save_as_draft', false);
 
             // For Inertia requests, check if it's a draft save
             if ($request->header('X-Inertia')) {
