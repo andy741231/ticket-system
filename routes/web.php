@@ -6,6 +6,7 @@ use App\Http\Controllers\Newsletter\CampaignController;
 use App\Http\Controllers\Newsletter\DashboardController;
 use App\Http\Controllers\Newsletter\TemplateController;
 use App\Http\Controllers\Newsletter\PublicController;
+use App\Http\Controllers\Newsletter\SubscriptionNotificationEmailController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\TmpUploadController;
@@ -100,6 +101,14 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
         Route::get('/{subscriber}', [SubscriberController::class, 'show'])->name('show');
         Route::put('/{subscriber}', [SubscriberController::class, 'update'])->name('update');
         Route::delete('/{subscriber}', [SubscriberController::class, 'destroy'])->name('destroy');
+    });
+    
+    // Subscription notification emails
+    Route::prefix('notification-emails')->name('notification-emails.')->group(function () {
+        Route::get('/', [SubscriptionNotificationEmailController::class, 'index'])->name('index');
+        Route::post('/', [SubscriptionNotificationEmailController::class, 'store'])->name('store');
+        Route::put('/{notificationEmail}', [SubscriptionNotificationEmailController::class, 'update'])->name('update');
+        Route::delete('/{notificationEmail}', [SubscriptionNotificationEmailController::class, 'destroy'])->name('destroy');
     });
     
     // Groups

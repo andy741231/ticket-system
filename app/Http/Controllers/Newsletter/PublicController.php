@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Newsletter;
 
 use App\Http\Controllers\Controller;
+use App\Mail\NewsletterSubscriptionNotificationMail;
 use App\Models\Newsletter\AnalyticsEvent;
 use App\Models\Newsletter\Campaign;
+use App\Models\Newsletter\Group;
 use App\Models\Newsletter\Subscriber;
+use App\Models\Newsletter\SubscriptionNotificationEmail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
 
@@ -162,25 +166,91 @@ class PublicController extends Controller
 
     public function subscribe(Request $request)
     {
-        $request->validate([
-            'email' => ['required', 'email', 'unique:newsletter_subscribers,email'],
-            'name' => ['nullable', 'string', 'max:255'],
-            'first_name' => ['nullable', 'string', 'max:255'],
-            'last_name' => ['nullable', 'string', 'max:255'],
-            'groups' => ['nullable', 'array'],
-            'groups.*' => ['exists:newsletter_groups,id'],
+        $request->merge([
+            'email' => strtolower(trim((string) $request->input('email'))),
         ]);
 
-        $subscriber = Subscriber::create([
-            'email' => $request->email,
-            'name' => $request->name,
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'status' => 'active',
-        ]);
+        try {
+            $request->validate([
+                'email' => ['required', 'email', 'max:255'],
+                'name' => ['nullable', 'string', 'max:255'],
+                'first_name' => ['nullable', 'string', 'max:255'],
+                'last_name' => ['nullable', 'string', 'max:255'],
+                'organization' => ['nullable', 'string', 'max:255'],
+                'groups' => ['nullable', 'array'],
+                'groups.*' => ['exists:newsletter_groups,id'],
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $email = (string) $request->email;
+        $subscriber = Subscriber::where('email', $email)->first();
+        $sendNotification = false;
+
+        if ($subscriber) {
+            // If they existed but were not active, treat this as a re-subscribe.
+            if ($subscriber->status !== 'active') {
+                $subscriber->resubscribe();
+                $sendNotification = true;
+            }
+
+            $updates = [];
+            if ($request->filled('name')) {
+                $updates['name'] = $request->input('name');
+            }
+            if ($request->filled('first_name')) {
+                $updates['first_name'] = $request->input('first_name');
+            }
+            if ($request->filled('last_name')) {
+                $updates['last_name'] = $request->input('last_name');
+            }
+            if ($request->filled('organization')) {
+                $updates['organization'] = $request->input('organization');
+            }
+            if (!empty($updates)) {
+                $subscriber->fill($updates);
+                $subscriber->save();
+            }
+        } else {
+            $subscriber = Subscriber::create([
+                'email' => $email,
+                'name' => $request->input('name'),
+                'first_name' => $request->input('first_name'),
+                'last_name' => $request->input('last_name'),
+                'organization' => $request->input('organization'),
+                'status' => 'active',
+            ]);
+            $sendNotification = true;
+        }
 
         if ($request->filled('groups')) {
             $subscriber->groups()->sync($request->groups);
+        } else {
+            $defaultGroup = Group::query()->where('name', 'UHPH ListServ')->first();
+            if ($defaultGroup) {
+                $subscriber->groups()->syncWithoutDetaching([$defaultGroup->id]);
+            }
+        }
+
+        if ($sendNotification) {
+            try {
+                $recipients = SubscriptionNotificationEmail::query()
+                    ->where('is_active', true)
+                    ->pluck('email')
+                    ->filter()
+                    ->values()
+                    ->all();
+
+                foreach ($recipients as $recipient) {
+                    Mail::to($recipient)->send(new NewsletterSubscriptionNotificationMail($subscriber));
+                }
+            } catch (\Throwable $e) {
+                // Intentionally swallow mail errors for public API subscribe flow.
+            }
         }
 
         return response()->json([

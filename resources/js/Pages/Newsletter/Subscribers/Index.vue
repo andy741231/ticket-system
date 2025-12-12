@@ -10,6 +10,7 @@ import {
   ArrowUpTrayIcon,
   TrashIcon,
   UserGroupIcon,
+  EnvelopeIcon,
   CheckIcon,
   XMarkIcon,
   EyeIcon,
@@ -221,6 +222,13 @@ function deleteGroup(group) {
           >
             <UserGroupIcon class="w-4 h-4 mr-2" />
             Manage Groups
+          </Link>
+          <Link
+            :href="route('newsletter.notification-emails.index')"
+            class="inline-flex items-center px-4 py-2 bg-uh-red border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-uh-brick focus:bg-uh-brick active:bg-uh-brick focus:outline-none focus:ring-2 focus:ring-uh-red focus:ring-offset-2 transition ease-in-out duration-150"
+          >
+            <EnvelopeIcon class="w-4 h-4 mr-2" />
+            Notification Emails
           </Link>
           <button
             @click="showImportModal = true"
