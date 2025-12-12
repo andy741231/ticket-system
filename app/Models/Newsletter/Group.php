@@ -5,6 +5,7 @@ namespace App\Models\Newsletter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Facades\Schema;
 
 class Group extends Model
 {
@@ -17,10 +18,12 @@ class Group extends Model
         'description',
         'color',
         'is_active',
+        'is_external',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_external' => 'boolean',
     ];
 
     public function subscribers(): BelongsToMany
@@ -37,6 +40,34 @@ class Group extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeExternal($query)
+    {
+        return $query->where('is_external', true);
+    }
+
+    public function scopeInternal($query)
+    {
+        return $query->where('is_external', false);
+    }
+
+    public function markExternal(): bool
+    {
+        if (!Schema::hasColumn('newsletter_groups', 'is_external')) {
+            return false;
+        }
+
+        return $this->update(['is_external' => true]);
+    }
+
+    public function markInternal(): bool
+    {
+        if (!Schema::hasColumn('newsletter_groups', 'is_external')) {
+            return false;
+        }
+
+        return $this->update(['is_external' => false]);
     }
 
     public function getSubscriberCountAttribute(): int

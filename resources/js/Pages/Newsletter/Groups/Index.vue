@@ -20,6 +20,7 @@ const createForm = useForm({
   description: '',
   color: '#C8102E',
   is_active: true,
+  is_external: false,
 });
 
 function createGroup() {
@@ -116,6 +117,15 @@ function deleteGroup(group) {
                   />
                   <label for="is_active" class="text-sm font-medium text-uh-slate dark:text-gray-300">Active Group</label>
                 </div>
+                <div class="flex items-center gap-3">
+                  <input 
+                    id="is_external" 
+                    v-model="createForm.is_external" 
+                    type="checkbox" 
+                    class="rounded border-uh-gray/30 text-uh-red shadow-sm focus:ring-uh-red/20"
+                  />
+                  <label for="is_external" class="text-sm font-medium text-uh-slate dark:text-gray-300">External (show on public preferences page)</label>
+                </div>
                 <div class="pt-2">
                   <button 
                     type="submit" 
@@ -167,6 +177,12 @@ function deleteGroup(group) {
                             class="inline-flex px-2 py-0.5 text-xs font-medium bg-uh-gray/10 text-uh-gray border border-uh-gray/20 rounded-full"
                           >
                             Inactive
+                          </span>
+                          <span 
+                            v-if="g.is_external" 
+                            class="inline-flex px-2 py-0.5 text-xs font-medium bg-uh-teal/10 text-uh-teal border border-uh-teal/20 rounded-full"
+                          >
+                            External
                           </span>
                         </div>
                         <p 

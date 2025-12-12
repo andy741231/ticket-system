@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class PublicController extends Controller
 {
@@ -178,7 +179,15 @@ class PublicController extends Controller
                 'last_name' => ['nullable', 'string', 'max:255'],
                 'organization' => ['nullable', 'string', 'max:255'],
                 'groups' => ['nullable', 'array'],
-                'groups.*' => ['exists:newsletter_groups,id'],
+                'groups.*' => [
+                    Rule::exists('newsletter_groups', 'id')
+                        ->when(Schema::hasColumn('newsletter_groups', 'is_external'), function ($rule) {
+                            return $rule->where('is_external', true);
+                        })
+                        ->when(Schema::hasColumn('newsletter_groups', 'is_active'), function ($rule) {
+                            return $rule->where('is_active', true);
+                        }),
+                ],
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -228,7 +237,21 @@ class PublicController extends Controller
         }
 
         if ($request->filled('groups')) {
-            $subscriber->groups()->sync($request->groups);
+            $groupIds = collect($request->groups)
+                ->filter(fn($v) => is_numeric($v))
+                ->map(fn($v) => (int) $v)
+                ->values();
+
+            $groupsQuery = Group::query();
+            if (Schema::hasColumn('newsletter_groups', 'is_external')) {
+                $groupsQuery->where('is_external', true);
+            }
+            if (Schema::hasColumn('newsletter_groups', 'is_active')) {
+                $groupsQuery->where('is_active', true);
+            }
+
+            $allowedIds = $groupsQuery->whereIn('id', $groupIds->all())->pluck('id')->all();
+            $subscriber->groups()->sync($allowedIds);
         } else {
             $defaultGroup = Group::query()->where('name', 'UHPH ListServ')->first();
             if ($defaultGroup) {
@@ -268,7 +291,14 @@ class PublicController extends Controller
             abort(404, 'Invalid preferences link');
         }
 
-        $groups = \App\Models\Newsletter\Group::all();
+        $groupsQuery = Group::query();
+        if (Schema::hasColumn('newsletter_groups', 'is_external')) {
+            $groupsQuery->where('is_external', true);
+        }
+        if (Schema::hasColumn('newsletter_groups', 'is_active')) {
+            $groupsQuery->where('is_active', true);
+        }
+        $groups = $groupsQuery->orderBy('name')->get();
 
         return view('newsletter.preferences', compact('subscriber', 'groups'));
     }
@@ -286,13 +316,34 @@ class PublicController extends Controller
             'first_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['nullable', 'string', 'max:255'],
             'groups' => ['nullable', 'array'],
-            'groups.*' => ['exists:newsletter_groups,id'],
+            'groups.*' => [
+                Rule::exists('newsletter_groups', 'id')
+                    ->when(Schema::hasColumn('newsletter_groups', 'is_external'), function ($rule) {
+                        return $rule->where('is_external', true);
+                    })
+                    ->when(Schema::hasColumn('newsletter_groups', 'is_active'), function ($rule) {
+                        return $rule->where('is_active', true);
+                    }),
+            ],
         ]);
 
         $subscriber->update($request->only(['name', 'first_name', 'last_name']));
 
         if ($request->has('groups')) {
-            $subscriber->groups()->sync($request->groups ?? []);
+            $groupIds = collect($request->groups ?? [])
+                ->filter(fn($v) => is_numeric($v))
+                ->map(fn($v) => (int) $v)
+                ->values();
+
+            $groupsQuery = Group::query();
+            if (Schema::hasColumn('newsletter_groups', 'is_external')) {
+                $groupsQuery->where('is_external', true);
+            }
+            if (Schema::hasColumn('newsletter_groups', 'is_active')) {
+                $groupsQuery->where('is_active', true);
+            }
+            $allowedIds = $groupsQuery->whereIn('id', $groupIds->all())->pluck('id')->all();
+            $subscriber->groups()->sync($allowedIds);
         }
 
         return view('newsletter.preferences-updated', compact('subscriber'));
@@ -311,13 +362,35 @@ class PublicController extends Controller
             'first_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['nullable', 'string', 'max:255'],
             'groups' => ['nullable', 'array'],
-            'groups.*' => ['exists:newsletter_groups,id'],
+            'groups.*' => [
+                Rule::exists('newsletter_groups', 'id')
+                    ->when(Schema::hasColumn('newsletter_groups', 'is_external'), function ($rule) {
+                        return $rule->where('is_external', true);
+                    })
+                    ->when(Schema::hasColumn('newsletter_groups', 'is_active'), function ($rule) {
+                        return $rule->where('is_active', true);
+                    }),
+            ],
         ]);
 
         $subscriber->update($request->only(['name', 'first_name', 'last_name']));
 
         if ($request->has('groups')) {
-            $subscriber->groups()->sync($request->groups ?? []);
+            $groupIds = collect($request->groups ?? [])
+                ->filter(fn($v) => is_numeric($v))
+                ->map(fn($v) => (int) $v)
+                ->values();
+
+            $groupsQuery = Group::query();
+            if (Schema::hasColumn('newsletter_groups', 'is_external')) {
+                $groupsQuery->where('is_external', true);
+            }
+            if (Schema::hasColumn('newsletter_groups', 'is_active')) {
+                $groupsQuery->where('is_active', true);
+            }
+
+            $allowedIds = $groupsQuery->whereIn('id', $groupIds->all())->pluck('id')->all();
+            $subscriber->groups()->sync($allowedIds);
         }
 
         return response()->json([

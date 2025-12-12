@@ -7,6 +7,7 @@ use App\Models\Newsletter\Group;
 use App\Models\Newsletter\Subscriber;
 use App\Models\Team;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
@@ -25,18 +26,29 @@ class GroupController extends Controller
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $rules = [
             'name' => ['required', 'string', 'max:255', 'unique:newsletter_groups,name'],
             'description' => ['nullable', 'string'],
             'color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'is_active' => ['boolean'],
-        ]);
+        ];
+
+        if (Schema::hasColumn('newsletter_groups', 'is_external')) {
+            $rules['is_external'] = ['boolean'];
+        }
+
+        $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
 
-        Group::create($validator->validated());
+        $data = $validator->validated();
+        if (!Schema::hasColumn('newsletter_groups', 'is_external')) {
+            unset($data['is_external']);
+        }
+
+        Group::create($data);
 
         return back()->with('success', 'Group created successfully.');
     }
@@ -113,18 +125,29 @@ class GroupController extends Controller
 
     public function update(Request $request, Group $group)
     {
-        $validator = Validator::make($request->all(), [
+        $rules = [
             'name' => ['required', 'string', 'max:255', 'unique:newsletter_groups,name,' . $group->id],
             'description' => ['nullable', 'string'],
             'color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'is_active' => ['boolean'],
-        ]);
+        ];
+
+        if (Schema::hasColumn('newsletter_groups', 'is_external')) {
+            $rules['is_external'] = ['boolean'];
+        }
+
+        $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
 
-        $group->update($validator->validated());
+        $data = $validator->validated();
+        if (!Schema::hasColumn('newsletter_groups', 'is_external')) {
+            unset($data['is_external']);
+        }
+
+        $group->update($data);
 
         return back()->with('success', 'Group updated successfully.');
     }

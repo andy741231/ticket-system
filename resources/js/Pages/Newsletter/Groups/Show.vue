@@ -15,6 +15,7 @@ const editForm = useForm({
   description: props.group.description || '',
   color: props.group.color || '#3b82f6',
   is_active: props.group.is_active ?? true,
+  is_external: props.group.is_external ?? false,
 });
 
 function updateGroup() {
@@ -126,6 +127,10 @@ const allPageSelected = computed({
             <div class="flex items-center gap-2">
               <input id="is_active" v-model="editForm.is_active" type="checkbox" class="rounded border-gray-300 text-purple-600 shadow-sm focus:ring-purple-500" />
               <label for="is_active" class="text-sm text-gray-700 dark:text-gray-300">Active</label>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="is_external" v-model="editForm.is_external" type="checkbox" class="rounded border-gray-300 text-purple-600 shadow-sm focus:ring-purple-500" />
+              <label for="is_external" class="text-sm text-gray-700 dark:text-gray-300">External (show on public preferences page)</label>
             </div>
             <div class="md:col-span-2 flex justify-end">
               <button type="submit" :disabled="editForm.processing"
