@@ -110,6 +110,11 @@
         </div>
         
         <div class="content">
+            @if (session('status'))
+                <div style="background:#e6f4ea;border:1px solid #b7e1cd;color:#1e4620;padding:12px 14px;border-radius:6px;margin-bottom:20px;">
+                    {{ session('status') }}
+                </div>
+            @endif
             <form method="POST" action="{{ route('newsletter.public.preferences.update', $subscriber->unsubscribe_token) }}">
                 @csrf
                 

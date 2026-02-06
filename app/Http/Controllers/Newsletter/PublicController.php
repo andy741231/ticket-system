@@ -393,11 +393,17 @@ class PublicController extends Controller
             $subscriber->groups()->sync($allowedIds);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Preferences updated successfully',
-            'subscriber' => $subscriber->load('groups'),
-        ]);
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Preferences updated successfully',
+                'subscriber' => $subscriber->load('groups'),
+            ]);
+        }
+
+        return redirect()
+            ->route('newsletter.public.preferences', $subscriber->unsubscribe_token)
+            ->with('status', 'Preferences updated successfully.');
     }
 
     public function archive(Request $request)

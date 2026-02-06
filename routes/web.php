@@ -41,6 +41,7 @@ $publicRoutes = function () {
     Route::get('archive', [PublicController::class, 'archive'])->name('archive');
     Route::get('campaign/{campaign}', [PublicController::class, 'viewCampaign'])->name('campaign.view');
     Route::get('unsubscribe/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'unsubscribe'])->name('unsubscribe');
+    Route::post('unsubscribe/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'unsubscribe']);
     Route::get('preferences/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'preferences'])->name('preferences');
     Route::post('preferences/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'updatePreferences'])->name('preferences.update');
     Route::get('track-open/{campaign}/{subscriber}/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'trackOpen'])->name('track-open');
