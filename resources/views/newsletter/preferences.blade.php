@@ -141,7 +141,7 @@
                 @if($groups->count() > 0)
                 <div class="form-group">
                     <label>Newsletter Groups</label>
-                    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">Select which newsletter groups you'd like to receive:<br>At least one group is required</p>
+                    <p style="color: #666; font-size: 14px; margin-bottom: 10px;">Select which newsletter groups you'd like to receive:<br>(At least one group is required)</p>
                     <div class="checkbox-group">
                         @foreach($groups as $group)
                         <label>

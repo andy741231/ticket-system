@@ -22,8 +22,7 @@
     <article class="card" aria-labelledby="unsubscribed-title">
         <h1 class="title" id="unsubscribed-title">You're unsubscribed</h1>
         <p class="meta">{{ $subscriber->email }}</p>
-        <p>You have successfully been unsubscribed from future newsletters. If this was a mistake, you can re-subscribe anytime by contacting us.</p>
-        <p>Click by mistake? Subscribe again <a href="https://www.uh.edu/population-health/newsletter/">here</p>
+        <p>You have successfully been unsubscribed from future newsletters. If this was a mistake, you can re-subscribe anytime <a href="https://www.uh.edu/population-health/newsletter/">here</p>
     </article>
 </main>
 </body>
