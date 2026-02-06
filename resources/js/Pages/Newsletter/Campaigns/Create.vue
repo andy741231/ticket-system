@@ -657,6 +657,9 @@ const submit = (status = null) => {
   // Validate all fields first
   if (!validateAllFields()) {
     console.log('Validation failed with errors:', clientErrors.value);
+    if (isExplicitDraftSave) {
+      isDraftSaving.value = false;
+    }
     // Scroll to first error
     const firstErrorField = Object.keys(clientErrors.value)[0];
     console.log('First error field:', firstErrorField);
@@ -708,6 +711,10 @@ const submit = (status = null) => {
     } else {
       status = 'draft';
     }
+  }
+
+  if (isExplicitDraftSave) {
+    isDraftSaving.value = true;
   }
 
   const payload = { ...form.data(), status };
@@ -780,7 +787,6 @@ const submit = (status = null) => {
 };
 
 const saveDraft = () => {
-  isDraftSaving.value = true;
   submit('draft');
 };
 

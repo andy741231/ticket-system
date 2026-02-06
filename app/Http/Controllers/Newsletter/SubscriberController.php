@@ -44,7 +44,7 @@ class SubscriberController extends Controller
             'search' => 'nullable|string|max:255',
             'per_page' => 'sometimes|integer|min:1|max:500',
             'page' => 'sometimes|integer|min:1',
-            'group_id' => 'nullable|exists:newsletter_groups,id'
+            'group_id' => 'nullable|string'
         ]);
 
         $query = Subscriber::with('groups');
@@ -56,9 +56,15 @@ class SubscriberController extends Controller
 
         // Group filter
         if ($request->filled('group_id')) {
-            $query->whereHas('groups', function ($q) use ($request) {
-                $q->where('newsletter_groups.id', $request->group_id);
-            });
+            if ($request->group_id === 'no_group') {
+                // Filter for subscribers with no groups
+                $query->whereDoesntHave('groups');
+            } else {
+                // Filter for subscribers in a specific group
+                $query->whereHas('groups', function ($q) use ($request) {
+                    $q->where('newsletter_groups.id', $request->group_id);
+                });
+            }
         }
 
         // Search functionality
@@ -88,8 +94,8 @@ class SubscriberController extends Controller
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email' => ['required', 'email', 'unique:newsletter_subscribers,email'],
+        $baseRules = [
+            'email' => ['required', 'email'],
             'name' => ['nullable', 'string', 'max:255'],
             'first_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['nullable', 'string', 'max:255'],
@@ -97,10 +103,54 @@ class SubscriberController extends Controller
             'status' => ['required', Rule::in(['active', 'unsubscribed', 'bounced', 'pending'])],
             'groups' => ['nullable', 'array'],
             'groups.*' => ['exists:newsletter_groups,id'],
-        ]);
+        ];
+
+        $validator = Validator::make($request->all(), $baseRules);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
+        }
+
+        $existingSubscriber = Subscriber::where('email', $request->email)->first();
+        if ($existingSubscriber) {
+            if ($request->filled('groups')) {
+                $requestedGroupIds = $request->groups;
+                $existingGroupIds = $existingSubscriber->groups()->pluck('newsletter_groups.id')->toArray();
+                
+                $newGroups = array_diff($requestedGroupIds, $existingGroupIds);
+                $duplicateGroups = array_intersect($requestedGroupIds, $existingGroupIds);
+                
+                if (empty($newGroups) && !empty($duplicateGroups)) {
+                    $groupNames = Group::whereIn('id', $duplicateGroups)->pluck('name')->toArray();
+                    return back()->withErrors([
+                        'groups' => 'Subscriber is already in: ' . implode(', ', $groupNames)
+                    ]);
+                }
+                
+                if (!empty($newGroups)) {
+                    $existingSubscriber->groups()->syncWithoutDetaching($newGroups);
+                }
+                
+                // If there are duplicates, show as warning in modal (not flash success)
+                if (!empty($duplicateGroups)) {
+                    $message = [];
+                    if (!empty($newGroups)) {
+                        $addedNames = Group::whereIn('id', $newGroups)->pluck('name')->toArray();
+                        $message[] = 'Subscriber added successfully to: ' . implode(', ', $addedNames);
+                    }
+                    $duplicateNames = Group::whereIn('id', $duplicateGroups)->pluck('name')->toArray();
+                    $message[] = 'Subscriber is already in: ' . implode(', ', $duplicateNames);
+                    
+                    return back()->withErrors([
+                        'groups' => implode("\n", $message)
+                    ]);
+                }
+                
+                // Only new groups added - complete success
+                return back()->with('success', 'Subscriber added to group(s) successfully.');
+            }
+
+            return back()->withErrors(['email' => 'Subscriber already exists but no groups selected.']);
         }
 
         $subscriber = Subscriber::create($validator->validated());
@@ -174,6 +224,24 @@ class SubscriberController extends Controller
         return back()->with('success', 'Subscriber deleted successfully.');
     }
 
+    public function downloadImportTemplate()
+    {
+        $filename = 'subscriber_import_template.csv';
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['Email', 'First Name', 'Last Name', 'Organization']);
+            fputcsv($file, ['example@email.com', 'John', 'Doe', 'Example Corp']);
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
     public function bulkImport(Request $request)
     {
         $request->validate([
@@ -185,7 +253,12 @@ class SubscriberController extends Controller
         $handle = fopen($file->getRealPath(), 'r');
         
         $imported = 0;
+        $existingAddedToGroup = 0;
+        $existingNoChange = 0;
         $errors = [];
+        $addedEmails = [];
+        $existingAddedEmails = [];
+        $existingNoChangeEmails = [];
         $row = 0;
 
         // Skip header row
@@ -196,40 +269,16 @@ class SubscriberController extends Controller
             
             if (empty($data[0])) continue;
 
-            $email = trim($data[0]);
-            // Raw inputs from CSV
-            $rawName = isset($data[1]) && $data[1] !== '' ? trim($data[1]) : null; // Could be full name or just first name
-            $firstName = isset($data[2]) && $data[2] !== '' ? trim($data[2]) : null;
-            $lastName = isset($data[3]) && $data[3] !== '' ? trim($data[3]) : null;
-            $organization = isset($data[4]) && $data[4] !== '' ? trim($data[4]) : null;
+            // Sanitize and validate input data
+            $email = isset($data[0]) ? trim($data[0]) : '';
+            $firstName = isset($data[1]) && $data[1] !== '' ? mb_substr(trim($data[1]), 0, 255) : null;
+            $lastName = isset($data[2]) && $data[2] !== '' ? mb_substr(trim($data[2]), 0, 255) : null;
+            $organization = isset($data[3]) && $data[3] !== '' ? mb_substr(trim($data[3]), 0, 255) : null;
 
-            // If first/last are missing, try to derive from the Name column
-            if ($rawName) {
-                $parts = preg_split('/\s+/', $rawName);
-                if (!$firstName && !$lastName) {
-                    if (count($parts) >= 2) {
-                        // Derive first/last from the Name field
-                        $firstName = $parts[0];
-                        $lastName = implode(' ', array_slice($parts, 1));
-                    } else {
-                        // Single token in Name -> treat as first name only; do not set name
-                        $firstName = $parts[0];
-                        $rawName = null; // prevent using it for name below
-                    }
-                }
-            }
-
-            // Build `name` only when we truly have a full name
+            // Build full name from first and last name (limit to 255 chars)
             $name = null;
-            if ($rawName) {
-                // Prefer explicit Name field as-is when provided
-                $name = $rawName;
-            } elseif ($firstName && $lastName) {
-                // Only set name if we have both first and last names
-                $name = trim($firstName . ' ' . $lastName);
-            } else {
-                // If only first OR only last -> leave name null to avoid duplication
-                $name = null;
+            if ($firstName && $lastName) {
+                $name = mb_substr(trim($firstName . ' ' . $lastName), 0, 255);
             }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -237,35 +286,76 @@ class SubscriberController extends Controller
                 continue;
             }
 
-            if (Subscriber::where('email', $email)->exists()) {
-                $errors[] = "Row {$row}: Email already exists";
+            try {
+                $existingSubscriber = Subscriber::where('email', $email)->first();
+                
+                if ($existingSubscriber) {
+                    // Check if group is specified and if subscriber is already in it
+                    if ($request->filled('group_id')) {
+                        $isInGroup = $existingSubscriber->groups()->where('newsletter_groups.id', $request->group_id)->exists();
+                        if (!$isInGroup) {
+                            // Existing subscriber added to NEW group - treat as success
+                            $existingSubscriber->groups()->attach($request->group_id);
+                            $existingAddedToGroup++;
+                            $existingAddedEmails[] = $email;
+                        } else {
+                            // Existing subscriber already in this group - no change
+                            $existingNoChange++;
+                            $existingNoChangeEmails[] = $email;
+                        }
+                    } else {
+                        // No group specified, subscriber exists - no change
+                        $existingNoChange++;
+                        $existingNoChangeEmails[] = $email;
+                    }
+                    continue;
+                }
+
+                $subscriber = Subscriber::create([
+                    'email' => $email,
+                    'name' => $name,
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'status' => 'active',
+                ]);
+
+                // Handle organization in metadata
+                if ($organization) {
+                    $subscriber->organization = $organization;
+                    $subscriber->save();
+                }
+
+                if ($request->filled('group_id')) {
+                    $subscriber->groups()->attach($request->group_id);
+                }
+
+                $imported++;
+                $addedEmails[] = $email;
+            } catch (\Exception $e) {
+                $errors[] = "Row {$row}: Database error - " . $e->getMessage();
                 continue;
             }
-
-            $subscriber = Subscriber::create([
-                'email' => $email,
-                'name' => $name,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'status' => 'active',
-            ]);
-
-            // Handle organization in metadata
-            if ($organization) {
-                $subscriber->organization = $organization;
-                $subscriber->save();
-            }
-
-            if ($request->filled('group_id')) {
-                $subscriber->groups()->attach($request->group_id);
-            }
-
-            $imported++;
         }
 
         fclose($handle);
 
-        return back()->with('success', "Imported {$imported} subscribers successfully.")
+        $report = [
+            'imported' => $imported,
+            'existing_added_to_group' => $existingAddedToGroup,
+            'existing_no_change' => $existingNoChange,
+            'added_emails' => $addedEmails,
+            'existing_added_emails' => $existingAddedEmails,
+            'existing_no_change_emails' => $existingNoChangeEmails,
+        ];
+
+        $totalSuccess = $imported + $existingAddedToGroup;
+        $message = "Import completed: {$totalSuccess} subscriber(s) processed successfully";
+        if ($existingNoChange > 0) {
+            $message .= ", {$existingNoChange} already existed with no changes";
+        }
+        
+        return back()->with('success', $message)
+                    ->with('import_report', $report)
                     ->with('import_errors', $errors);
     }
 
@@ -278,9 +368,13 @@ class SubscriberController extends Controller
         }
 
         if ($request->filled('group_id')) {
-            $query->whereHas('groups', function ($q) use ($request) {
-                $q->where('newsletter_groups.id', $request->group_id);
-            });
+            if ($request->group_id === 'no_group') {
+                $query->whereDoesntHave('groups');
+            } else {
+                $query->whereHas('groups', function ($q) use ($request) {
+                    $q->where('newsletter_groups.id', $request->group_id);
+                });
+            }
         }
 
         $subscribers = $query->get();
@@ -338,5 +432,34 @@ class SubscriberController extends Controller
             ->update(['status' => $request->status]);
 
         return back()->with('success', "Updated status for {$count} subscribers successfully.");
+    }
+
+    public function findByEmail(Request $request)
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $subscriber = Subscriber::with('groups')
+            ->where('email', $request->email)
+            ->first();
+
+        return response()->json([
+            'subscriber' => $subscriber,
+        ]);
+    }
+
+    public function addToGroups(Request $request, Subscriber $subscriber)
+    {
+        $request->validate([
+            'groups' => ['nullable', 'array'],
+            'groups.*' => ['exists:newsletter_groups,id'],
+        ]);
+
+        if ($request->has('groups')) {
+            $subscriber->groups()->sync($request->groups);
+        }
+
+        return back()->with('success', 'Subscriber groups updated successfully.');
     }
 }

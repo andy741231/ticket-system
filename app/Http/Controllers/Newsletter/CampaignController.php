@@ -906,21 +906,31 @@ class CampaignController extends Controller
                 }
 
                 // Rewrite URLs in html_content and content
-                $oldBase = url(\Storage::url($sourceDir . '/'));
-                $newBase = url(\Storage::url($destDir . '/'));
+                $oldBaseAbsolute = url(\Storage::url($sourceDir . '/'));
+                $newBaseAbsolute = url(\Storage::url($destDir . '/'));
+                $oldBaseRelative = \Storage::url($sourceDir . '/');
+                $newBaseRelative = \Storage::url($destDir . '/');
 
                 $updated = [];
                 
                 // Update html_content
                 if (!empty($newCampaign->html_content)) {
-                    $updated['html_content'] = str_replace($oldBase, $newBase, $newCampaign->html_content);
+                    $updated['html_content'] = str_replace(
+                        [$oldBaseAbsolute, $oldBaseRelative],
+                        [$newBaseAbsolute, $newBaseRelative],
+                        $newCampaign->html_content
+                    );
                 }
                 
                 // Update content (array) -> stringify, replace, decode
                 if (!empty($newCampaign->content)) {
                     $json = json_encode($newCampaign->content);
                     if ($json !== false) {
-                        $json = str_replace($oldBase, $newBase, $json);
+                        $json = str_replace(
+                            [$oldBaseAbsolute, $oldBaseRelative],
+                            [$newBaseAbsolute, $newBaseRelative],
+                            $json
+                        );
                         $decoded = json_decode($json, true);
                         if (json_last_error() === JSON_ERROR_NONE) {
                             $updated['content'] = $decoded;

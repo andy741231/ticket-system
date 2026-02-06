@@ -177,6 +177,7 @@ class HandleInertiaRequests extends Middleware
             ],
             // Expose bulk import row-level errors separately from the validation error bag
             'import_errors' => fn () => $request->session()->get('import_errors', []),
+            'import_report' => fn () => $request->session()->get('import_report'),
             'teams' => $teams,
         ];
     }

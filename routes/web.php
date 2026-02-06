@@ -91,15 +91,18 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
         Route::post('/', [SubscriberController::class, 'store'])->name('store');
 
         // Literal routes must come before wildcard routes to avoid capture by '/{subscriber}'
+        Route::get('/import-template', [SubscriberController::class, 'downloadImportTemplate'])->name('import-template');
         Route::post('/bulk-import', [SubscriberController::class, 'bulkImport'])->name('bulk-import');
         Route::get('/bulk-export', [SubscriberController::class, 'bulkExport'])->name('bulk-export');
         Route::delete('/bulk-delete', [SubscriberController::class, 'bulkDelete'])->name('bulk-delete');
         Route::put('/bulk-update-status', [SubscriberController::class, 'bulkUpdateStatus'])->name('bulk-update-status');
         Route::get('/count', [SubscriberController::class, 'getActiveCount'])->name('count');
+        Route::get('/find-by-email', [SubscriberController::class, 'findByEmail'])->name('find-by-email');
 
         // Wildcard routes
         Route::get('/{subscriber}', [SubscriberController::class, 'show'])->name('show');
         Route::put('/{subscriber}', [SubscriberController::class, 'update'])->name('update');
+        Route::post('/{subscriber}/add-to-groups', [SubscriberController::class, 'addToGroups'])->name('add-to-groups');
         Route::delete('/{subscriber}', [SubscriberController::class, 'destroy'])->name('destroy');
     });
     
@@ -119,6 +122,7 @@ Route::middleware(['auth', 'verified'])->prefix('newsletter')->name('newsletter.
         Route::put('/{group}', [GroupController::class, 'update'])->name('update');
         Route::delete('/{group}', [GroupController::class, 'destroy'])->name('destroy');
         Route::post('/{group}/subscribers', [GroupController::class, 'addSubscribers'])->name('add-subscribers');
+        Route::post('/merge', [GroupController::class, 'merge'])->name('merge');
         
         // Get unique subscribers count across multiple groups
         Route::post('/unique-subscribers', [GroupController::class, 'getUniqueSubscribersCount'])

@@ -66,7 +66,6 @@ async function fetchDeliveries() {
     const { data } = await axios.get(route('newsletter.campaigns.scheduled-sends', props.campaign.id), { params });
     deliveries.value = data;
   } catch (e) {
-    console.error('Error fetching deliveries:', e);
   } finally {
     isLoadingDeliveries.value = false;
   }
@@ -235,7 +234,6 @@ const getUniqueSubscribersCount = async (groupIds) => {
     }
     
     const url = route('newsletter.groups.unique-subscribers');
-    const token = document.head.querySelector('meta[name="csrf-token"]')?.content;
     
     // Convert all group IDs to strings to match backend validation
     const stringGroupIds = groupIds.map(id => String(id));
@@ -246,8 +244,7 @@ const getUniqueSubscribersCount = async (groupIds) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': token
+        'X-Requested-With': 'XMLHttpRequest'
       },
       withCredentials: true
     });
@@ -262,7 +259,6 @@ const getUniqueSubscribersCount = async (groupIds) => {
     
     return 0;
   } catch (error) {
-    console.error('Error fetching unique subscribers count:', error);
     return 0;
   }
 };
@@ -292,7 +288,6 @@ const getTotalActiveSubscribers = async () => {
 
     return 0;
   } catch (error) {
-    console.error('Error fetching total active subscribers count:', error);
     return 0;
   }
 };
@@ -321,7 +316,6 @@ const updateRecipientCount = async () => {
       }
     }
   } catch (error) {
-    console.error('Error updating recipient count:', error);
     recipientCount.value = 0;
   } finally {
     isLoadingRecipients.value = false;
@@ -349,7 +343,6 @@ function updateContent(content) {
     const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
     form.content = contentStr;
   } catch (error) {
-    console.error('Error updating content:', error);
     // Ensure we have at least an empty content structure
     form.content = JSON.stringify({
       blocks: [],
@@ -690,7 +683,6 @@ const submit = (status = null) => {
       clientErrors.value = {};
     },
     onError: (errors) => {
-      console.error('Error updating campaign:', errors);
       // Scroll to first server error
       setTimeout(() => {
         const firstErrorField = Object.keys(errors)[0];
@@ -759,7 +751,6 @@ const saveDraft = () => {
       isDraftSaving.value = false;
     },
     onError: (errors) => {
-      console.error('Error saving draft:', errors);
       isDraftSaving.value = false;
     },
     onFinish: () => {
@@ -778,7 +769,6 @@ const sendDraftCampaign = () => {
         // Success handled by flash message
       },
       onError: (errors) => {
-        console.error('Error sending draft:', errors);
       }
     });
   }
@@ -789,7 +779,6 @@ function safeParseJson(str) {
   try {
     return JSON.parse(str);
   } catch (e) {
-    console.error('Error parsing JSON:', e);
     return null;
   }
 }

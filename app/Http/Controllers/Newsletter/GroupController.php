@@ -7,6 +7,7 @@ use App\Models\Newsletter\Group;
 use App\Models\Newsletter\Subscriber;
 use App\Models\Team;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -203,6 +204,59 @@ class GroupController extends Controller
         return response()->json([
             'unique_subscribers_count' => $count,
         ]);
+    }
+
+    public function merge(Request $request)
+    {
+        $validated = $request->validate([
+            'target_group_id' => ['required', 'integer', 'exists:newsletter_groups,id'],
+            'source_group_ids' => ['required', 'array', 'min:1'],
+            'source_group_ids.*' => ['integer', 'exists:newsletter_groups,id'],
+        ]);
+
+        $targetId = (int) $validated['target_group_id'];
+        $sourceIds = collect($validated['source_group_ids'])
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->reject(fn($id) => $id === $targetId)
+            ->values();
+
+        if ($sourceIds->isEmpty()) {
+            return back()->withErrors([
+                'source_group_ids' => 'Please select at least one source group different from the target.',
+            ]);
+        }
+
+        if (Schema::hasColumn('newsletter_groups', 'is_external')) {
+            $groupTypes = Group::query()
+                ->whereIn('id', $sourceIds->merge([$targetId]))
+                ->pluck('is_external')
+                ->unique();
+
+            if ($groupTypes->count() > 1) {
+                return back()->withErrors([
+                    'source_group_ids' => 'Groups need to be both internal or external. Please modify before merging',
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($sourceIds, $targetId) {
+            $subscriberIds = Subscriber::query()
+                ->whereHas('groups', function ($query) use ($sourceIds) {
+                    $query->whereIn('newsletter_groups.id', $sourceIds->all());
+                })
+                ->pluck('id');
+
+            if ($subscriberIds->isNotEmpty()) {
+                $targetGroup = Group::findOrFail($targetId);
+                $targetGroup->subscribers()->syncWithoutDetaching($subscriberIds->all());
+            }
+
+            Group::query()->whereIn('id', $sourceIds->all())->delete();
+        });
+
+        return back()->with('success', 'Groups merged successfully.');
     }
 
     public function destroy(Group $group)
