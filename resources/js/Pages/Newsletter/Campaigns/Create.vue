@@ -850,6 +850,36 @@ function safeParseJson(str) {
                   <InputError class="mt-2" :message="form.errors.subject || clientErrors.subject" />
                 </div>
               </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div>
+                  <InputLabel for="from_name" value="From Name" />
+                  <TextInput 
+                    id="from_name" 
+                    v-model="form.from_name" 
+                    type="text" 
+                    name="from_name"
+                    class="mt-1 block w-full" 
+                    :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.from_name || clientErrors.from_name }"
+                    required 
+                    placeholder="Enter from name"
+                  />
+                  <InputError class="mt-2" :message="form.errors.from_name || clientErrors.from_name" />
+                </div>
+                <div>
+                  <InputLabel for="from_email" value="From Email" />
+                  <TextInput 
+                    id="from_email" 
+                    v-model="form.from_email" 
+                    type="email" 
+                    name="from_email"
+                    class="mt-1 block w-full" 
+                    :class="{ 'border-red-300 focus:border-red-500 focus:ring-red-500': form.errors.from_email || clientErrors.from_email }"
+                    required 
+                    placeholder="Enter from email"
+                  />
+                  <InputError class="mt-2" :message="form.errors.from_email || clientErrors.from_email" />
+                </div>
+              </div>
             </div>
           </div>
 
