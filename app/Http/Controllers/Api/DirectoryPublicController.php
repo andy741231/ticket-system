@@ -39,6 +39,9 @@ class DirectoryPublicController extends Controller
                 'program',
                 'department',
             ])
+            ->with(['affiliatePrograms' => function ($query) {
+                $query->select('directory_team_id', 'title', 'program');
+            }])
             ->when($group, fn ($qq) => $qq->where('group_1', $group))
             ->when($team, fn ($qq) => $qq->where('team', $team))
             ->when($q, function ($qq, $q) {
@@ -65,6 +68,12 @@ class DirectoryPublicController extends Controller
                 'team' => $t->team ?? '',
                 'program' => $t->program ?? '',
                 'department' => $t->department ?? '',
+                'affiliate_programs' => $t->affiliatePrograms->map(function ($ap) {
+                    return [
+                        'title' => $ap->title ?? '',
+                        'program' => $ap->program ?? '',
+                    ];
+                })->toArray(),
             ];
         });
 
