@@ -7,6 +7,7 @@ use App\Console\Commands\ProcessScheduledSends;
 use App\Console\Commands\ProcessRecurringCampaigns;
 use App\Console\Commands\PurgeNewsletterTempUploads;
 use App\Console\Commands\PurgeTempFiles;
+use App\Console\Commands\PruneAppLogs;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -22,6 +23,7 @@ class Kernel extends ConsoleKernel
         ProcessScheduledSends::class,
         ProcessRecurringCampaigns::class,
         PurgeNewsletterTempUploads::class,
+        PruneAppLogs::class,
         PurgeTempFiles::class,
     ];
 
@@ -35,7 +37,7 @@ class Kernel extends ConsoleKernel
             ->everyMinute()
             ->withoutOverlapping()
             ->runInBackground()
-            ->appendOutputTo(storage_path('logs/scheduler.log'));
+            ->appendOutputTo(storage_path('logs/scheduler-' . now()->format('Y-m-d') . '.log'));
 
         // Process recurring campaigns every 15 minutes
         $schedule->command('campaigns:process-recurring')
@@ -65,6 +67,10 @@ class Kernel extends ConsoleKernel
         // Clean up other temp files daily at 3am  
         $schedule->command(PurgeTempFiles::class, ['--days' => 3])
             ->dailyAt('03:00')
+            ->runInBackground();
+        // Prune and rotate application log files daily at 1am
+        $schedule->command(PruneAppLogs::class)
+            ->dailyAt('01:00')
             ->runInBackground();
     }
 
