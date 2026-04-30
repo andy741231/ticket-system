@@ -261,8 +261,13 @@ class PublicController extends Controller
 
         if ($sendNotification) {
             try {
+                $subscriberGroupIds = $subscriber->groups()->pluck('newsletter_groups.id')->all();
+
                 $recipients = SubscriptionNotificationEmail::query()
                     ->where('is_active', true)
+                    ->whereHas('groups', function ($query) use ($subscriberGroupIds) {
+                        $query->whereIn('newsletter_groups.id', $subscriberGroupIds);
+                    })
                     ->pluck('email')
                     ->filter()
                     ->values()

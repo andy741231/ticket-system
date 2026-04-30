@@ -4,6 +4,7 @@ namespace App\Models\Newsletter;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class SubscriptionNotificationEmail extends Model
 {
@@ -19,4 +20,10 @@ class SubscriptionNotificationEmail extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class, 'newsletter_notification_email_groups', 'notification_email_id', 'group_id')
+            ->withTimestamps();
+    }
 }

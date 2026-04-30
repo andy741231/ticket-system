@@ -6,11 +6,13 @@ import {
   ArrowLeftIcon,
   PlusIcon,
   TrashIcon,
-  EnvelopeIcon
+  EnvelopeIcon,
+  TagIcon
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
   emails: Array,
+  groups: Array,
 });
 
 const page = usePage();
@@ -20,6 +22,7 @@ const flashError = computed(() => page.props.flash?.error);
 const createForm = useForm({
   email: '',
   is_active: true,
+  groups: [],
 });
 
 function createEmail() {
@@ -28,6 +31,7 @@ function createEmail() {
     onSuccess: () => {
       createForm.reset();
       createForm.is_active = true;
+      createForm.groups = [];
     },
   });
 }
@@ -36,6 +40,35 @@ function toggleActive(item) {
   router.put(
     route('newsletter.notification-emails.update', item.id),
     { is_active: !item.is_active },
+    { preserveScroll: true }
+  );
+}
+
+function groupIdsFor(item) {
+  return (item.groups || []).map((group) => group.id);
+}
+
+function isGroupSelected(item, groupId) {
+  return groupIdsFor(item).includes(groupId);
+}
+
+function updateEmailGroups(item, groupId, checked) {
+  const groupIds = new Set(groupIdsFor(item));
+
+  if (checked) {
+    groupIds.add(groupId);
+  } else {
+    groupIds.delete(groupId);
+  }
+
+  if (!groupIds.size) {
+    alert('Please select at least one group for this notification email.');
+    return;
+  }
+
+  router.put(
+    route('newsletter.notification-emails.update', item.id),
+    { groups: Array.from(groupIds) },
     { preserveScroll: true }
   );
 }
@@ -117,6 +150,32 @@ function deleteEmail(item) {
                   </label>
                 </div>
 
+                <div>
+                  <label class="block text-sm font-medium text-uh-slate dark:text-gray-300 mb-2 flex items-center gap-2">
+                    <TagIcon class="w-4 h-4" />
+                    Notification Groups
+                  </label>
+                  <div class="bg-uh-cream/30 dark:bg-gray-700/50 border border-uh-gray/20 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto">
+                    <div v-if="groups.length" class="space-y-2">
+                      <label v-for="g in groups" :key="g.id" class="flex items-center gap-2 cursor-pointer">
+                        <input
+                          v-model="createForm.groups"
+                          :value="g.id"
+                          type="checkbox"
+                          class="rounded border-uh-gray/30 text-uh-red shadow-sm focus:ring-uh-red/20"
+                        />
+                        <span class="text-sm text-uh-slate dark:text-gray-300">{{ g.name }}</span>
+                      </label>
+                    </div>
+                    <div v-else class="text-sm text-uh-gray dark:text-gray-400">
+                      No groups available
+                    </div>
+                  </div>
+                  <div v-if="createForm.errors.groups" class="mt-1 text-sm text-uh-red">
+                    {{ createForm.errors.groups }}
+                  </div>
+                </div>
+
                 <div class="pt-2">
                   <button
                     type="submit"
@@ -149,6 +208,26 @@ function deleteEmail(item) {
                     <div>
                       <div class="font-medium text-uh-slate dark:text-gray-100">{{ e.email }}</div>
                       <div class="text-xs text-uh-gray dark:text-gray-400">Added {{ new Date(e.created_at).toLocaleString() }}</div>
+                      <div class="mt-2 flex flex-wrap gap-1">
+                        <span
+                          v-for="g in e.groups"
+                          :key="g.id"
+                          class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-uh-red/10 text-uh-red"
+                        >
+                          {{ g.name }}
+                        </span>
+                      </div>
+                      <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label v-for="g in groups" :key="g.id" class="flex items-center gap-2 text-xs text-uh-slate dark:text-gray-300">
+                          <input
+                            :checked="isGroupSelected(e, g.id)"
+                            @change="updateEmailGroups(e, g.id, $event.target.checked)"
+                            type="checkbox"
+                            class="rounded border-uh-gray/30 text-uh-red shadow-sm focus:ring-uh-red/20"
+                          />
+                          <span>{{ g.name }}</span>
+                        </label>
+                      </div>
                     </div>
 
                     <div class="flex items-center gap-2">
