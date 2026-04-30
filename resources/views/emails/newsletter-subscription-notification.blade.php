@@ -69,6 +69,7 @@
             <p><strong>Email:</strong> {{ $subscriber->email }}</p>
             <p><strong>Name:</strong> {{ $subscriber->full_name }}</p>
             <p><strong>Organization:</strong> {{ $subscriber->organization ?? '' }}</p>
+            <p><strong>Group:</strong> {{ $subscriber->groups->pluck('name')->join(', ') ?: 'No group assigned' }}</p>
             <p><strong>Subscribed at:</strong> {{ optional($subscriber->subscribed_at)->format('F j, Y g:i A') ?? '' }}</p>
         </div>
 
