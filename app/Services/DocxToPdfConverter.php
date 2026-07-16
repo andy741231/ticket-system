@@ -26,6 +26,7 @@ class DocxToPdfConverter
         }
 
         // Use a unique temp directory so concurrent conversions don't collide.
+        $isWindows = PHP_OS_FAMILY === 'Windows';
         $tempDir = sys_get_temp_dir() . '/docx2pdf_' . Str::uuid();
         if (!@mkdir($tempDir, 0755, true) && !is_dir($tempDir)) {
             return null;
@@ -42,12 +43,19 @@ class DocxToPdfConverter
         $escapedBinary = escapeshellarg($soffice);
         $escapedInput  = escapeshellarg($absolutePath);
         $escapedOutDir = escapeshellarg($tempDir);
-        $escapedProfile = escapeshellarg($userProfile);
+
+        // The UserInstallation URL must be a proper file:// URL.
+        // On Windows, paths like C:\temp\profile need to become file:///C:/temp/profile
+        $profileUrl = 'file://' . str_replace('\\', '/', $userProfile);
+        if ($isWindows && preg_match('/^file:\/\/\/[A-Za-z]:/', $profileUrl) === 0) {
+            // Add leading slash for drive-letter paths: file://C:/... → file:///C:/...
+            $profileUrl = 'file:///' . ltrim(str_replace('\\', '/', $userProfile), '/');
+        }
 
         $command = sprintf(
-            '%s --headless --nologo --nofirststartwizard --norestore -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
+            '%s --headless --nologo --nofirststartwizard --norestore -env:UserInstallation=%s --convert-to pdf --outdir %s %s 2>&1',
             $escapedBinary,
-            $escapedProfile,
+            escapeshellarg($profileUrl),
             $escapedOutDir,
             $escapedInput
         );
@@ -86,20 +94,38 @@ class DocxToPdfConverter
      */
     protected function resolveSofficeBinary(): ?string
     {
-        // 1. Check PATH (Homebrew on macOS symlinks soffice into /opt/homebrew/bin)
-        $pathResult = trim((string) shell_exec('command -v soffice 2>/dev/null'));
-        if ($pathResult !== '' && is_executable($pathResult)) {
-            return $pathResult;
+        $isWindows = PHP_OS_FAMILY === 'Windows';
+
+        // 1. Check PATH
+        if ($isWindows) {
+            // `where` is the Windows equivalent of `command -v`
+            $pathResult = trim((string) shell_exec('where soffice 2>nul'));
+            if ($pathResult !== '' && is_executable($pathResult)) {
+                return $pathResult;
+            }
+        } else {
+            $pathResult = trim((string) shell_exec('command -v soffice 2>/dev/null'));
+            if ($pathResult !== '' && is_executable($pathResult)) {
+                return $pathResult;
+            }
         }
 
-        // 2. Standard macOS .app location
-        $macApp = '/Applications/LibreOffice.app/Contents/MacOS/soffice';
-        if (is_executable($macApp)) {
-            return $macApp;
-        }
+        // 2. Platform-specific known locations
+        $candidates = $isWindows
+            ? [
+                'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+                'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+            ]
+            : [
+                // macOS .app
+                '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+                // Common Linux locations
+                '/usr/bin/soffice',
+                '/usr/bin/libreoffice',
+                '/usr/local/bin/soffice',
+            ];
 
-        // 3. Common Linux locations
-        foreach (['/usr/bin/soffice', '/usr/bin/libreoffice', '/usr/local/bin/soffice'] as $candidate) {
+        foreach ($candidates as $candidate) {
             if (is_executable($candidate)) {
                 return $candidate;
             }
