@@ -8,9 +8,11 @@ use Spatie\Permission\PermissionRegistrar;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Models\Invite;
+use App\Models\Document;
 use App\Policies\TicketPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\InvitePolicy;
+use App\Policies\DocumentPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
@@ -48,6 +50,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Ticket::class, TicketPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Invite::class, InvitePolicy::class);
+        Gate::policy(Document::class, DocumentPolicy::class);
 
         // Delegate string-based abilities to PermissionService (with team context)
         Gate::before(function ($user, string $ability) {

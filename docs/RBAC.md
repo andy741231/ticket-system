@@ -20,6 +20,7 @@ This document summarizes the Role-Based Access Control (RBAC) architecture, impl
 - Users app: `users.user.view|create|update|delete|manage`
 - Tickets app: `tickets.ticket.view|create|update|delete|manage`, `tickets.file.upload`
 - Directory app: `directory.profile.view|update`, `directory.user.lookup`
+- Document Reviewer app: `docs.app.access`, `docs.document.view|create|update|delete|manage`, `docs.flagword.manage`
 - RBAC admin: `admin.rbac.roles.manage`, `admin.rbac.permissions.manage`, `admin.rbac.overrides.manage`
 
 ## Backend Integration

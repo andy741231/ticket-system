@@ -66,6 +66,22 @@ class RbacSeeder extends Seeder
                     // Optionally grant basic access to standard users later
                 ],
             ],
+            'docs' => [
+                'permissions' => [
+                    'docs.app.access',
+                    'docs.document.view',
+                    'docs.document.create',
+                    'docs.document.update',
+                    'docs.document.delete',
+                    'docs.document.manage',
+                    'docs.flagword.manage',
+                ],
+                'user_role_perms' => [
+                    'docs.app.access',
+                    'docs.document.view',
+                    'docs.document.create',
+                ],
+            ],
         ];
 
         foreach ($definitions as $appSlug => $def) {

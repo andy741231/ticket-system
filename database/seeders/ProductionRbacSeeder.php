@@ -69,6 +69,22 @@ class ProductionRbacSeeder extends Seeder
                     // no default perms for newsletter user role
                 ],
             ],
+            'docs' => [
+                'permissions' => [
+                    'docs.app.access',
+                    'docs.document.view',
+                    'docs.document.create',
+                    'docs.document.update',
+                    'docs.document.delete',
+                    'docs.document.manage',
+                    'docs.flagword.manage',
+                ],
+                'user_role_perms' => [
+                    'docs.app.access',
+                    'docs.document.view',
+                    'docs.document.create',
+                ],
+            ],
         ];
 
         // Global RBAC admin permissions (not app-scoped)

@@ -114,6 +114,9 @@ const EXPLICIT_BOOL_MAP = {
   // Cross-app access boolean for Newsletter
   'newsletter.app.access': 'canAccessNewsletterApp',
   'newsletter.manage': 'canManageNewsletterApp',
+  // Cross-app access booleans for Document Reviewer
+  'docs.app.access': 'canAccessDocsApp',
+  'docs.flagword.manage': 'canManageDocsFlagWords',
   'tickets.ticket.update': 'canUpdateTickets',
   // RBAC admin explicit booleans (synthetic keys for clearer UI usage)
   'admin.rbac.roles.manage': 'canManageRoles',

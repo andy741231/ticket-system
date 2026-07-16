@@ -33,6 +33,9 @@ class DatabaseSeeder extends Seeder
 
             // Super admin user and role
             SuperAdminSeeder::class,
+
+            // NIH flag words (235 terms + suggested replacements)
+            NihFlagWordsSeeder::class,
         ]);
     }
 }

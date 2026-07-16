@@ -8,6 +8,8 @@ use App\Http\Controllers\Newsletter\TemplateController;
 use App\Http\Controllers\Newsletter\PublicController;
 use App\Http\Controllers\Newsletter\SubscriptionNotificationEmailController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DocumentFlagWordController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\TmpUploadController;
 use Illuminate\Support\Facades\Route;
@@ -198,6 +200,29 @@ Route::middleware(['auth', 'verified'])->prefix('tickets')->name('tickets.')->gr
         Route::post('/{comment}/pin', [\App\Http\Controllers\TicketCommentController::class, 'pin'])->name('pin');
         Route::post('/{comment}/reactions', [\App\Http\Controllers\TicketCommentController::class, 'reactions'])->name('reactions');
     });
+});
+
+// Document Reviewer Routes
+Route::middleware(['auth', 'verified'])->prefix('docs')->name('docs.')->group(function () {
+    Route::get('/', [DocumentController::class, 'index'])->name('index');
+    Route::get('/create', [DocumentController::class, 'create'])->name('create');
+    Route::post('/', [DocumentController::class, 'store'])->name('store');
+
+    // Flag Words (admin-managed global list) — literal routes MUST come before {document} wildcard
+    Route::prefix('flag-words')->name('flag-words.')->group(function () {
+        Route::get('/', [DocumentFlagWordController::class, 'index'])->name('index');
+        Route::post('/', [DocumentFlagWordController::class, 'store'])->name('store');
+        Route::put('/{flagWord}', [DocumentFlagWordController::class, 'update'])->name('update');
+        Route::delete('/bulk', [DocumentFlagWordController::class, 'bulkDestroy'])->name('bulk-destroy');
+        Route::delete('/{flagWord}', [DocumentFlagWordController::class, 'destroy'])->name('destroy');
+    });
+
+    // Wildcard routes for specific documents (must come after all literal routes)
+    Route::get('/{document}', [DocumentController::class, 'show'])->name('show');
+    Route::delete('/{document}', [DocumentController::class, 'destroy'])->name('destroy');
+    Route::post('/{document}/rescan', [DocumentController::class, 'rescan'])->name('rescan');
+    Route::get('/{document}/download', [DocumentController::class, 'download'])->name('download');
+    Route::get('/{document}/pdf-preview', [DocumentController::class, 'pdfPreview'])->name('pdf-preview');
 });
 
 // Annotation Routes

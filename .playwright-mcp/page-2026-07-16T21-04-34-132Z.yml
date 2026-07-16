@@ -1,0 +1,100 @@
+- generic [ref=f8e3]:
+  - complementary [ref=f8e4]:
+    - generic [ref=f8e5]:
+      - link "The Hub" [ref=f8e7] [cursor=pointer]:
+        - /url: http://localhost:8000/dashboard
+      - navigation [ref=f8e10]:
+        - generic [ref=f8e11]:
+          - link "Dashboard" [ref=f8e12] [cursor=pointer]:
+            - /url: http://localhost:8000/dashboard
+          - button "Tickets" [ref=f8e16] [cursor=pointer]
+          - button "Document Reviewer" [expanded] [ref=f8e22] [cursor=pointer]
+          - generic [ref=f8e28]:
+            - link "All Documents" [ref=f8e29] [cursor=pointer]:
+              - /url: http://localhost:8000/docs
+            - link "Flag Words" [ref=f8e33] [cursor=pointer]:
+              - /url: http://localhost:8000/docs/flag-words
+          - link "Directory" [ref=f8e37] [cursor=pointer]:
+            - /url: http://localhost:8000/directory
+          - button "Newsletter" [ref=f8e41] [cursor=pointer]
+          - button "User Management" [ref=f8e48] [cursor=pointer]
+  - generic [ref=f8e54]:
+    - banner [ref=f8e55]:
+      - generic [ref=f8e59]:
+        - button "Toggle dark mode" [ref=f8e60] [cursor=pointer]
+        - button "Open user menu Andy Chan Andy Chan" [ref=f8e64] [cursor=pointer]:
+          - generic [ref=f8e65]: Open user menu
+          - generic [ref=f8e66]:
+            - generic [ref=f8e67]: Andy Chan
+            - img "Andy Chan" [ref=f8e70]
+    - main [ref=f8e71]:
+      - generic [ref=f8e74]:
+        - generic [ref=f8e75]:
+          - generic [ref=f8e76]:
+            - link "Back to documents" [ref=f8e77] [cursor=pointer]:
+              - /url: http://localhost:8000/docs
+            - heading "Alejandra Fernandez and Colin Orr.docx" [level=2] [ref=f8e80]
+          - generic [ref=f8e81]:
+            - link "Download" [ref=f8e82] [cursor=pointer]:
+              - /url: http://localhost:8000/docs/17/download
+            - button "Rescan" [ref=f8e85] [cursor=pointer]
+            - button "Delete" [ref=f8e88] [cursor=pointer]
+        - generic [ref=f8e91]:
+          - generic [ref=f8e92]:
+            - generic [ref=f8e93]: Statusscanned
+            - generic [ref=f8e94]: Flag Words2
+            - generic [ref=f8e95]: Size84.5 KB
+            - generic [ref=f8e96]: Uploaded7/16/2026, 4:04:13 PM
+            - generic [ref=f8e97]: Page1 / 2
+          - paragraph [ref=f8e100]:
+            - strong [ref=f8e101]: "2"
+            - text: flag word occurrences found across 1 page.
+        - generic [ref=f8e102]:
+          - generic [ref=f8e104]:
+            - generic [ref=f8e105]:
+              - generic [ref=f8e106]:
+                - button "Previous page" [disabled] [ref=f8e107]
+                - spinbutton [ref=f8e110]: "1"
+                - generic [ref=f8e111]: / 2
+                - button "Next page" [ref=f8e112] [cursor=pointer]
+              - generic [ref=f8e116]: Word Document · 2 pages
+              - link "Download" [ref=f8e117] [cursor=pointer]:
+                - /url: http://localhost:8000/docs/17/download
+            - generic [ref=f8e121]:
+              - generic [ref=f8e122]:
+                - generic [ref=f8e124]:
+                  - paragraph [ref=f8e125]: Alejandra Fernandez, PhD, is an Assistant Professor in the Peter O' Donnell School of Public Health. Dr. Fernandez completed her undergraduate and master's program at Texas A&M University and her doctoral program at the University of Texas at Austin.
+                  - paragraph [ref=f8e127]: "Currently, Dr. Fernandez is funded through a NIH NHLBI Mentored Research Scientist Career Development Award (K01) that address the high prevalence of obesity among Hispanic youth by examining multi-level factors that increase obesity risk behaviors using ecological momentary assessment methodology. The study has two main aims: 1) Conduct secondary data analysis using the Adolescent Brain Cognitive Development study to examine direct and moderating effects on the longitudinal trajectories of obesity risk behaviors and status; and 2) Pilot and implement an ecological momentary assessment protocol to assess the role of momentary changes in family functioning on physical activity, sleep, and nutrition among Hispanic adolescents."
+                  - paragraph [ref=f8e128]
+                  - paragraph [ref=f8e129]
+                  - paragraph [ref=f8e130]
+                  - paragraph [ref=f8e131]
+                - generic [ref=f8e132]: Page 1 of 2
+              - generic [ref=f8e133]:
+                - generic [ref=f8e134]:
+                  - paragraph [ref=f8e135]:
+                    - text: Through
+                    - generic [ref=f8e136]:
+                      - text: community-engaged research and clinical practice, Dr. Orr aims to inform interventions that promote
+                      - mark [ref=f8e137]: equit
+                      - text: able growth and nutrition
+                    - text: in early childhood, with a long-term goal of preventing chronic disease from the earliest stages of life.
+                  - paragraph [ref=f8e138]
+                  - paragraph [ref=f8e139]
+                  - paragraph [ref=f8e140]
+                  - paragraph [ref=f8e141]
+                  - paragraph [ref=f8e142]
+                - generic [ref=f8e143]: Page 2 of 2
+          - generic [ref=f8e145]:
+            - heading "Flag Words by Page" [level=3] [ref=f8e147]
+            - generic [ref=f8e150]:
+              - button "Page 2 2 hits" [ref=f8e151] [cursor=pointer]:
+                - generic [ref=f8e152]: Page 2
+                - generic [ref=f8e153]: 2 hits
+              - generic [ref=f8e155]:
+                - button "equit × 2" [ref=f8e156] [cursor=pointer]:
+                  - generic [ref=f8e157]: equit
+                  - generic [ref=f8e158]: × 2
+                - paragraph [ref=f8e159]: "Suggested: fair resource allocation / equal access (all forms)"
+        - link "← Back to all documents" [ref=f8e161] [cursor=pointer]:
+          - /url: http://localhost:8000/docs

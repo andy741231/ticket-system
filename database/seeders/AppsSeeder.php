@@ -17,6 +17,7 @@ class AppsSeeder extends Seeder
             ['slug' => 'tickets', 'name' => 'Tickets'],
             ['slug' => 'directory', 'name' => 'Directory'],
             ['slug' => 'newsletter', 'name' => 'Newsletter'],
+            ['slug' => 'docs', 'name' => 'Document Reviewer'],
         ];
 
         foreach ($apps as $app) {

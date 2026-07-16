@@ -1,0 +1,185 @@
+- generic [ref=f9e3]:
+  - complementary [ref=f9e4]:
+    - generic [ref=f9e5]:
+      - link "The Hub" [ref=f9e7] [cursor=pointer]:
+        - /url: http://localhost:8000/dashboard
+      - navigation [ref=f9e10]:
+        - generic [ref=f9e11]:
+          - link "Dashboard" [ref=f9e12] [cursor=pointer]:
+            - /url: http://localhost:8000/dashboard
+          - button "Tickets" [ref=f9e16] [cursor=pointer]
+          - button "Document Reviewer" [expanded] [ref=f9e22] [cursor=pointer]
+          - generic [ref=f9e28]:
+            - link "All Documents" [ref=f9e29] [cursor=pointer]:
+              - /url: http://localhost:8000/docs
+            - link "Flag Words" [ref=f9e33] [cursor=pointer]:
+              - /url: http://localhost:8000/docs/flag-words
+          - link "Directory" [ref=f9e37] [cursor=pointer]:
+            - /url: http://localhost:8000/directory
+          - button "Newsletter" [ref=f9e41] [cursor=pointer]
+          - button "User Management" [ref=f9e48] [cursor=pointer]
+  - generic [ref=f9e54]:
+    - banner [ref=f9e55]:
+      - generic [ref=f9e59]:
+        - button "Toggle dark mode" [ref=f9e60] [cursor=pointer]
+        - button "Open user menu Andy Chan Andy Chan" [ref=f9e64] [cursor=pointer]:
+          - generic [ref=f9e65]: Open user menu
+          - generic [ref=f9e66]:
+            - generic [ref=f9e67]: Andy Chan
+            - img "Andy Chan" [ref=f9e70]
+    - main [ref=f9e71]:
+      - generic [ref=f9e74]:
+        - generic [ref=f9e75]:
+          - generic [ref=f9e76]:
+            - link "Back to documents" [ref=f9e77] [cursor=pointer]:
+              - /url: http://localhost:8000/docs
+            - heading "260701 RCMI Final Report.pdf" [level=2] [ref=f9e80]
+          - generic [ref=f9e81]:
+            - link "Download" [ref=f9e82] [cursor=pointer]:
+              - /url: http://localhost:8000/docs/13/download
+            - button "Rescan" [ref=f9e85] [cursor=pointer]
+            - button "Delete" [ref=f9e88] [cursor=pointer]
+        - generic [ref=f9e91]:
+          - generic [ref=f9e92]:
+            - generic [ref=f9e93]: Statusscanned
+            - generic [ref=f9e94]: Flag Words28
+            - generic [ref=f9e95]: Size2.4 MB
+            - generic [ref=f9e96]: Uploaded7/16/2026, 2:08:17 PM
+          - paragraph [ref=f9e99]:
+            - strong [ref=f9e100]: "28"
+            - text: flag word occurrences found across 8 pages.
+        - generic [ref=f9e101]:
+          - generic [ref=f9e104]:
+            - generic [ref=f9e105]:
+              - button "Previous page" [disabled] [ref=f9e106]
+              - spinbutton [ref=f9e109]: "1"
+              - generic [ref=f9e110]: / 0
+              - button "Next page" [disabled] [ref=f9e111]
+            - generic [ref=f9e115]:
+              - button "Zoom out" [ref=f9e116] [cursor=pointer]
+              - generic [ref=f9e118]: 150%
+              - button "Zoom in" [ref=f9e119] [cursor=pointer]
+              - button "Fit width" [ref=f9e122] [cursor=pointer]
+            - textbox "Search in document..." [ref=f9e128]
+            - link "Download" [ref=f9e132] [cursor=pointer]:
+              - /url: http://localhost:8000/docs/13/download
+          - generic [ref=f9e141]:
+            - heading "Flag Words by Page" [level=3] [ref=f9e143]
+            - generic [ref=f9e145]:
+              - generic [ref=f9e146]:
+                - button "Page 1 2 hits" [ref=f9e147] [cursor=pointer]:
+                  - generic [ref=f9e148]: Page 1
+                  - generic [ref=f9e149]: 2 hits
+                - generic [ref=f9e151]:
+                  - button "minorit × 2" [ref=f9e152] [cursor=pointer]:
+                    - generic [ref=f9e153]: minorit
+                    - generic [ref=f9e154]: × 2
+                  - paragraph [ref=f9e155]: "Suggested: population subgroup / specific group name (all forms)"
+              - generic [ref=f9e156]:
+                - button "Page 3 1 hit" [ref=f9e157] [cursor=pointer]:
+                  - generic [ref=f9e158]: Page 3
+                  - generic [ref=f9e159]: 1 hit
+                - generic [ref=f9e161]:
+                  - button "minorit × 1" [ref=f9e162] [cursor=pointer]:
+                    - generic [ref=f9e163]: minorit
+                    - generic [ref=f9e164]: × 1
+                  - paragraph [ref=f9e165]: "Suggested: population subgroup / specific group name (all forms)"
+              - generic [ref=f9e166]:
+                - button "Page 13 2 hits" [ref=f9e167] [cursor=pointer]:
+                  - generic [ref=f9e168]: Page 13
+                  - generic [ref=f9e169]: 2 hits
+                - generic [ref=f9e171]:
+                  - button "minorit × 2" [ref=f9e172] [cursor=pointer]:
+                    - generic [ref=f9e173]: minorit
+                    - generic [ref=f9e174]: × 2
+                  - paragraph [ref=f9e175]: "Suggested: population subgroup / specific group name (all forms)"
+              - generic [ref=f9e176]:
+                - button "Page 14 12 hits" [ref=f9e177] [cursor=pointer]:
+                  - generic [ref=f9e178]: Page 14
+                  - generic [ref=f9e179]: 12 hits
+                - generic [ref=f9e180]:
+                  - generic [ref=f9e181]:
+                    - button "divers × 3" [ref=f9e182] [cursor=pointer]:
+                      - generic [ref=f9e183]: divers
+                      - generic [ref=f9e184]: × 3
+                    - paragraph [ref=f9e185]: "Suggested: varied"
+                  - generic [ref=f9e186]:
+                    - button "minorit × 3" [ref=f9e187] [cursor=pointer]:
+                      - generic [ref=f9e188]: minorit
+                      - generic [ref=f9e189]: × 3
+                    - paragraph [ref=f9e190]: "Suggested: population subgroup / specific group name (all forms)"
+                  - generic [ref=f9e191]:
+                    - button "underrepresent × 3" [ref=f9e192] [cursor=pointer]:
+                      - generic [ref=f9e193]: underrepresent
+                      - generic [ref=f9e194]: × 3
+                    - paragraph [ref=f9e195]: "Suggested: lower participation rates / reduced representation (all forms)"
+                  - generic [ref=f9e196]:
+                    - button "Inclus × 1" [ref=f9e197] [cursor=pointer]:
+                      - generic [ref=f9e198]: Inclus
+                      - generic [ref=f9e199]: × 1
+                    - paragraph [ref=f9e200]: "Suggested: broad"
+                  - generic [ref=f9e201]:
+                    - button "URM × 1" [ref=f9e202] [cursor=pointer]:
+                      - generic [ref=f9e203]: URM
+                      - generic [ref=f9e204]: × 1
+                    - paragraph [ref=f9e205]: "Suggested: population with lower participation rates"
+                  - generic [ref=f9e206]:
+                    - button "underrepresented minorit × 1" [ref=f9e207] [cursor=pointer]:
+                      - generic [ref=f9e208]: underrepresented minorit
+                      - generic [ref=f9e209]: × 1
+                    - paragraph [ref=f9e210]: "Suggested: population subgroup with lower participation"
+              - generic [ref=f9e211]:
+                - button "Page 16 1 hit" [ref=f9e212] [cursor=pointer]:
+                  - generic [ref=f9e213]: Page 16
+                  - generic [ref=f9e214]: 1 hit
+                - generic [ref=f9e216]:
+                  - button "divers × 1" [ref=f9e217] [cursor=pointer]:
+                    - generic [ref=f9e218]: divers
+                    - generic [ref=f9e219]: × 1
+                  - paragraph [ref=f9e220]: "Suggested: varied"
+              - generic [ref=f9e221]:
+                - button "Page 22 3 hits" [ref=f9e222] [cursor=pointer]:
+                  - generic [ref=f9e223]: Page 22
+                  - generic [ref=f9e224]: 3 hits
+                - generic [ref=f9e225]:
+                  - generic [ref=f9e226]:
+                    - button "divers × 1" [ref=f9e227] [cursor=pointer]:
+                      - generic [ref=f9e228]: divers
+                      - generic [ref=f9e229]: × 1
+                    - paragraph [ref=f9e230]: "Suggested: varied"
+                  - generic [ref=f9e231]:
+                    - button "diverse cohort × 1" [ref=f9e232] [cursor=pointer]:
+                      - generic [ref=f9e233]: diverse cohort
+                      - generic [ref=f9e234]: × 1
+                    - paragraph [ref=f9e235]: "Suggested: varied cohort"
+                  - generic [ref=f9e236]:
+                    - button "minorit × 1" [ref=f9e237] [cursor=pointer]:
+                      - generic [ref=f9e238]: minorit
+                      - generic [ref=f9e239]: × 1
+                    - paragraph [ref=f9e240]: "Suggested: population subgroup / specific group name (all forms)"
+              - generic [ref=f9e241]:
+                - button "Page 27 3 hits" [ref=f9e242] [cursor=pointer]:
+                  - generic [ref=f9e243]: Page 27
+                  - generic [ref=f9e244]: 3 hits
+                - generic [ref=f9e245]:
+                  - generic [ref=f9e246]:
+                    - button "minorit × 2" [ref=f9e247] [cursor=pointer]:
+                      - generic [ref=f9e248]: minorit
+                      - generic [ref=f9e249]: × 2
+                    - paragraph [ref=f9e250]: "Suggested: population subgroup / specific group name (all forms)"
+                  - generic [ref=f9e251]:
+                    - button "camp × 1" [ref=f9e252] [cursor=pointer]:
+                      - generic [ref=f9e253]: camp
+                      - generic [ref=f9e254]: × 1
+                    - paragraph [ref=f9e255]: "Suggested: testing only"
+              - generic [ref=f9e256]:
+                - button "Page 28 4 hits" [ref=f9e257] [cursor=pointer]:
+                  - generic [ref=f9e258]: Page 28
+                  - generic [ref=f9e259]: 4 hits
+                - generic [ref=f9e261]:
+                  - button "minorit × 4" [ref=f9e262] [cursor=pointer]:
+                    - generic [ref=f9e263]: minorit
+                    - generic [ref=f9e264]: × 4
+                  - paragraph [ref=f9e265]: "Suggested: population subgroup / specific group name (all forms)"
+        - link "← Back to all documents" [ref=f9e267] [cursor=pointer]:
+          - /url: http://localhost:8000/docs

@@ -26,14 +26,18 @@ import {
     faNewspaper,
     faChartBar,
     faArchive,
-    faTag
+    faTag,
+    faFileCircleExclamation,
+    faFileLines,
+    faList,
+    faFlag
 } from '@fortawesome/free-solid-svg-icons';
 
 // RBAC composable
 import { useHasAny } from '@/Extensions/useAuthz';
 
 // Add icons to the library
-library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper, faChartBar, faArchive, faTag);
+library.add(faHouse, faTicket, faUsers, faUser, faGear, faRightFromBracket, faBars, faXmark, faAddressBook, faChevronDown, faNewspaper, faChartBar, faArchive, faTag, faFileCircleExclamation, faFileLines, faList, faFlag);
 
 // Permission helpers (team-aware)
 const isSuperAdmin = computed(() => usePage().props.auth?.user?.isSuperAdmin === true);
@@ -126,6 +130,8 @@ const userMgmtOpen = ref(route().current('admin.*'));
 const newsletterOpen = ref(route().current('newsletter.*'));
 // Collapsible state for Tickets submenu (open when on any tickets route)
 const ticketsOpen = ref(route().current('tickets.*'));
+// Collapsible state for Document Reviewer submenu (open when on any docs route)
+const docsOpen = ref(route().current('docs.*'));
 
 // Media query references for cleanup
 let darkModeMediaQuery = null;
@@ -180,6 +186,7 @@ const pageTitles = {
     'profile': 'My Profile',
     'directory': 'Directory',
     'newsletter': 'Newsletter',
+    'docs': 'Document Reviewer',
     // Add more special cases as needed
 };
 
@@ -441,9 +448,96 @@ const navigate = (url) => {
                             </NavLink>
                         </div>
 
-                        <NavLink 
+                        <!-- Document Reviewer: Top-level toggle-only (no direct navigation) -->
+                        <button
+                            v-if="isSuperAdmin || hasAny(['docs.app.access'])"
+                            type="button"
+                            class="group flex w-full items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
+                            :class="[
+                                (docsOpen || route().current('docs.*'))
+                                    ? 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                    : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                            ]"
+                            @click="docsOpen = !docsOpen"
+                            :aria-expanded="docsOpen"
+                            :aria-controls="'docs-submenu'"
+                            title="Toggle document reviewer menu"
+                        >
+                            <font-awesome-icon
+                                :icon="['fas', 'file-circle-exclamation']"
+                                class="h-5 w-5 flex-shrink-0 transition-colors duration-200"
+                                :class="[
+                                    route().current('docs.*')
+                                        ? 'text-white'
+                                        : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-uh-forest'
+                                ]"
+                            />
+                            <span class="ml-3 font-medium flex-1 text-left">Document Reviewer</span>
+                            <font-awesome-icon
+                                :icon="['fas','chevron-down']"
+                                class="h-4 w-4 transition-transform duration-200 ml-auto"
+                                :class="{ 'rotate-180': docsOpen }"
+                            />
+                        </button>
+
+                        <!-- Document Reviewer Submenu -->
+                        <div
+                            v-if="isSuperAdmin || hasAny(['docs.app.access'])"
+                            v-show="docsOpen"
+                            id="docs-submenu"
+                            class="pl-5 space-y-1 mt-2"
+                        >
+                            <NavLink
+                                :href="route('docs.index')"
+                                :active="route().current('docs.index') || route().current('docs.create')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    (route().current('docs.index') || route().current('docs.create'))
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('docs.index'))"
+                            >
+                                <font-awesome-icon
+                                    :icon="['fas', 'file-lines']"
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        (route().current('docs.index') || route().current('docs.create'))
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">All Documents</span>
+                            </NavLink>
+
+                            <NavLink
+                                v-if="isSuperAdmin || hasAny(['docs.flagword.manage'])"
+                                :href="route('docs.flag-words.index')"
+                                :active="route().current('docs.flag-words.*')"
+                                class="group flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200"
+                                :class="[
+                                    route().current('docs.flag-words.*')
+                                        ? 'bg-uh-red text-white shadow-md'
+                                        : 'text-uh-slate dark:text-gray-400 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 hover:text-uh-forest'
+                                ]"
+                                @click="navigate(route('docs.flag-words.index'))"
+                            >
+                                <font-awesome-icon
+                                    :icon="['fas', 'flag']"
+                                    class="h-4 w-4 flex-shrink-0 transition-colors duration-200"
+                                    :class="[
+                                        route().current('docs.flag-words.*')
+                                            ? 'text-white'
+                                            : 'text-gray-400 dark:group-hover:text-gray-200 group-hover:text-white'
+                                    ]"
+                                />
+                                <span class="ml-3 font-medium">Flag Words</span>
+                            </NavLink>
+                        </div>
+
+                        <NavLink
                             v-if="isSuperAdmin || hasAny(['directory.app.access'])"
-                            :href="route('directory.index')" 
+                            :href="route('directory.index')"
                             :active="route().current('directory.*')"
                             class="group flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
                             :class="[

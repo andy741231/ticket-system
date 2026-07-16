@@ -55,6 +55,9 @@ class HandleInertiaRequests extends Middleware
         // Cross-app Newsletter access flag (independent of current app context)
         $newsletterApp = Schema::hasTable('apps') ? SubApp::query()->where('slug', 'newsletter')->first() : null;
         $newsletterTeamId = $newsletterApp?->id;
+        // Cross-app Document Reviewer access flag (independent of current app context)
+        $docsApp = Schema::hasTable('apps') ? SubApp::query()->where('slug', 'docs')->first() : null;
+        $docsTeamId = $docsApp?->id;
 
         // Fallback: if the Hub app team row is missing, allow access when the user
         // holds a role named "hub admin" or "hub user" in ANY team context.
@@ -153,6 +156,22 @@ class HandleInertiaRequests extends Middleware
                         ? (
                             $newsletterTeamId
                                 ? $perm->can($user, 'newsletter.manage', $newsletterTeamId)
+                                : false
+                        )
+                        : false,
+                    // Cross-app explicit: can the user access the Document Reviewer area?
+                    'canAccessDocsApp' => $user
+                        ? (
+                            $docsTeamId
+                                ? $perm->can($user, 'docs.app.access', $docsTeamId)
+                                : false
+                        )
+                        : false,
+                    // Cross-app explicit: can the user manage Document Reviewer flag words?
+                    'canManageDocsFlagWords' => $user
+                        ? (
+                            $docsTeamId
+                                ? $perm->can($user, 'docs.flagword.manage', $docsTeamId)
                                 : false
                         )
                         : false,

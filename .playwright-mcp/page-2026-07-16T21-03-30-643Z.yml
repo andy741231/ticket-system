@@ -1,0 +1,735 @@
+- generic [ref=f5e3]:
+  - complementary [ref=f5e4]:
+    - generic [ref=f5e5]:
+      - link "The Hub" [ref=f5e7] [cursor=pointer]:
+        - /url: http://localhost:8000/dashboard
+      - navigation [ref=f5e10]:
+        - generic [ref=f5e11]:
+          - link "Dashboard" [ref=f5e12] [cursor=pointer]:
+            - /url: http://localhost:8000/dashboard
+          - button "Tickets" [ref=f5e16] [cursor=pointer]
+          - button "Document Reviewer" [expanded] [ref=f5e22] [cursor=pointer]
+          - generic [ref=f5e28]:
+            - link "All Documents" [ref=f5e29] [cursor=pointer]:
+              - /url: http://localhost:8000/docs
+            - link "Flag Words" [ref=f5e33] [cursor=pointer]:
+              - /url: http://localhost:8000/docs/flag-words
+          - link "Directory" [ref=f5e37] [cursor=pointer]:
+            - /url: http://localhost:8000/directory
+          - button "Newsletter" [ref=f5e41] [cursor=pointer]
+          - button "User Management" [ref=f5e48] [cursor=pointer]
+  - generic [ref=f5e54]:
+    - banner [ref=f5e55]:
+      - generic [ref=f5e59]:
+        - button "Toggle dark mode" [ref=f5e60] [cursor=pointer]
+        - button "Open user menu Andy Chan Andy Chan" [ref=f5e64] [cursor=pointer]:
+          - generic [ref=f5e65]: Open user menu
+          - generic [ref=f5e66]:
+            - generic [ref=f5e67]: Andy Chan
+            - img "Andy Chan" [ref=f5e70]
+    - main [ref=f5e71]:
+      - generic [ref=f5e74]:
+        - generic [ref=f5e75]:
+          - generic [ref=f5e76]:
+            - link "Back to documents" [ref=f5e77] [cursor=pointer]:
+              - /url: http://localhost:8000/docs
+            - heading "POPH 2300 - Syllabus_Fall 2025_FINAL_8.25.25.docx" [level=2] [ref=f5e80]
+          - generic [ref=f5e81]:
+            - link "Download" [ref=f5e82] [cursor=pointer]:
+              - /url: http://localhost:8000/docs/16/download
+            - button "Rescan" [ref=f5e85] [cursor=pointer]
+            - button "Delete" [ref=f5e88] [cursor=pointer]
+        - generic [ref=f5e91]:
+          - generic [ref=f5e92]:
+            - generic [ref=f5e93]: Statusscanned
+            - generic [ref=f5e94]: Flag Words12
+            - generic [ref=f5e95]: Size74.4 KB
+            - generic [ref=f5e96]: Uploaded7/16/2026, 3:59:43 PM
+            - generic [ref=f5e97]: Page1 / 2
+          - paragraph [ref=f5e100]:
+            - strong [ref=f5e101]: "12"
+            - text: flag word occurrences found across 2 pages.
+        - generic [ref=f5e102]:
+          - generic [ref=f5e104]:
+            - generic [ref=f5e105]:
+              - generic [ref=f5e106]:
+                - button "Previous page" [disabled] [ref=f5e107]
+                - spinbutton [ref=f5e110]: "1"
+                - generic [ref=f5e111]: / 2
+                - button "Next page" [ref=f5e112] [cursor=pointer]
+              - generic [ref=f5e116]: Word Document · 2 pages
+              - link "Download" [ref=f5e117] [cursor=pointer]:
+                - /url: http://localhost:8000/docs/16/download
+            - generic [ref=f5e121]:
+              - generic [ref=f5e122]:
+                - generic [ref=f5e123]:
+                  - generic [ref=f5e124]:
+                    - paragraph [ref=f5e125]
+                    - paragraph [ref=f5e126]
+                    - paragraph [ref=f5e127]: "POPH 2300: INTRODUCTION TO POPULATION HEALTH"
+                    - paragraph [ref=f5e128]: University of Houston
+                    - paragraph [ref=f5e129]: Fall Semester 2025
+                    - paragraph [ref=f5e130]
+                    - paragraph [ref=f5e131]
+                    - paragraph [ref=f5e132]: "Instructor of Record: Marino A. Bruce, PhD, MSRC, MDiv"
+                    - paragraph [ref=f5e133]: "Co-Instructor: Kiara Spooner, DrPH, MPH"
+                    - paragraph [ref=f5e134]: Monday/Wednesday 4-5:30pm, 43 Fred J. Heyne Building
+                    - paragraph [ref=f5e135]: "Office: 6025 Health 2 Building"
+                    - paragraph [ref=f5e136]: "Office Hours: Virtual: 3-4 Wednesday, In person: by appointment"
+                    - paragraph [ref=f5e137]:
+                      - text: "Email:"
+                      - link "mabruce@central.uh.edu" [ref=f5e138] [cursor=pointer]:
+                        - /url: mailto:mabruce@central.uh.edu
+                    - paragraph [ref=f5e139]: "Phone: 713-743-5953"
+                    - paragraph [ref=f5e140]
+                    - paragraph [ref=f5e141]: COURSE DESCRIPTION
+                    - paragraph [ref=f5e142]: This course is an introduction to how the multiple determinants of health (e.g., health care, socioeconomic status, genetics, the physical environment and health behavior, and their interactions) have implications for the health outcomes of populations. Characteristics of populations defined by geography, diagnosis, and/or point of care will be discussed, including avenues in which health care systems, public health agencies, community-based organizations, and retail health organizations work together to improve local, national, and global communities. Students will also learn how to view problems from a population health and population health management perspective. Descriptions of how clinical and non-clinical data are used to measure health-related outcomes, analyze patterns, communicate results, and develop evidence-based intervention practices to the management of health populations will be explored.
+                    - paragraph [ref=f5e143]
+                    - paragraph [ref=f5e144]: LEARNING OUTCOMES
+                    - paragraph [ref=f5e145]: "Upon completion of this course, students will be able to:"
+                    - paragraph [ref=f5e146]
+                    - paragraph [ref=f5e147]: Define population health, population health science, population health management, and differentiate population health science from related disciplines.
+                    - paragraph [ref=f5e148]: Explain the historical origins and foundational principles of population health science.
+                    - paragraph [ref=f5e149]: Explain the interdisciplinary nature of population health science.
+                    - paragraph [ref=f5e150]: Develop population health-related policy
+                    - paragraph [ref=f5e151]: reviews
+                    - paragraph [ref=f5e152]: .
+                    - paragraph [ref=f5e153]: Identify the key issues facing the U.S. health care system and discuss the importance of the population health approach to improving health outcomes.
+                    - paragraph [ref=f5e154]: Discuss medical and non-medical determinants of the health of a population and their relative importance.
+                    - paragraph [ref=f5e155]: Describe
+                    - paragraph [ref=f5e156]: the elements of a Health Impact Assessment.
+                    - paragraph [ref=f5e157]: Present results from a Health Impact Assessment using multiple platforms.
+                    - paragraph [ref=f5e158]
+                    - paragraph [ref=f5e159]: COURSE NOTES
+                    - paragraph [ref=f5e160]: If taking this course towards the Minor in Population Health, contact the
+                    - paragraph [ref=f5e161]
+                    - paragraph [ref=f5e162]: Advisor
+                    - paragraph [ref=f5e163]: . Dr. Quinn Valier –
+                    - paragraph [ref=f5e164]:
+                      - link "hkvalier@central.uh.edu" [ref=f5e165] [cursor=pointer]:
+                        - /url: mailto:hkvalier@central.uh.edu
+                    - paragraph [ref=f5e166]
+                    - paragraph [ref=f5e167]: to declare the minor. A cumulative 2.0 minimum GPA is required for minor approval.
+                    - paragraph [ref=f5e168]: A minimum grade of C in this course is required to advance in the Population Health Minor
+                    - paragraph [ref=f5e169]: .
+                    - paragraph [ref=f5e170]: This course may be repeated
+                    - paragraph [ref=f5e171]: once
+                    - paragraph [ref=f5e172]: for a grade.
+                  - generic [ref=f5e173]:
+                    - paragraph [ref=f5e174]: COURSE WEBSITE
+                    - paragraph [ref=f5e175]:
+                      - text: This course will be managed through CANVAS. To log into Canvas, direct your browser to
+                      - link "https://uh.edu/canvas/" [ref=f5e176] [cursor=pointer]:
+                        - /url: https://uh.edu/canvas/
+                      - text: and click on the white CANVAS button. Enter your PeopleSoft ID and password and then select our class from the list. Our class shell should open. If you cannot gain access to the class shell, please consult
+                      - link "https://uh.edu/canvas/student/" [ref=f5e177] [cursor=pointer]:
+                        - /url: https://uh.edu/canvas/student/
+                      - text: .
+                    - paragraph [ref=f5e178]
+                    - paragraph [ref=f5e179]: REQUIRED TEXTS AND MATERIALS
+                    - paragraph [ref=f5e180]: There is no textbook required for this class. Class readings will be posted in CANVAS.
+                    - paragraph [ref=f5e181]
+                    - paragraph [ref=f5e182]: SYLLABUS CHANGES Please note that the instructor may need to make modifications to the course syllabus. Notice of such changes will be announced as quickly as possible in CANVAS.
+                    - paragraph [ref=f5e183]
+                    - paragraph [ref=f5e184]: BASIS FOR FINAL GRADES
+                    - paragraph [ref=f5e185]: "Your final grade will be determined by the following method:"
+                    - table [ref=f5e186]:
+                      - rowgroup [ref=f5e187]:
+                        - row [ref=f5e188]:
+                          - cell [ref=f5e189]:
+                            - paragraph [ref=f5e190]: Quizzes (2 at 10% each)
+                          - cell [ref=f5e191]:
+                            - paragraph [ref=f5e192]: 20%
+                        - row [ref=f5e193]:
+                          - cell [ref=f5e194]:
+                            - paragraph [ref=f5e195]: HIA Project Description Statement
+                          - cell [ref=f5e196]:
+                            - paragraph [ref=f5e197]: 20%
+                        - row [ref=f5e198]:
+                          - cell [ref=f5e199]:
+                            - paragraph [ref=f5e200]: HIA Project Presentation
+                          - cell [ref=f5e201]:
+                            - paragraph [ref=f5e202]: 20%
+                        - row [ref=f5e203]:
+                          - cell [ref=f5e204]:
+                            - paragraph [ref=f5e205]: HIA Project Policy Brief
+                          - cell [ref=f5e206]:
+                            - paragraph [ref=f5e207]: 25%
+                        - row [ref=f5e208]:
+                          - cell [ref=f5e209]:
+                            - paragraph [ref=f5e210]: Class Participation (including selected reading assignment checks)
+                          - cell [ref=f5e211]:
+                            - paragraph [ref=f5e212]: 15%
+                    - paragraph [ref=f5e213]
+                    - paragraph [ref=f5e214]: Quizzes will not be cumulative. The quizzes will cover materials from the lectures, readings, classroom discussions, and assigned activities, if applicable.
+                    - paragraph [ref=f5e215]
+                    - paragraph [ref=f5e216]: Online Exams/Quizzes (20%)
+                    - paragraph [ref=f5e217]: "The Office of the General Counsel has recommended to make sure students are aware that: (1) students are permitted to take their online tests or quizzes in a computer lab or other open space; and (2) there is no requirement that a student use their own personal computer or that they complete exams and quizzes in any specific location (e.g., their home). The Office of the General Counsel has advised that students be made aware in advance that an environmental scan may be conducted as a part of an online exam."
+                    - paragraph [ref=f5e218]
+                    - paragraph [ref=f5e219]: Make-up exams/quizzes will not be granted unless it falls within UH's Excused Absence Policy. If granted, makeup exams will need to be scheduled with the instructor of the course.
+                    - paragraph [ref=f5e220]
+                    - paragraph [ref=f5e221]: "Assignment #1 – HIA Project Description Statement (20%)"
+                    - paragraph [ref=f5e222]: Each student will present the population health policy or intervention that will be assessed using Health Impact Assessment methods. Include information on the affected population and/or community, incidence and prevalence data, and causal factors of the selected problem. A scoping matrix or table summarizing the health determinant, population affected, direction of impact, level of impact, data source(s), and method of assessment should be included as part of the statement. The use of artificial intelligence resources is prohibited. Any violation of this policy will result in a zero for the assignment. (3 pages including the scoping matrix/table, 1.5 line spacing, 11 pt. font, and 1-in margins). Due by October 15 at 11:59pm CT.
+                    - paragraph [ref=f5e223]
+                    - paragraph [ref=f5e224]: "Assignment #2 – Health Impact Assessment Presentation (20%)"
+                    - paragraph [ref=f5e225]: Each student will have 3 minutes and one static slide (no animation) to present results from the Health Impact Assessment (HIA) conducted over the course of the course. Students will have opportunities to receive feedback that can be incorporated into the final presentation. Presentation order will be randomly assigned and class attendance will be collected.
+                    - paragraph [ref=f5e226]
+                    - paragraph [ref=f5e227]: "Assignment #3 – Health Impact Assessment Policy Brief (25%)"
+                    - paragraph [ref=f5e228]: "Students will write a 2–3 page policy brief based on the results from the Health Impact Assessment (HIA) conducted over the course of the semester. The brief should clearly explain the issue, summarize key health impacts, highlight affected populations, and provide two to three specific policy recommendations to mitigate negative impacts or enhance positive ones. (Format rules: 3 pages maximum, 1.5 line spacing, 11pt. font, and 1-in margins). Due by December 3 at 11:59 pm CT."
+                    - paragraph [ref=f5e229]
+                    - paragraph [ref=f5e230]: Class Participation (including reading assignment checks) (15%)
+                    - paragraph [ref=f5e231]: Students will be expected to participate in class discussions. Willingness to participate, participation and communication style, and content will be assessed on an ongoing basis. Participation will also be assessed by four (4) unscheduled assessments based on assigned readings.
+                    - paragraph [ref=f5e232]
+                    - paragraph [ref=f5e233]:
+                      - text: "UH Grade Policy: You can find more information on UH Grade Policy here:"
+                      - link "http://publications.uh.edu/content.php?catoid=36&navoid=12929" [ref=f5e234] [cursor=pointer]:
+                        - /url: http://publications.uh.edu/content.php?catoid=36&navoid=12929
+                    - paragraph [ref=f5e235]
+                    - paragraph [ref=f5e236]: Course Grades
+                    - paragraph [ref=f5e237]: "The instructor will provide the following grading scale:"
+                    - table [ref=f5e238]:
+                      - rowgroup [ref=f5e239]:
+                        - row [ref=f5e240]:
+                          - cell [ref=f5e241]:
+                            - paragraph [ref=f5e242]: A
+                          - cell [ref=f5e243]:
+                            - paragraph [ref=f5e244]: 92.5 – 100
+                          - cell [ref=f5e245]:
+                            - paragraph [ref=f5e246]: B
+                          - cell [ref=f5e247]:
+                            - paragraph [ref=f5e248]: 82.5 – 87.4
+                          - cell [ref=f5e249]:
+                            - paragraph [ref=f5e250]: C
+                          - cell [ref=f5e251]:
+                            - paragraph [ref=f5e252]: 72.5 – 77
+                          - cell [ref=f5e253]:
+                            - paragraph [ref=f5e254]: D
+                          - cell [ref=f5e255]:
+                            - paragraph [ref=f5e256]: 62.5 – 67.4
+                        - row [ref=f5e257]:
+                          - cell [ref=f5e258]:
+                            - paragraph [ref=f5e259]: A-
+                          - cell [ref=f5e260]:
+                            - paragraph [ref=f5e261]: 89.5 – 92.4
+                          - cell [ref=f5e262]:
+                            - paragraph [ref=f5e263]: B-
+                          - cell [ref=f5e264]:
+                            - paragraph [ref=f5e265]: 79.5 – 82.4
+                          - cell [ref=f5e266]:
+                            - paragraph [ref=f5e267]: C-
+                          - cell [ref=f5e268]:
+                            - paragraph [ref=f5e269]: 69.5 – 72.4
+                          - cell [ref=f5e270]:
+                            - paragraph [ref=f5e271]: D-
+                          - cell [ref=f5e272]:
+                            - paragraph [ref=f5e273]: 59.5 – 62.4
+                        - row [ref=f5e274]:
+                          - cell [ref=f5e275]:
+                            - paragraph [ref=f5e276]: B+
+                          - cell [ref=f5e277]:
+                            - paragraph [ref=f5e278]: 87.5 – 89.4
+                          - cell [ref=f5e279]:
+                            - paragraph [ref=f5e280]: C+
+                          - cell [ref=f5e281]:
+                            - paragraph [ref=f5e282]: 77.5 – 79.4
+                          - cell [ref=f5e283]:
+                            - paragraph [ref=f5e284]: D+
+                          - cell [ref=f5e285]:
+                            - paragraph [ref=f5e286]: 67.5 – 69.4
+                          - cell [ref=f5e287]:
+                            - paragraph [ref=f5e288]: F
+                          - cell [ref=f5e289]:
+                            - paragraph [ref=f5e290]: < 59.5
+                    - paragraph [ref=f5e291]
+                    - paragraph [ref=f5e292]: Extra credit is a privilege that the class has to earn. There might be opportunities in the course, depending on whether you deserve them or not. I will make that determination. Please do not ask for individualized extra credit opportunities.
+                    - paragraph [ref=f5e293]
+                    - paragraph [ref=f5e294]: COURSE PROTOCOLS
+                    - paragraph [ref=f5e295]
+                    - paragraph [ref=f5e296]: "Rule 1: Read the syllabus carefully. The syllabus is a social contract between the instructor and students. Questions about subjects covered by the syllabus are welcome; however, please carefully read the syllabus and make a point of reviewing it over the course of the semester."
+                    - paragraph [ref=f5e297]
+                    - paragraph [ref=f5e298]:
+                      - text: "Rule 2: Valid email address. The University of Houston considers your email address in PeopleSoft the official method of contact between you and the University. As a prerequisite of this course, you must have a valid email address in PeopleSoft. Please check and use your Cougarnet email for communications related to this course. Faculty use the Cougarnet email to respond to course-related inquiries such as grade queries or progress reports for reasons of FERPA. To access your Cougarnet email,"
+                      - link "login" [ref=f5e299] [cursor=pointer]:
+                        - /url: https://uh.edu/infotech/services/office365/how-to-login/
+                      - text: to your Microsoft 365 account with your Cougarnet credentials. Visit
+                      - link "University Information Technology (UIT)" [ref=f5e300] [cursor=pointer]:
+                        - /url: https://uh.edu/infotech/services/accounts/email/email-faq/
+                      - text: for instructions on how to connect your Cougarnet e-mail on a mobile device. You may not claim an incorrect or blank email address as an excuse in the case of missed communications from the professor or staff.
+                    - paragraph [ref=f5e301]
+                    - paragraph [ref=f5e302]: "Rule 3: Schedules. Remember that this is a structured course. If you cannot meet the deadlines, you should not be in this class. Review these deadlines and scheduled events carefully. You must do the assigned work during the semester on time. Please review Rule 1."
+                    - paragraph [ref=f5e303]
+                    - paragraph [ref=f5e304]: "Rule 4: Computer equipment. There will be online quizzes and study assignments. The class staff cannot make special arrangements to deliver the material to you. If you have a computer problem, you should have your computer repaired, if that is necessary, or contact the University IT Help Desk at 713-743-1411, or visit them at Tech Commons behind M.D. Anderson Library. Technology is not foolproof, so please give yourself enough time to complete your work on time."
+                    - paragraph [ref=f5e305]
+                    - paragraph [ref=f5e306]: "Rule 5: Missed internet assignments. If you do not complete an online assignment by the date and time, you will not be allowed to make up the assignment. Your grade for that assignment will be zero. There are no exceptions to this rule."
+                    - paragraph [ref=f5e307]
+                    - paragraph [ref=f5e308]: "Rule 6: Posting Grades. Grades will be posted on the CANVAS site."
+                    - paragraph [ref=f5e309]
+                    - paragraph [ref=f5e310]: "Rule 7: Dropping the course. You may drop or withdraw without a grade up until the official university reporting date (ORD). If you drop the course after that, you must receive a grade, or take a “W.” Please consult the academic calendar for the last day to drop a course with a grade or withdraw with a “W.”"
+                    - paragraph [ref=f5e311]
+                    - paragraph [ref=f5e312]:
+                      - text: "Rule 8: Communication. Email communication related to this course will be sent to your UH email account. The email server can be accessed via Outlook, which provides a single location for organizing and managing day-to-day information, from email and calendars to contacts and task lists. Email accounts can be accessed by logging into Office 365 with your Cougarnet credentials or through Access UH. They can also be configured on"
+                      - link "IOS" [ref=f5e313] [cursor=pointer]:
+                        - /url: https://uhlcithelp.zendesk.com/hc/en-us/articles/360038912674-Configuring-Office-365-Exchange-Email-using-IOS-Mobile-Devices
+                      - text: and
+                      - link "Android" [ref=f5e314] [cursor=pointer]:
+                        - /url: https://uhlcithelp.zendesk.com/hc/en-us/articles/360039412873-Configuring-Exchange-Email-Android-Mobile-Device
+                      - text: mobile devices. Additional assistance can be found at the
+                      - link "Get Help" [ref=f5e315] [cursor=pointer]:
+                        - /url: https://uh.edu/infotech/help/
+                      - text: page. You will be responsible for checking your email regularly for class updates and announcements. You may email me at any time regarding procedural issues. If I have not responded within 72 hours, email me again. Sometimes, emails are blocked by spam filters. For substantive concerns, please schedule an appointment to see me.
+                    - paragraph [ref=f5e316]
+                    - paragraph [ref=f5e317]: "Rule 9: Dropping you from the course. If we believe that you are not actively engaged in the class (i.e., you are missing assignments, exams, or are failing to respond to communications) we reserve the right to unilaterally drop you from the course. We don’t want to do this, so please make sure to give this course your full effort."
+                    - paragraph [ref=f5e318]
+                    - paragraph [ref=f5e319]: USE OF AI LARGE LANGUAGE MODELS (FROM THE UH LAW CENTER)
+                    - paragraph [ref=f5e320]: Generative artificial intelligence is a form of machine learning that creates new and original output based on the data it has been trained on or has access to, employing algorithms to generate content in response to prompts. Examples of the technology include what are known as generative “large language models” (LLMs). Two well-known LLM implementations are ChatGPT and Claude. LLM output can include text, images, music, code, and more. This syllabus policy covers the textual output of generative LLMs (AI-Generated Work Product). Because AI-Generated Work Product can often mimic human intelligence, it could potentially be used as a substitute for a student’s own work product. Such use is potentially problematic to the extent that it becomes a substitute for internalized student understanding of the material or creates a dependency on AI-Generated Work Product. Subject to the exceptions immediately below, your continuing enrollment in this course constitutes your pledge not to generate or to use any AI-Generated Work Product—whether from yourself or others—in relation to any assessment in this course. The term “assessment” means any graded or ungraded work product for this course that is submitted to the instructor, presented in a class session, or used in an oral or written graded assessment for this course.
+                    - paragraph [ref=f5e321]
+                    - paragraph [ref=f5e322]
+                    - paragraph [ref=f5e323]: "Exceptions:"
+                    - paragraph [ref=f5e324]: "- You may generate and use AI-Generated Work Product for class preparation, although you must disclose the full extent of that use if your instructor asks. You may generate and use AI-Generated Work Product for study supplements to aid with general understanding of course content."
+                    - paragraph [ref=f5e325]
+                    - paragraph [ref=f5e326]: "- You may generate and use AI-Generated Work Product for an outline that summarizes the course content."
+                    - paragraph [ref=f5e327]
+                    - paragraph [ref=f5e328]: "- You may use AI-Generated Work Product to check your originally drafted text for misspellings, grammar and punctuation errors, strength and clarity of prose, verbosity, effective transitional language and thesis sentences, word choice, excessive passive voice, and like things."
+                    - paragraph [ref=f5e329]
+                    - paragraph [ref=f5e330]: "- You may use AI-Generated Work Product for the purpose of language translation"
+                    - paragraph [ref=f5e331]
+                    - paragraph [ref=f5e332]:
+                      - text: ACADEMIC HONESTY POLICY High ethical standards are critical to the integrity of any institution, and bear directly on the ultimate value of conferred degrees. All UH community members are expected to contribute to an atmosphere of the highest possible ethical standards. Maintaining such an atmosphere requires that any instances of academic dishonesty be recognized and addressed. The
+                      - link "UH Academic Honesty Policy" [ref=f5e333] [cursor=pointer]:
+                        - /url: https://uh.edu/provost/policies-resources/honesty/
+                      - text: "is designed to handle those instances with fairness to all parties involved: the students, the instructors, and the University itself. All students and faculty of the University of Houston are responsible for being familiar with this policy."
+                    - paragraph [ref=f5e334]
+                    - paragraph [ref=f5e335]: TITLE IX/SEXUAL MISCONDUCT
+                    - paragraph [ref=f5e336]:
+                      - generic [ref=f5e337]:
+                        - text: Per the UHS Sexual Misconduct Policy, your instructor is a “responsible employee” for reporting purposes under Title IX regulations and state law and must report incidents of sexual misconduct (sexual harassment, non-consensual sexual contact, sexual assault, sexual exploitation, sexual intimidation, intimate partner violence, or stalking) about which they become aware to the Title IX office. Please know there are places on
+                        - mark [ref=f5e338]: camp
+                        - text: us where you can make a report in confidence. You can find more information about resources on the Title IX website at
+                      - link "https://uh.edu/equal-opportunity/title-ix-sexual-misconduct/resources/" [ref=f5e339] [cursor=pointer]:
+                        - /url: https://uh.edu/equal-opportunity/title-ix-sexual-misconduct/resources/
+                      - text: .
+                    - paragraph [ref=f5e340]
+                    - paragraph [ref=f5e341]:
+                      - text: "REASONABLE ACADEMIC ADJUSTMENTS/AUXILIARY AIDS The University of Houston is committed to providing an academic environment and educational programs that are accessible for its students. Any student with a disability who is experiencing barriers to learning, assessment or participation is encouraged to contact the Justin Dart, Jr. Student Accessibility Center (Dart Center) to learn more about academic accommodations and support that may be available to them. Students seeking academic accommodations will need to register with the Dart Center as soon as possible to ensure timely implementation of approved accommodations. Please contact the Dart Center by visiting the website:"
+                      - link "https://uh.edu/accessibility/" [ref=f5e342] [cursor=pointer]:
+                        - /url: https://uh.edu/accessibility/
+                      - text: calling (713) 743-5400, or emailing
+                      - link "jdcenter@Central.UH.EDU" [ref=f5e343] [cursor=pointer]:
+                        - /url: mailto:jdcenter@Central.UH.EDU
+                      - text: .
+                    - paragraph [ref=f5e344]
+                    - paragraph [ref=f5e345]: UNIVERSITY WRITING CENTER
+                    - paragraph [ref=f5e346]:
+                      - text: "The UH Writing Center offers, free of charge, one-on-one consultations where trained writing consultants assist students with their writing assignments. All consultations are by appointment. For more information, students should visit:"
+                      - link "http://www.uh.edu/writingcenter/index.html" [ref=f5e347] [cursor=pointer]:
+                        - /url: http://www.uh.edu/writingcenter/index.html
+                    - paragraph [ref=f5e348]
+                    - paragraph [ref=f5e349]
+                    - paragraph [ref=f5e350]:
+                      - text: EXCUSED ABSENCE POLICY Regular class attendance, participation, and engagement in coursework are important contributors to student success. Absences may be excused as provided in the University of Houston
+                      - link "Undergraduate Excused Absence Policy" [ref=f5e351] [cursor=pointer]:
+                        - /url: http://catalog.uh.edu/content.php?catoid=49&navoid=18675
+                      - text: and
+                      - link "Graduate Excused Absence Policy" [ref=f5e352] [cursor=pointer]:
+                        - /url: http://publications.uh.edu/content.php?catoid=50&navoid=19270
+                      - text: "for reasons including: medical illness of student or close relative, death of a close family member, legal or government proceeding that a student is obligated to attend, recognized professional and educational activities where the student is presenting, and University-sponsored activity or athletic competition. Under these policies, students with excused absences will be provided with an opportunity to make up any quiz, exam or other work that contributes to the course grade or a satisfactory alternative. Please read the full policy for details regarding reasons for excused absences, the approval process, and extended absences. Additional policies address absences related to"
+                      - link "military service" [ref=f5e353] [cursor=pointer]:
+                        - /url: http://publications.uh.edu/content.php?catoid=49&navoid=18634
+                      - text: ","
+                      - link "religious holy days," [ref=f5e354] [cursor=pointer]:
+                        - /url: http://publications.uh.edu/content.php?catoid=44&navoid=15699
+                      - link "pregnancy and related conditions" [ref=f5e355] [cursor=pointer]:
+                        - /url: https://www.uh.edu/equal-opportunity/anti-discrimination/policies/
+                      - text: ", and"
+                      - link "disability" [ref=f5e356] [cursor=pointer]:
+                        - /url: https://uhsystem.edu/compliance-ethics/_docs/sam/01/1d9.pdf
+                      - text: .
+                    - paragraph [ref=f5e357]: I will use my best judgment in evaluating student absence requests
+                    - paragraph [ref=f5e358]: .
+                    - paragraph [ref=f5e359]: Students should submit an excused absence request in writing (email is fine) or by phone
+                    - paragraph [ref=f5e360]: IF
+                    - paragraph [ref=f5e361]: written or email communication is not possible.
+                    - paragraph [ref=f5e362]: Planned absences should be submitted as soon as the conflict becomes known no later than 5 business days, if possible,
+                    - paragraph [ref=f5e363]: BEFORE
+                    - paragraph [ref=f5e364]: the anticipated absence.
+                    - paragraph [ref=f5e365]: There are no exceptions to this rule.
+                    - paragraph [ref=f5e366]: If there is an unforeseen circumstance, the student must notify the instructor
+                    - paragraph [ref=f5e367]: BEFORE
+                    - paragraph [ref=f5e368]: the next class meeting or as soon as possible with an explanation regarding why the notice could not be sent before the next class meeting.
+                    - paragraph [ref=f5e369]: There are no exceptions to this rule.
+                    - paragraph [ref=f5e370]: "Please submit all the documentation to support your request for excused absences, which may include but is not limited to:"
+                    - paragraph [ref=f5e371]: Medical provider note with the date and time of the medical assessment, either of yourself or a family member or dependent, and the date at which the student may return to classes
+                    - paragraph [ref=f5e372]: Death notice, obituary, or death certificate
+                    - paragraph [ref=f5e373]: Documentation related to legal activities
+                    - paragraph [ref=f5e374]: Confirmation of athletic participation
+                    - paragraph [ref=f5e375]: Confirmation of mandatory interviews from employers
+                    - paragraph [ref=f5e376]: Conference program
+                    - paragraph [ref=f5e377]: Confirmation of participation in University-sponsored activity
+                    - paragraph [ref=f5e378]: I
+                    - paragraph [ref=f5e379]: will verify
+                    - paragraph [ref=f5e380]: a student’s absence documentation or defer verification and decision, including cases when documentation is not available, to the college dean or dean’s designee.
+                    - paragraph [ref=f5e381]: Providing false information or documentation is unacceptable. Allegations of misconduct will be referred for review and may be considered as prohibited conduct under the
+                    - paragraph [ref=f5e382]:
+                      - link "Student Code of Conduct" [ref=f5e383] [cursor=pointer]:
+                        - /url: https://www.uh.edu/dos/behavior-conduct/student-code-of-conduct/
+                    - paragraph [ref=f5e384]: or an act of academic dishonesty under the
+                    - paragraph [ref=f5e385]:
+                      - link "Academic Honesty Policy" [ref=f5e386] [cursor=pointer]:
+                        - /url: http://publications.uh.edu/content.php?catoid=44&navoid=15831
+                    - paragraph [ref=f5e387]: .
+                    - paragraph [ref=f5e388]: You must submit your documentation for review
+                    - paragraph [ref=f5e389]: within three business
+                    - paragraph [ref=f5e390]: days
+                    - paragraph [ref=f5e391]: of
+                    - paragraph [ref=f5e392]: the notification. You will receive a decision
+                    - paragraph [ref=f5e393]: "on"
+                    - paragraph [ref=f5e394]: whether the excused absence is approved within
+                    - paragraph [ref=f5e395]: three business days of receiving the proper documentation
+                    - paragraph [ref=f5e396]: .
+                    - paragraph [ref=f5e397]: You forgo your right
+                    - paragraph [ref=f5e398]: to review your request if you do not submit the proper documentation within three business days after the notification.
+                    - paragraph [ref=f5e399]: If and only if
+                    - paragraph [ref=f5e400]: the absence is excused, I will provide you with an opportunity to make up the quiz, exam, or other work or provide you with a satisfactory alternative by a reasonable date.
+                - generic [ref=f5e401]: Page 1 of 2
+              - generic [ref=f5e402]:
+                - generic [ref=f5e403]:
+                  - paragraph [ref=f5e404]
+                  - paragraph [ref=f5e405]:
+                    - text: RECORDING OF CLASS Students may not record all or part of class, livestream all or part of class, or make/distribute screen captures, without advanced written consent of the instructor. If you have or think you may have a disability such that you need to record class-related activities, please contact the
+                    - link "Justin Dart, Jr. Student Accessibility Center" [ref=f5e406] [cursor=pointer]:
+                      - /url: https://uh.edu/accessibility/
+                    - text: . If you have an accommodation to record class-related activities, those recordings may not be shared with any other student, whether in this course or not, or with any other person or on any other platform. Classes may be recorded by the instructor. Students may use instructor’s recordings for their own studying and notetaking. Instructor’s recordings are not authorized to be shared with anyone without the prior written approval of the instructor. Failure to comply with requirements regarding recordings will result in a disciplinary referral to the Dean of Students Office and may result in disciplinary action.
+                  - paragraph [ref=f5e407]
+                  - paragraph [ref=f5e408]: The course PowerPoints and/or my notes WILL NOT be made available on CANVAS.
+                  - paragraph [ref=f5e409]
+                  - paragraph [ref=f5e410]: MENTAL HEALTH AND WELLNESS RESOURCES
+                  - paragraph [ref=f5e411]:
+                    - text: The University of Houston has a number of resources to support students’ mental health and overall wellness, including
+                    - link "CoogsCARE" [ref=f5e412] [cursor=pointer]:
+                      - /url: https://uh.edu/coogs-care/
+                    - text: and the
+                    - link "UH Go App" [ref=f5e413] [cursor=pointer]:
+                      - /url: https://uh.edu/go/
+                    - text: . UH
+                    - link "Counseling and Psychological Services (CAPS)" [ref=f5e414] [cursor=pointer]:
+                      - /url: https://uh.edu/caps/services/
+                    - text: offers 24/7 mental health support for all students, addressing various concerns like stress, college adjustment and sadness. CAPS provides individual and couples counseling, group therapy, workshops and connections to other support services on and
+                    - generic [ref=f5e415]:
+                      - text: off-
+                      - mark [ref=f5e416]: camp
+                      - text: us
+                    - text: . For assistance visit
+                    - link "uh.edu/caps" [ref=f5e417] [cursor=pointer]:
+                      - /url: https://uh.edu/caps/
+                    - text: ", call 713-743-5454, or visit a"
+                    - link "Let’s Talk" [ref=f5e418] [cursor=pointer]:
+                      - /url: https://www.uh.edu/caps/outreach/lets-talk/
+                    - text: location in-person or virtually.
+                    - link "Let’s Talk" [ref=f5e419] [cursor=pointer]:
+                      - /url: https://www.uh.edu/caps/outreach/lets-talk/
+                    - text: are daily, informal confidential consultations with CAPS therapists where no appointment or paperwork is needed.
+                  - paragraph [ref=f5e420]
+                  - paragraph [ref=f5e421]:
+                    - text: The
+                    - link "Student Health Center" [ref=f5e422] [cursor=pointer]:
+                      - /url: https://uh.edu/healthcenter/services/medical-services/psychiatry-clinic/
+                    - text: offers a Psychiatry Clinic for enrolled UH students. Call 713-743-5149 during clinic hours, Monday through Friday 8 a.m. - 4:30 p.m. to schedule an appointment.
+                  - paragraph [ref=f5e423]
+                  - paragraph [ref=f5e424]
+                  - paragraph [ref=f5e425]: Need Support Now?
+                  - paragraph [ref=f5e426]:
+                    - text: "If you or someone you know is struggling or in crisis, help is available. Call CAPS crisis support 24/7 at 713-743-5454, or the National Suicide and Crisis Lifeline: call or text"
+                    - link "988," [ref=f5e427] [cursor=pointer]:
+                      - /url: tel:988
+                    - text: or chat
+                    - link "988lifeline.org." [ref=f5e428] [cursor=pointer]:
+                      - /url: https://988lifeline.org/
+                  - paragraph [ref=f5e429]
+                  - paragraph [ref=f5e430]: SECURITY ESCORTS AND COUGAR RIDE
+                  - paragraph [ref=f5e431]:
+                    - generic [ref=f5e432]:
+                      - text: UHPD continually works with the University community to make the
+                      - mark [ref=f5e433]: camp
+                      - text: us a safe place to learn, work, and live. The security escort service is designed for the community members who have safety concerns and would like to have a Security Officer walk with them, for their safety, as they make their way across
+                      - mark [ref=f5e434]: camp
+                      - text: us. Based on availability either a UHPD Security Officer or Police Officer will escort students, faculty, and staff to locations beginning and ending on
+                      - mark [ref=f5e435]: camp
+                      - text: us. If you feel that you need a Security Officer to walk with you for your safety, please call
+                    - link "713-743-3333" [ref=f5e436] [cursor=pointer]:
+                      - /url: tel:713-743-3333
+                    - text: . Arrangements may be made for special needs.
+                  - paragraph [ref=f5e437]:
+                    - generic [ref=f5e438]:
+                      - text: Parking and Transportation Services also offers a late-night, on-demand shuttle service called “Cougar Ride” that provides rides to and from all on-
+                      - mark [ref=f5e439]: camp
+                      - text: us shuttle stops, as well as the MD Anderson Library, Cougar Village/Moody Towers and the UH Technology Bridge. Rides can be requested through the UH Go app. Days and hours of operation can be found at
+                    - link "https://uh.edu/af-university-services/parking/cougar-ride/" [ref=f5e440] [cursor=pointer]:
+                      - /url: https://uh.edu/af-university-services/parking/cougar-ride/
+                    - text: .
+                  - paragraph [ref=f5e441]
+                  - paragraph [ref=f5e442]: SCHEDULE
+                  - table [ref=f5e443]:
+                    - rowgroup [ref=f5e444]:
+                      - row [ref=f5e445]:
+                        - cell [ref=f5e446]:
+                          - paragraph [ref=f5e447]: DATE
+                        - cell [ref=f5e448]:
+                          - paragraph [ref=f5e449]: TOPICS
+                        - cell [ref=f5e450]:
+                          - paragraph [ref=f5e451]: ASSIGNMENT
+                      - row [ref=f5e452]:
+                        - cell [ref=f5e453]:
+                          - paragraph [ref=f5e454]: August 25
+                        - cell [ref=f5e455]:
+                          - paragraph [ref=f5e456]: Course Introduction, Social Contract, Ground Rules and Ways of Knowing
+                        - cell [ref=f5e457]:
+                          - paragraph [ref=f5e458]: Read Syllabus
+                      - row [ref=f5e459]:
+                        - cell [ref=f5e460]:
+                          - paragraph [ref=f5e461]: POPULATION HEALTH
+                      - row [ref=f5e462]:
+                        - cell [ref=f5e463]:
+                          - paragraph [ref=f5e464]: August 27
+                        - cell [ref=f5e465]:
+                          - paragraph [ref=f5e466]: Foundations of Population Health
+                        - cell [ref=f5e467]:
+                          - paragraph [ref=f5e468]: Kindig D, Stoddart G. What is population health? Am J Public Health. Mar 2003;93(3):380-3. doi:10.2105/ajph.93.3.380
+                          - paragraph [ref=f5e469]
+                          - paragraph [ref=f5e470]: Adler N, Bachrach C, Daley D, Frisco M. Building the science for a population health movement. NAM Perspectives. 2013.
+                          - paragraph [ref=f5e471]
+                          - paragraph [ref=f5e472]: Kindig DA. Understanding population health terminology. The Milbank Quarterly. 2007;85(1):139-161.
+                      - row [ref=f5e473]:
+                        - cell [ref=f5e474]:
+                          - paragraph [ref=f5e475]: September 1
+                        - cell [ref=f5e476]:
+                          - paragraph [ref=f5e477]: Labor Day Holiday
+                        - cell [ref=f5e478]:
+                          - paragraph [ref=f5e479]: No class
+                      - row [ref=f5e480]:
+                        - cell [ref=f5e481]:
+                          - paragraph [ref=f5e482]: September 3
+                        - cell [ref=f5e483]:
+                          - paragraph [ref=f5e484]: Sociology and Population Health
+                        - cell [ref=f5e485]:
+                          - paragraph [ref=f5e486]: No reading assignment
+                      - row [ref=f5e487]:
+                        - cell [ref=f5e488]:
+                          - paragraph [ref=f5e489]: September 8
+                        - cell [ref=f5e490]:
+                          - paragraph [ref=f5e491]: "Quiz #1 Preparation"
+                        - cell [ref=f5e492]:
+                          - paragraph [ref=f5e493]: "Virtual Class: Come prepared with questions associated with Quiz #1"
+                      - row [ref=f5e494]:
+                        - cell [ref=f5e495]:
+                          - paragraph [ref=f5e496]: September 10
+                        - cell [ref=f5e497]:
+                          - paragraph [ref=f5e498]: "Quiz #1"
+                        - cell [ref=f5e499]:
+                          - paragraph [ref=f5e500]: Quiz administered via Canvas
+                      - row [ref=f5e501]:
+                        - cell [ref=f5e502]:
+                          - paragraph [ref=f5e503]: POPULATION HEALTH SCIENCE
+                      - row [ref=f5e504]:
+                        - cell [ref=f5e505]:
+                          - paragraph [ref=f5e506]: September 15
+                        - cell [ref=f5e507]:
+                          - paragraph [ref=f5e508]: The Scientific Method
+                        - cell [ref=f5e509]:
+                          - paragraph [ref=f5e510]: "Reading: TBD"
+                      - row [ref=f5e511]:
+                        - cell [ref=f5e512]:
+                          - paragraph [ref=f5e513]: September 17
+                        - cell [ref=f5e514]:
+                          - paragraph [ref=f5e515]: "Epidemiology: Estimating Incidence and Prevalence"
+                        - cell [ref=f5e516]:
+                          - paragraph [ref=f5e517]:
+                            - text: "Osterholm MT, Hedberg CW. Epidemiologic Principles. Mandell, Douglas, and Bennett's Principles and Practice of Infectious Diseases. 2015:146–157.e2. Epub 2014 Oct 31. PMCID: PMC7152219."
+                            - link "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7152219/" [ref=f5e518] [cursor=pointer]:
+                              - /url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7152219/
+                      - row [ref=f5e519]:
+                        - cell [ref=f5e520]:
+                          - paragraph [ref=f5e521]: September 22
+                        - cell [ref=f5e522]:
+                          - paragraph [ref=f5e523]: Person, Place, and Population Health
+                        - cell [ref=f5e524]:
+                          - paragraph [ref=f5e525]: "Introduction, Chapter 1, Chapter 5 from Well: What We Need to Talk about When We Talk About Health"
+                          - paragraph [ref=f5e526]:
+                            - text: "Watch:"
+                            - link "https://www.youtube.com/watch?v=vIsTWCEhV14" [ref=f5e527] [cursor=pointer]:
+                              - /url: https://www.youtube.com/watch?v=vIsTWCEhV14
+                      - row [ref=f5e528]:
+                        - cell [ref=f5e529]:
+                          - paragraph [ref=f5e530]: September 24
+                        - cell [ref=f5e531]:
+                          - paragraph [ref=f5e532]: Health Impact Assessment
+                        - cell [ref=f5e533]:
+                          - paragraph [ref=f5e534]: "National Association of County and City Health Officials: Health Impact Assessment: Quick Guide"
+                          - paragraph [ref=f5e535]
+                          - paragraph [ref=f5e536]: "National Academies Report in Brief: Improving Health in the United States: The Role of Health Impact Assessment"
+                      - row [ref=f5e537]:
+                        - cell [ref=f5e538]:
+                          - paragraph [ref=f5e539]: September 29
+                        - cell [ref=f5e540]:
+                          - paragraph [ref=f5e541]: "Quiz #2 Preparation"
+                        - cell [ref=f5e542]:
+                          - paragraph [ref=f5e543]: "Virtual Class: Come prepared with questions associated with Quiz #2"
+                      - row [ref=f5e544]:
+                        - cell [ref=f5e545]:
+                          - paragraph [ref=f5e546]: October 1
+                        - cell [ref=f5e547]:
+                          - paragraph [ref=f5e548]: "Quiz #2"
+                        - cell [ref=f5e549]:
+                          - paragraph [ref=f5e550]: Quiz administered via Canvas
+                      - row [ref=f5e551]:
+                        - cell [ref=f5e552]:
+                          - paragraph [ref=f5e553]: POPULATION HEALTH PRACTICE
+                      - row [ref=f5e554]:
+                        - cell [ref=f5e555]:
+                          - paragraph [ref=f5e556]: October 6
+                        - cell [ref=f5e557]:
+                          - paragraph [ref=f5e558]: "Health Impact Assessment: Screening"
+                        - cell [ref=f5e559]:
+                          - paragraph [ref=f5e560]: "National Association of County and City Health Officials: Health Impact Assessment: Quick Guide"
+                      - row [ref=f5e561]:
+                        - cell [ref=f5e562]:
+                          - paragraph [ref=f5e563]: October 8
+                        - cell [ref=f5e564]:
+                          - paragraph [ref=f5e565]: "Health Impact Assessment: Scoping"
+                        - cell [ref=f5e566]:
+                          - paragraph [ref=f5e567]: "National Association of County and City Health Officials: Health Impact Assessment: Quick Guide"
+                      - row [ref=f5e568]:
+                        - cell [ref=f5e569]:
+                          - paragraph [ref=f5e570]: October 13
+                        - cell [ref=f5e571]:
+                          - paragraph [ref=f5e572]: "Assignment #1 Preparation"
+                        - cell [ref=f5e573]:
+                          - paragraph [ref=f5e574]: "Virtual Class: Come prepared with questions associated with Assignment #1"
+                      - row [ref=f5e575]:
+                        - cell [ref=f5e576]:
+                          - paragraph [ref=f5e577]: October 15
+                        - cell [ref=f5e578]:
+                          - paragraph [ref=f5e579]: "Assignment #1 Due"
+                        - cell [ref=f5e580]:
+                          - paragraph [ref=f5e581]: HIA Project Description Statement Due via Canvas
+                      - row [ref=f5e582]:
+                        - cell [ref=f5e583]:
+                          - paragraph [ref=f5e584]: October 20
+                        - cell [ref=f5e585]:
+                          - paragraph [ref=f5e586]: "Health Impact Assessment: Assessment"
+                        - cell [ref=f5e587]:
+                          - paragraph [ref=f5e588]: "National Association of County and City Health Officials: Health Impact Assessment: Quick Guide"
+                      - row [ref=f5e589]:
+                        - cell [ref=f5e590]:
+                          - paragraph [ref=f5e591]: October 22
+                        - cell [ref=f5e592]:
+                          - paragraph [ref=f5e593]: No class
+                        - cell [ref=f5e594]:
+                          - paragraph [ref=f5e595]
+                      - row [ref=f5e596]:
+                        - cell [ref=f5e597]:
+                          - paragraph [ref=f5e598]: October 27
+                        - cell [ref=f5e599]:
+                          - paragraph [ref=f5e600]: "Health Impact Assessment: Assessment"
+                        - cell [ref=f5e601]:
+                          - paragraph [ref=f5e602]: See Canvas for other readings
+                      - row [ref=f5e603]:
+                        - cell [ref=f5e604]:
+                          - paragraph [ref=f5e605]: October 29
+                        - cell [ref=f5e606]:
+                          - paragraph [ref=f5e607]: "Health Impact Assessment: Recommendations"
+                        - cell [ref=f5e608]:
+                          - paragraph [ref=f5e609]: "National Association of County and City Health Officials: Health Impact Assessment: Quick Guide"
+                      - row [ref=f5e610]:
+                        - cell [ref=f5e611]:
+                          - paragraph [ref=f5e612]: November 3
+                        - cell [ref=f5e613]:
+                          - paragraph [ref=f5e614]: "Health Impact Assessment: Recommendations"
+                        - cell [ref=f5e615]:
+                          - paragraph [ref=f5e616]: See Canvas for other readings
+                      - row [ref=f5e617]:
+                        - cell [ref=f5e618]:
+                          - paragraph [ref=f5e619]: PRESENTATIONS
+                      - row [ref=f5e620]:
+                        - cell [ref=f5e621]:
+                          - paragraph [ref=f5e622]: November 10
+                        - cell [ref=f5e623]:
+                          - paragraph [ref=f5e624]: Presentations Preparation
+                        - cell [ref=f5e625]:
+                          - paragraph [ref=f5e626]
+                      - row [ref=f5e627]:
+                        - cell [ref=f5e628]:
+                          - paragraph [ref=f5e629]: November 12
+                        - cell [ref=f5e630]:
+                          - paragraph [ref=f5e631]: Presentations Preparation
+                        - cell [ref=f5e632]:
+                          - paragraph [ref=f5e633]
+                      - row [ref=f5e634]:
+                        - cell [ref=f5e635]:
+                          - paragraph [ref=f5e636]: November 17
+                        - cell [ref=f5e637]:
+                          - paragraph [ref=f5e638]: "Assignment #2"
+                          - paragraph [ref=f5e639]: Class Presentations
+                        - cell [ref=f5e640]:
+                          - paragraph [ref=f5e641]: Presentation Slide due via Canvas
+                      - row [ref=f5e642]:
+                        - cell [ref=f5e643]:
+                          - paragraph [ref=f5e644]: November 19
+                        - cell [ref=f5e645]:
+                          - paragraph [ref=f5e646]: "Assignment #2"
+                          - paragraph [ref=f5e647]: Class Presentations
+                        - cell [ref=f5e648]:
+                          - paragraph [ref=f5e649]: Presentation Slide due via Canvas
+                      - row [ref=f5e650]:
+                        - cell [ref=f5e651]:
+                          - paragraph [ref=f5e652]: November 24
+                        - cell [ref=f5e653]:
+                          - paragraph [ref=f5e654]: "Assignment #3 Preparation"
+                        - cell [ref=f5e655]:
+                          - paragraph [ref=f5e656]
+                      - row [ref=f5e657]:
+                        - cell [ref=f5e658]:
+                          - paragraph [ref=f5e659]: November 26
+                        - cell [ref=f5e660]:
+                          - paragraph [ref=f5e661]: No Class
+                        - cell [ref=f5e662]:
+                          - paragraph [ref=f5e663]
+                      - row [ref=f5e664]:
+                        - cell [ref=f5e665]:
+                          - paragraph [ref=f5e666]: December 1
+                        - cell [ref=f5e667]:
+                          - paragraph [ref=f5e668]: "Assignment #3"
+                          - paragraph [ref=f5e669]: Preparation
+                        - cell [ref=f5e670]:
+                          - paragraph [ref=f5e671]
+                      - row [ref=f5e672]:
+                        - cell [ref=f5e673]:
+                          - paragraph [ref=f5e674]: December 3
+                        - cell [ref=f5e675]:
+                          - paragraph [ref=f5e676]: "Assignment #3 Due"
+                        - cell [ref=f5e677]:
+                          - paragraph [ref=f5e678]: Health Impact Assessment Policy Brief Due via Canvas
+                  - paragraph [ref=f5e679]
+                - generic [ref=f5e680]: Page 2 of 2
+          - generic [ref=f5e682]:
+            - heading "Flag Words by Page" [level=3] [ref=f5e684]
+            - generic [ref=f5e686]:
+              - generic [ref=f5e687]:
+                - button "Page 1 2 hits" [ref=f5e688] [cursor=pointer]:
+                  - generic [ref=f5e689]: Page 1
+                  - generic [ref=f5e690]: 2 hits
+                - generic [ref=f5e692]:
+                  - button "camp × 2" [ref=f5e693] [cursor=pointer]:
+                    - generic [ref=f5e694]: camp
+                    - generic [ref=f5e695]: × 2
+                  - paragraph [ref=f5e696]: "Suggested: testing only"
+              - generic [ref=f5e697]:
+                - button "Page 2 10 hits" [ref=f5e698] [cursor=pointer]:
+                  - generic [ref=f5e699]: Page 2
+                  - generic [ref=f5e700]: 10 hits
+                - generic [ref=f5e702]:
+                  - button "camp × 10" [ref=f5e703] [cursor=pointer]:
+                    - generic [ref=f5e704]: camp
+                    - generic [ref=f5e705]: × 10
+                  - paragraph [ref=f5e706]: "Suggested: testing only"
+        - link "← Back to all documents" [ref=f5e708] [cursor=pointer]:
+          - /url: http://localhost:8000/docs
