@@ -30,9 +30,19 @@ class DocxToPdfConverter
 
         $isWindows = PHP_OS_FAMILY === 'Windows';
 
+        // Use Laravel's storage path for temp files instead of sys_get_temp_dir().
+        // On Windows IIS, sys_get_temp_dir() often returns C:\Windows\TEMP which
+        // the IIS app pool identity cannot write to. storage_path() is always
+        // writable by the web app.
+        $baseTempDir = storage_path('app/lo_temp');
+        if (!is_dir($baseTempDir)) {
+            @mkdir($baseTempDir, 0755, true);
+        }
+
         // Use a unique temp directory for output so concurrent conversions don't collide.
-        $tempDir = rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'docx2pdf_' . Str::uuid();
+        $tempDir = $baseTempDir . DIRECTORY_SEPARATOR . 'docx2pdf_' . Str::uuid();
         if (!@mkdir($tempDir, 0755, true) && !is_dir($tempDir)) {
+            \Log::error('DocxToPdfConverter: Cannot create temp dir: ' . $tempDir);
             return null;
         }
 
@@ -45,7 +55,7 @@ class DocxToPdfConverter
 
         // Use a persistent profile directory so LibreOffice doesn't re-initialize
         // its user profile on every conversion (major speedup after first run).
-        $profileDir = rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'lo_profile';
+        $profileDir = $baseTempDir . DIRECTORY_SEPARATOR . 'lo_profile';
         if (!is_dir($profileDir)) {
             @mkdir($profileDir, 0755, true);
         }
