@@ -204,10 +204,11 @@ class DocxToPdfConverter
             2 => ['pipe', 'w'],
         ];
 
-        // On Windows, wrap with cmd /c to ensure proper process handling
-        $fullCommand = 'cmd /c ' . $command;
-
-        $proc = proc_open($fullCommand, $descriptors, $pipes, null, null, ['bypass_shell' => true]);
+        // With bypass_shell => true, proc_open calls CreateProcess directly,
+        // which handles quoted paths correctly. Do NOT wrap with "cmd /c"
+        // because cmd.exe strips the outer quote pair and breaks paths
+        // containing spaces (e.g. "C:\Program Files\...").
+        $proc = proc_open($command, $descriptors, $pipes, null, null, ['bypass_shell' => true]);
         if (!is_resource($proc)) {
             return ['output' => [], 'exitCode' => -1, 'timedOut' => false];
         }
