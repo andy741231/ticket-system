@@ -308,15 +308,23 @@ class SyncRbacPermissions extends Command
         /** @var PermissionService $permService */
         $permService = app(PermissionService::class);
         $count = 0;
-        DB::table('users')->select('id')->orderBy('id')->chunk(200, function ($users) use ($permService, &$count) {
+        $errors = 0;
+        DB::table('users')->select('id')->orderBy('id')->chunk(200, function ($users) use ($permService, &$count, &$errors) {
             foreach ($users as $u) {
-                $permService->flushUserCache($u->id);
-                $count++;
+                try {
+                    $permService->flushUserCache($u->id);
+                    $count++;
+                } catch (\Throwable $e) {
+                    $errors++;
+                }
             }
         });
 
         if ($count > 0) {
             $this->line("  Flushed permission cache for {$count} user(s).");
+        }
+        if ($errors > 0) {
+            $this->warn("  Could not flush cache for {$errors} user(s) — cache store may be unwritable. Cached permissions will expire naturally within 60 seconds.");
         }
     }
 }

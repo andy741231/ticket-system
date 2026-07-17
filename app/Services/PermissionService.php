@@ -167,10 +167,21 @@ class PermissionService
         } catch (\Throwable $e) {
             // Fallback: manually bump the version and persist with a safe TTL
             // Keep TTL modest (e.g., 30 days) to avoid 32-bit epoch overflow
-            $current = (int) ($this->cache->get($key) ?: 0);
-            $next = $current + 1;
-            // 30 days is sufficient to keep versioning stable between regular cache refreshes
-            $this->cache->put($key, $next, now()->addDays(30));
+            try {
+                $current = (int) ($this->cache->get($key) ?: 0);
+                $next = $current + 1;
+                // 30 days is sufficient to keep versioning stable between regular cache refreshes
+                $this->cache->put($key, $next, now()->addDays(30));
+            } catch (\Throwable $e2) {
+                // If the cache store is unwritable (e.g., file store with permission
+                // issues on Windows/IIS), there is nothing more we can do here.
+                // The cached permission results have a 60-second TTL, so they will
+                // expire naturally. Log and continue.
+                logger()->warning('[PermissionService] flushUserCache: cache store is unwritable', [
+                    'user_id' => $userId,
+                    'error' => $e2->getMessage(),
+                ]);
+            }
         }
     }
 
