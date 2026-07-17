@@ -54,15 +54,26 @@ class DocxToPdfConverter
         $profilePath = str_replace('\\', '/', $profileDir);
         $profileUrl = 'file:///' . ltrim($profilePath, '/');
 
-        $escapedBinary = escapeshellarg($soffice);
-        $escapedInput  = escapeshellarg($absolutePath);
-        $escapedOutDir = escapeshellarg($tempDir);
+        // On Windows, escapeshellarg uses single quotes which cmd.exe doesn't
+        // understand. We need double quotes for paths with spaces (e.g.
+        // "C:\Program Files\LibreOffice\program\soffice.exe").
+        if ($isWindows) {
+            $escapedBinary = '"' . $soffice . '"';
+            $escapedInput  = '"' . $absolutePath . '"';
+            $escapedOutDir = '"' . $tempDir . '"';
+            $escapedProfile = '"' . $profileUrl . '"';
+        } else {
+            $escapedBinary = escapeshellarg($soffice);
+            $escapedInput  = escapeshellarg($absolutePath);
+            $escapedOutDir = escapeshellarg($tempDir);
+            $escapedProfile = escapeshellarg($profileUrl);
+        }
 
         // Build the conversion command.
         $convertCmd = sprintf(
             '%s --headless --nologo --nofirststartwizard --norestore -env:UserInstallation=%s --convert-to pdf --outdir %s %s',
             $escapedBinary,
-            escapeshellarg($profileUrl),
+            $escapedProfile,
             $escapedOutDir,
             $escapedInput
         );
