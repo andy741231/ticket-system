@@ -99,7 +99,7 @@ class DocumentController extends Controller
                 try {
                     $pdfPreviewPath = $converter->convert('local', $storedPath);
                 } catch (\Throwable $e) {
-                    // Conversion is best-effort; fall back to PHPWord extraction
+                    \Log::error('LibreOffice docx→PDF conversion failed during upload: ' . $e->getMessage());
                 }
             }
 
@@ -269,7 +269,7 @@ class DocumentController extends Controller
                 try {
                     $pdfPreviewPath = $converter->convert('local', $document->file_path);
                 } catch (\Throwable $e) {
-                    // Conversion is best-effort; fall back to PHPWord extraction
+                    \Log::error('LibreOffice docx→PDF conversion failed during rescan: ' . $e->getMessage());
                 }
             }
 

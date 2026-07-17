@@ -34,6 +34,7 @@ class DocxToPdfConverter
 
         $soffice = $this->resolveSofficeBinary();
         if ($soffice === null) {
+            \Log::error('DocxToPdfConverter: LibreOffice (soffice) binary not found. Is LibreOffice installed?');
             $this->cleanupTempDir($tempDir);
             return null;
         }
@@ -69,6 +70,7 @@ class DocxToPdfConverter
         $pdfPath = $tempDir . '/' . $baseName . '.pdf';
 
         if (!file_exists($pdfPath)) {
+            \Log::error('DocxToPdfConverter: soffice produced no PDF. Exit code: ' . $exitCode . '. Output: ' . implode("\n", $output));
             $this->cleanupTempDir($tempDir);
             return null;
         }
