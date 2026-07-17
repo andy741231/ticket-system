@@ -10,6 +10,9 @@ use Illuminate\Support\Str;
  */
 class DocxToPdfConverter
 {
+    /** Maximum seconds to wait for a single conversion before killing it. */
+    protected const TIMEOUT_SECONDS = 90;
+
     /**
      * Convert a stored document file to PDF and store the result on the given disk.
      *
@@ -25,9 +28,10 @@ class DocxToPdfConverter
             return null;
         }
 
-        // Use a unique temp directory so concurrent conversions don't collide.
         $isWindows = PHP_OS_FAMILY === 'Windows';
-        $tempDir = sys_get_temp_dir() . '/docx2pdf_' . Str::uuid();
+
+        // Use a unique temp directory for output so concurrent conversions don't collide.
+        $tempDir = rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'docx2pdf_' . Str::uuid();
         if (!@mkdir($tempDir, 0755, true) && !is_dir($tempDir)) {
             return null;
         }
@@ -39,35 +43,49 @@ class DocxToPdfConverter
             return null;
         }
 
-        // Build the shell command. soffice needs a writable user profile dir.
-        $userProfile = $tempDir . '/profile';
+        // Use a persistent profile directory so LibreOffice doesn't re-initialize
+        // its user profile on every conversion (major speedup after first run).
+        $profileDir = rtrim(sys_get_temp_dir(), '\\/') . DIRECTORY_SEPARATOR . 'lo_profile';
+        if (!is_dir($profileDir)) {
+            @mkdir($profileDir, 0755, true);
+        }
+
+        // Build the file:// URL for the UserInstallation env var.
+        $profilePath = str_replace('\\', '/', $profileDir);
+        $profileUrl = 'file:///' . ltrim($profilePath, '/');
+
         $escapedBinary = escapeshellarg($soffice);
         $escapedInput  = escapeshellarg($absolutePath);
         $escapedOutDir = escapeshellarg($tempDir);
 
-        // The UserInstallation URL must be a proper file:// URL.
-        // On Windows, paths like C:\temp\profile need to become file:///C:/temp/profile
-        $profileUrl = 'file://' . str_replace('\\', '/', $userProfile);
-        if ($isWindows && preg_match('/^file:\/\/\/[A-Za-z]:/', $profileUrl) === 0) {
-            // Add leading slash for drive-letter paths: file://C:/... → file:///C:/...
-            $profileUrl = 'file:///' . ltrim(str_replace('\\', '/', $userProfile), '/');
-        }
-
-        $command = sprintf(
-            '%s --headless --nologo --nofirststartwizard --norestore -env:UserInstallation=%s --convert-to pdf --outdir %s %s 2>&1',
+        // Build the conversion command.
+        $convertCmd = sprintf(
+            '%s --headless --nologo --nofirststartwizard --norestore -env:UserInstallation=%s --convert-to pdf --outdir %s %s',
             $escapedBinary,
             escapeshellarg($profileUrl),
             $escapedOutDir,
             $escapedInput
         );
 
-        $output = [];
-        $exitCode = 0;
-        exec($command, $output, $exitCode);
+        if ($isWindows) {
+            $result = $this->execWindows($convertCmd, self::TIMEOUT_SECONDS);
+        } else {
+            $result = $this->execUnix($convertCmd, self::TIMEOUT_SECONDS);
+        }
+
+        $output = $result['output'];
+        $exitCode = $result['exitCode'];
+        $timedOut = $result['timedOut'];
+
+        if ($timedOut) {
+            \Log::error('DocxToPdfConverter: soffice timed out after ' . self::TIMEOUT_SECONDS . 's. Output: ' . implode("\n", $output));
+            $this->cleanupTempDir($tempDir);
+            return null;
+        }
 
         // LibreOffice names the output file after the input, with .pdf extension.
         $baseName = pathinfo($absolutePath, PATHINFO_FILENAME);
-        $pdfPath = $tempDir . '/' . $baseName . '.pdf';
+        $pdfPath = $tempDir . DIRECTORY_SEPARATOR . $baseName . '.pdf';
 
         if (!file_exists($pdfPath)) {
             \Log::error('DocxToPdfConverter: soffice produced no PDF. Exit code: ' . $exitCode . '. Output: ' . implode("\n", $output));
@@ -92,6 +110,147 @@ class DocxToPdfConverter
     }
 
     /**
+     * Execute a command on Unix with a timeout, using proc_open.
+     */
+    protected function execUnix(string $command, int $timeout): array
+    {
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $proc = proc_open($command, $descriptors, $pipes);
+        if (!is_resource($proc)) {
+            return ['output' => [], 'exitCode' => -1, 'timedOut' => false];
+        }
+
+        fclose($pipes[0]);
+
+        $output = [];
+        $startTime = time();
+        $timedOut = false;
+
+        // Read output in a non-blocking loop with timeout
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        while (true) {
+            $status = proc_get_status($proc);
+            if (!$status['running']) {
+                break;
+            }
+            if (time() - $startTime >= $timeout) {
+                $timedOut = true;
+                // Kill the process and any children
+                proc_terminate($proc, 9);
+                break;
+            }
+            $chunk = fread($pipes[1], 4096);
+            if ($chunk) $output[] = $chunk;
+            $chunk = fread($pipes[2], 4096);
+            if ($chunk) $output[] = $chunk;
+            usleep(100000); // 100ms
+        }
+
+        // Read any remaining output
+        $remaining = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+        if ($remaining) $output[] = $remaining;
+
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_get_status($proc)['exitcode'];
+        proc_close($proc);
+
+        // Normalize output into lines
+        $lines = [];
+        foreach ($output as $chunk) {
+            $lines = array_merge($lines, explode("\n", trim($chunk)));
+        }
+        $lines = array_filter($lines, fn($l) => $l !== '');
+
+        return ['output' => $lines, 'exitCode' => $exitCode, 'timedOut' => $timedOut];
+    }
+
+    /**
+     * Execute a command on Windows with a timeout.
+     *
+     * Uses a wrapper script approach: runs soffice via start /B and polls
+     * for the output file, killing the process if it exceeds the timeout.
+     */
+    protected function execWindows(string $command, int $timeout): array
+    {
+        // On Windows, exec() can hang indefinitely if LibreOffice tries to
+        // interact with the desktop. We use a different approach:
+        // 1. Run the command with proc_open
+        // 2. Poll for completion with a timeout
+        // 3. Kill the process tree if it exceeds the timeout
+
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        // On Windows, wrap with cmd /c to ensure proper process handling
+        $fullCommand = 'cmd /c ' . $command;
+
+        $proc = proc_open($fullCommand, $descriptors, $pipes, null, null, ['bypass_shell' => true]);
+        if (!is_resource($proc)) {
+            return ['output' => [], 'exitCode' => -1, 'timedOut' => false];
+        }
+
+        fclose($pipes[0]);
+
+        $output = [];
+        $startTime = time();
+        $timedOut = false;
+
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        while (true) {
+            $status = proc_get_status($proc);
+            if (!$status['running']) {
+                break;
+            }
+            if (time() - $startTime >= $timeout) {
+                $timedOut = true;
+                // Kill the process — on Windows, proc_terminate with SIGKILL
+                proc_terminate($proc, 9);
+                // Also try to kill any lingering soffice processes spawned
+                @shell_exec('taskkill /F /IM soffice.exe /T 2>nul');
+                break;
+            }
+            $chunk = fread($pipes[1], 4096);
+            if ($chunk) $output[] = $chunk;
+            $chunk = fread($pipes[2], 4096);
+            if ($chunk) $output[] = $chunk;
+            usleep(100000); // 100ms
+        }
+
+        // Read any remaining output
+        $remaining = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+        if ($remaining) $output[] = $remaining;
+
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_get_status($proc)['exitcode'];
+        proc_close($proc);
+
+        // Normalize output into lines
+        $lines = [];
+        foreach ($output as $chunk) {
+            $lines = array_merge($lines, explode("\n", trim($chunk)));
+        }
+        $lines = array_filter($lines, fn($l) => $l !== '');
+
+        return ['output' => $lines, 'exitCode' => $exitCode, 'timedOut' => $timedOut];
+    }
+
+    /**
      * Resolve the soffice binary path across platforms.
      */
     protected function resolveSofficeBinary(): ?string
@@ -100,7 +259,6 @@ class DocxToPdfConverter
 
         // 1. Check PATH
         if ($isWindows) {
-            // `where` is the Windows equivalent of `command -v`
             $pathResult = trim((string) shell_exec('where soffice 2>nul'));
             if ($pathResult !== '' && is_executable($pathResult)) {
                 return $pathResult;
@@ -119,9 +277,7 @@ class DocxToPdfConverter
                 'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
             ]
             : [
-                // macOS .app
                 '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-                // Common Linux locations
                 '/usr/bin/soffice',
                 '/usr/bin/libreoffice',
                 '/usr/local/bin/soffice',
@@ -144,7 +300,7 @@ class DocxToPdfConverter
 
         $items = array_diff((array) scandir($dir), ['.', '..']);
         foreach ($items as $item) {
-            $path = $dir . '/' . $item;
+            $path = $dir . DIRECTORY_SEPARATOR . $item;
             if (is_dir($path)) {
                 $this->cleanupTempDir($path);
             } else {
