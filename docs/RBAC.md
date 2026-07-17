@@ -120,8 +120,17 @@ const canManageOverrides = useHasAny(['admin.rbac.overrides.manage']);
    - `npm ci`
    - `npm run build`
 3) Seed/verify permissions (only if target env needs it)
-   - `php artisan db:seed --class=RbacSeeder`
+   - `php artisan db:seed --class=RbacSeeder` (or `ProductionRbacSeeder` with `RBAC_USE_PRODUCTION_SEEDER=true`)
    - Ensure roles/permissions exist and map to expected app contexts.
+   - **If role_has_permissions rows are missing** (e.g., syncPermissions silently failed during seeding due to stale Spatie cache), re-sync with:
+     ```
+     php artisan rbac:sync-permissions --force
+     ```
+     This is idempotent and safe to run in production. It bypasses the Spatie permission cache by writing to `role_has_permissions` directly, then flushes all per-user permission caches.
+   - After any RBAC change, clear caches:
+     ```
+     php artisan cache:clear
+     ```
 
 ## Adding New Permissions
 1) Define a permission key (scoped by app when applicable).

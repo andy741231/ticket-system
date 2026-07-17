@@ -19,6 +19,10 @@ class ProductionRbacSeeder extends Seeder
      */
     public function run(): void
     {
+        // Clear Spatie's cached permission registry so that newly created
+        // permissions are visible to syncPermissions() below.
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
         // Ensure sub-applications exist (idempotent)
         $this->call(AppsSeeder::class);
 
@@ -111,6 +115,9 @@ class ProductionRbacSeeder extends Seeder
                 $p->save();
             }
         }
+
+        // Clear cache again after creating permissions so syncPermissions sees them
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
         // Create per-app roles and assign permissions
         $apps = DB::table('apps')->get();

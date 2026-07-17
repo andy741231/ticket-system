@@ -15,6 +15,10 @@ class RbacSeeder extends Seeder
      */
     public function run(): void
     {
+        // Clear Spatie's cached permission registry so that newly created
+        // permissions are visible to syncPermissions() below.
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
         // Seed app-scoped permissions and roles using Spatie Teams as sub-app context
         $apps = DB::table('apps')->get();
 
@@ -110,6 +114,9 @@ class RbacSeeder extends Seeder
                 $p->save();
             }
         }
+
+        // Clear cache again after creating permissions so syncPermissions sees them
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
         foreach ($apps as $app) {
             $slug = $app->slug;
