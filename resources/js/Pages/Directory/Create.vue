@@ -51,7 +51,7 @@ const triggerCropCurrent = () => {
 
 const triggerDeleteImage = async () => {
   if (form.tmp_folder) {
-    await axios.delete('/tmp_delete', { data: { folder: form.tmp_folder } });
+    await axios.delete(route('tmp_delete.destroy'), { data: { folder: form.tmp_folder } });
   }
   form.img = null;
   form.tmp_folder = null;
@@ -62,7 +62,7 @@ const triggerDeleteImage = async () => {
 const onImageUploaded = async ({ folder, filename, dataUrl }) => {
   // If a temporary file was already uploaded, delete it before assigning the new one.
   if (form.tmp_folder) {
-    await axios.delete('/tmp_delete', { data: { folder: form.tmp_folder } });
+    await axios.delete(route('tmp_delete.destroy'), { data: { folder: form.tmp_folder } });
   }
   form.img = dataUrl; // for preview
   form.tmp_folder = folder;
@@ -74,7 +74,7 @@ const onImageUploaded = async ({ folder, filename, dataUrl }) => {
 // Cleanup temporary file on page exit
 onUnmounted(() => {
   if (form.tmp_folder) {
-    axios.delete('/tmp_delete', { data: { folder: form.tmp_folder } });
+    axios.delete(route('tmp_delete.destroy'), { data: { folder: form.tmp_folder } });
   }
 });
 

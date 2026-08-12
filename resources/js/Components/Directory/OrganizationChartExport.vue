@@ -38,7 +38,7 @@ onMounted(() => {
 // Load logos from API
 const loadLogos = async () => {
   try {
-    const response = await axios.get('/api/newsletter/logos');
+    const response = await axios.get(route('newsletter.logos.index'));
     logos.value = response.data.logos || [];
   } catch (error) {
     console.error('Failed to load logos:', error);
@@ -421,7 +421,7 @@ const handleLogoUpload = async (event) => {
     const formData = new FormData();
     formData.append('logo', file);
 
-    const response = await axios.post('/api/newsletter/logos', formData, {
+    const response = await axios.post(route('newsletter.logos.store'), formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

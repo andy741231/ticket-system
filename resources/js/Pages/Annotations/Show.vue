@@ -514,7 +514,7 @@ onMounted(async () => {
     
     // Generate share URL
     if (!props.isPublic) {
-        shareUrl.value = `${window.location.origin}/annotations/${props.image.id}/public`;
+        shareUrl.value = route('annotations.public', props.image.id);
     } else {
         shareUrl.value = window.location.href;
     }

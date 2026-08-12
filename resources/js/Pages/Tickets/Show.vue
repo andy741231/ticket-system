@@ -180,7 +180,7 @@ const getFileType = (mimeType) => {
 const isImage = (mime) => !!mime && mime.startsWith('image/');
 const getFileUrl = (file) => {
     if (!file) return '#';
-    return '/storage/' + file.file_path;
+    return window.asset('storage/' + file.file_path);
 };
 
 // Get color for tag badge (matching TagSelector component)

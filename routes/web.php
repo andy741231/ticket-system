@@ -32,10 +32,10 @@ Route::get('/dashboard', function () {
 
 // Web-authenticated API endpoints (session-based)
 Route::middleware(['auth', 'web'])->prefix('api')->group(function () {
-    Route::get('/dashboard-stats', [\App\Http\Controllers\Api\DashboardController::class, 'stats']);
+    Route::get('/dashboard-stats', [\App\Http\Controllers\Api\DashboardController::class, 'stats'])->name('dashboard.stats');
     // Temporary file upload endpoint (used by avatar uploader)
-    Route::post('/tmp_upload', [TmpUploadController::class, 'store']);
-    Route::delete('/tmp_delete', [TmpUploadController::class, 'destroy']);
+    Route::post('/tmp_upload', [TmpUploadController::class, 'store'])->name('tmp_upload.store');
+    Route::delete('/tmp_delete', [TmpUploadController::class, 'destroy'])->name('tmp_delete.destroy');
 });
 
 // Newsletter Public Routes (no auth required)

@@ -1,5 +1,15 @@
 import axios from 'axios';
+import { route } from '../../vendor/tightenco/ziggy';
 window.axios = axios;
+
+// Provide an asset() helper similar to Laravel's, using the runtime Ziggy config
+// so that URLs respect APP_URL (e.g. https://uhph.uh.edu/hub) under subpath deployments.
+window.asset = (path) => {
+    const baseUrl = (typeof window !== 'undefined' && window.Ziggy && window.Ziggy.url)
+        ? window.Ziggy.url.replace(/\/$/, '')
+        : '';
+    return `${baseUrl}/${(path || '').replace(/^\//, '')}`;
+};
 
 // Set default headers for all axios requests
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -43,8 +53,11 @@ window.axios.interceptors.response.use(
     error => {
         if (error.response && error.response.status === 401) {
             // Redirect to login if not already on the login page
-            if (!window.location.pathname.startsWith('/login')) {
-                window.location.href = '/login';
+            const loginPath = typeof window.Ziggy !== 'undefined'
+                ? route('login', undefined, false, window.Ziggy)
+                : '/login';
+            if (!window.location.pathname.startsWith(loginPath)) {
+                window.location.href = loginPath;
             }
         }
         return Promise.reject(error);

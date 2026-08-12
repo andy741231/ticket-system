@@ -71,7 +71,7 @@ const tempProofImages = ref([]);
 
 const loadTempProofImages = async () => {
     try {
-        const response = await axios.get('/api/temp-images');
+        const response = await axios.get(route('temp-images.index'));
         tempProofImages.value = response.data.data || [];
         // Update form with temp image IDs
         form.temp_image_ids = tempProofImages.value.map(img => img.id);

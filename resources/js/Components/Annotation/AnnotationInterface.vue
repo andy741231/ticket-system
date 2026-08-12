@@ -1107,7 +1107,7 @@ const togglePublicAccess = async (image) => {
 
 const copyShareLink = async (image) => {
   try {
-    const shareUrl = `${window.location.origin}/annotations/${image.id}/public`
+    const shareUrl = route('annotations.public', image.id)
     await navigator.clipboard.writeText(shareUrl)
     copiedImageId.value = image.id
     setTimeout(() => {

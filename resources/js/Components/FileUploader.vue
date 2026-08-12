@@ -148,5 +148,5 @@ const formatSize = (bytes) => {
 };
 
 const isImage = (mime) => !!mime && mime.startsWith('image/');
-const storageUrl = (path) => (path ? `/storage/${path}` : '#');
+const storageUrl = (path) => (path ? window.asset(`storage/${path}`) : '#');
 </script>

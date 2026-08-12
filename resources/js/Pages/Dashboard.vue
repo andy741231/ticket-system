@@ -23,7 +23,7 @@ const fetchStats = async () => {
     try {
         isLoading.value = true;
         error.value = null;
-        const response = await axios.get('/api/dashboard-stats');
+        const response = await axios.get(route('dashboard.stats'));
         stats.value = response.data.stats;
         console.log('Fetched stats:', stats.value);
     } catch (err) {

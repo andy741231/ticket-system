@@ -403,7 +403,7 @@ const loadNewsletterDrafts = async (page = 1) => {
     newsletterLoading.value = true
     newsletterError.value = null
     try {
-        const response = await axios.get('/api/newsletter/campaigns/drafts', {
+        const response = await axios.get(route('newsletter.campaigns.drafts'), {
             params: {
                 page,
                 per_page: NEWSLETTER_PER_PAGE,

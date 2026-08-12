@@ -108,7 +108,7 @@ class DirectoryController extends Controller
             foreach ($files as $file) {
                 if ($file !== '.' && $file !== '..' && preg_match('/\.(png|jpg|jpeg|svg)$/i', $file)) {
                     $availableLogos[] = [
-                        'value' => '/storage/images/newsletters/logos/' . $file,
+                        'value' => parse_url(Storage::disk('public')->url('images/newsletters/logos/' . $file), PHP_URL_PATH),
                         'label' => ucfirst(str_replace(['-', '_', '.png', '.jpg', '.jpeg', '.svg'], [' ', ' ', '', '', '', ''], $file))
                     ];
                 }
@@ -182,7 +182,7 @@ class DirectoryController extends Controller
             if (file_exists($temp_path)) {
                 // Delete old image if it exists
                 if ($team->img) {
-                    $old_path = public_path('storage' . $team->img);
+                    $old_path = $this->storagePath($team->img);
                     if (file_exists($old_path)) {
                         unlink($old_path);
                     }
@@ -203,12 +203,12 @@ class DirectoryController extends Controller
                 // Move from temp to final location
                 rename($temp_path, $destination_path);
                 
-                $validated['img'] = '/storage/images/people/' . $permanent_filename;
+                $validated['img'] = parse_url(Storage::disk('public')->url('images/people/' . $permanent_filename), PHP_URL_PATH);
             }
         } elseif (is_null($request->input('img'))) {
             // Handle case where image is deleted without a new one
             if ($team->img) {
-                $old_path = public_path('storage' . $team->img);
+                $old_path = $this->storagePath($team->img);
                 if (file_exists($old_path)) {
                     unlink($old_path);
                 }
@@ -243,6 +243,18 @@ class DirectoryController extends Controller
     public function create()
     {
         return Inertia::render('Directory/Create');
+    }
+
+    /**
+     * Resolve a stored image path to a filesystem path, stripping any app-base prefix.
+     */
+    private function storagePath(string $imgPath): string
+    {
+        $appPath = parse_url(config('app.url'), PHP_URL_PATH) ?? '';
+        if ($appPath && $appPath !== '/' && Str::startsWith($imgPath, $appPath . '/')) {
+            $imgPath = Str::after($imgPath, $appPath . '/');
+        }
+        return public_path(ltrim($imgPath, '/'));
     }
 
     public function store(Request $request)
@@ -291,7 +303,7 @@ class DirectoryController extends Controller
                 // Move from temp to final location
                 rename($temp_path, $destination_path);
                 
-                $validated['img'] = '/storage/images/people/' . $permanent_filename;
+                $validated['img'] = parse_url(Storage::disk('public')->url('images/people/' . $permanent_filename), PHP_URL_PATH);
             }
         }
 
@@ -310,7 +322,7 @@ class DirectoryController extends Controller
         try {
             // Delete associated image if it exists
             if ($team->img) {
-                $imagePath = public_path('storage' . $team->img);
+                $imagePath = $this->storagePath($team->img);
                 if (file_exists($imagePath)) {
                     unlink($imagePath);
                 }

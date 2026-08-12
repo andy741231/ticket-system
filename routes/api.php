@@ -32,7 +32,7 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     // Temporary proof image endpoints (before ticket exists)
     Route::prefix('temp-images')->group(function () {
-        Route::get('/', [\App\Http\Controllers\Api\TempTicketImageController::class, 'index']);
+        Route::get('/', [\App\Http\Controllers\Api\TempTicketImageController::class, 'index'])->name('temp-images.index');
         Route::post('/from-url', [\App\Http\Controllers\Api\TempTicketImageController::class, 'storeFromUrl']);
         Route::post('/from-file', [\App\Http\Controllers\Api\TempTicketImageController::class, 'storeFromFile']);
         Route::post('/from-newsletter', [\App\Http\Controllers\Api\TempTicketImageController::class, 'storeFromNewsletter']);
@@ -42,7 +42,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     });
 
     // Newsletter campaign utilities for authenticated users
-    Route::get('/newsletter/campaigns/drafts', [NewsletterCampaignController::class, 'drafts']);
+    Route::get('/newsletter/campaigns/drafts', [NewsletterCampaignController::class, 'drafts'])->name('newsletter.campaigns.drafts');
 
     // File upload endpoints
     Route::prefix('tickets/{ticket}')->group(function () {
@@ -99,8 +99,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/tickets/analytics/data', [\App\Http\Controllers\TicketAnalyticsController::class, 'data']);
 
     // Newsletter logos management
-    Route::get('/newsletter/logos', [LogoController::class, 'index']);
-    Route::post('/newsletter/logos', [LogoController::class, 'store']);
+    Route::get('/newsletter/logos', [LogoController::class, 'index'])->name('newsletter.logos.index');
+    Route::post('/newsletter/logos', [LogoController::class, 'store'])->name('newsletter.logos.store');
     Route::delete('/newsletter/logos/{filename}', [LogoController::class, 'destroy']);
     Route::put('/newsletter/logos/{filename}/rename', [LogoController::class, 'rename']);
 });

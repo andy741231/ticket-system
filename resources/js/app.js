@@ -141,6 +141,9 @@ createInertiaApp({
             .use(ZiggyVue, Ziggy)
             .use(i18n)
             .component('font-awesome-icon', FontAwesomeIcon);
+
+        // Make asset() helper available in Vue templates
+        app.config.globalProperties.asset = window.asset;
         
         // Global error handler for unhandled promise rejections
         window.addEventListener('unhandledrejection', (event) => {

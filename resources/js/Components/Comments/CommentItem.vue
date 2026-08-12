@@ -218,7 +218,7 @@
             >
               <font-awesome-icon :icon="['fas', 'file']" class="w-4 h-4 text-gray-500" />
               <a
-                :href="attachment.url || `/storage/${attachment.file_path}`"
+                :href="attachment.url || asset(`storage/${attachment.file_path}`)"
                 target="_blank"
                 class="text-blue-600 dark:text-blue-400 hover:underline truncate flex-1"
               >

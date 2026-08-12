@@ -448,7 +448,7 @@ const handleFileSelection = async (event) => {
         form.append('temp_key', props.tempKey);
       }
 
-      const { data } = await axios.post('/api/image-upload', form, {
+      const { data } = await axios.post(route('image.upload'), form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       if (data?.url) {
@@ -509,7 +509,7 @@ const handleImageFileSelection = async (event) => {
         form.append('temp_key', props.tempKey);
       }
 
-      const { data } = await axios.post('/api/image-upload', form, {
+      const { data } = await axios.post(route('image.upload'), form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       if (data?.url) {

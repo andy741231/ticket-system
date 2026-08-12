@@ -2504,7 +2504,7 @@ async function cropAndSaveImage() {
 // Logo Library Management
 async function fetchHeaderLogos() {
   try {
-    const resp = await axios.get('/api/newsletter/logos');
+    const resp = await axios.get(route('newsletter.logos.index'));
     headerLogos.value = Array.isArray(resp.data?.logos) ? resp.data.logos : [];
   } catch (e) {
     console.error('Failed to fetch logos', e);

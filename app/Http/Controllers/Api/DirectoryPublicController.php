@@ -91,9 +91,13 @@ class DirectoryPublicController extends Controller
         if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
         }
-        // Normalize leading slash
-        $normalized = Str::startsWith($path, '/') ? $path : ('/' . ltrim($path, '/'));
-        return rtrim(config('app.url'), '/') . $normalized;
+        // Strip any app-base prefix (e.g. /hub) already baked into the stored path,
+        // then let asset() rebuild the full URL using APP_URL/ASSET_URL.
+        $appPath = parse_url(rtrim(config('app.url'), '/'), PHP_URL_PATH) ?? '';
+        if ($appPath && $appPath !== '/' && Str::startsWith($path, $appPath . '/')) {
+            $path = Str::after($path, $appPath . '/');
+        }
+        return asset(ltrim($path, '/'));
     }
 
     /**

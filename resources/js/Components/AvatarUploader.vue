@@ -131,7 +131,7 @@ const cropAndUpload = async () => {
         formData.append('name', props.teamName || 'profile');
 
         // CSRF headers are set globally in resources/js/bootstrap.js
-        const uploadResp = await axios.post('/api/tmp_upload', formData, {
+        const uploadResp = await axios.post(route('tmp_upload.store'), formData, {
             headers: {
                 'Accept': 'application/json'
             },
