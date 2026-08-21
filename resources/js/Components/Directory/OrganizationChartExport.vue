@@ -452,7 +452,7 @@ const handleLogoDelete = async (logo) => {
   }
 
   try {
-    await axios.delete(`/api/newsletter/logos/${logo.filename}`);
+    await axios.delete(window.asset(`api/newsletter/logos/${logo.filename}`));
     
     // Remove from list
     logos.value = logos.value.filter(l => l.filename !== logo.filename);

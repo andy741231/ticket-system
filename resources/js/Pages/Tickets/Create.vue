@@ -116,7 +116,7 @@ const deleteTempProofImage = async (imageId) => {
         return;
     }
     try {
-        await axios.delete(`/api/temp-images/${imageId}`);
+        await axios.delete(window.asset(`api/temp-images/${imageId}`));
         await loadTempProofImages();
     } catch (error) {
         console.error('Failed to delete temp proof image:', error);

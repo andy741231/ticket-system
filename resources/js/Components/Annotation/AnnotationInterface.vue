@@ -613,8 +613,8 @@ const loadImages = async () => {
   console.log('[loadImages] Called, tempMode:', props.tempMode)
   try {
     const url = props.tempMode 
-      ? '/api/temp-images'
-      : `/api/tickets/${props.ticketId}/images`
+      ? window.asset('api/temp-images')
+      : window.asset(`api/tickets/${props.ticketId}/images`)
     
     const response = await fetch(url, {
       headers: {
@@ -663,8 +663,8 @@ const captureFromUrl = async () => {
   
   try {
     const url = props.tempMode
-      ? '/api/temp-images/from-url'
-      : `/api/tickets/${props.ticketId}/images/from-url`
+      ? window.asset('api/temp-images/from-url')
+      : window.asset(`api/tickets/${props.ticketId}/images/from-url`)
     
     const response = await fetch(url, {
       method: 'POST',
@@ -704,8 +704,8 @@ const uploadFile = async (event) => {
   
   try {
     const url = props.tempMode
-      ? '/api/temp-images/from-file'
-      : `/api/tickets/${props.ticketId}/images/from-file`
+      ? window.asset('api/temp-images/from-file')
+      : window.asset(`api/tickets/${props.ticketId}/images/from-file`)
     
     const response = await fetch(url, {
       method: 'POST',
@@ -744,8 +744,8 @@ const pollImageStatus = async (imageId) => {
   const poll = async () => {
     try {
       const url = props.tempMode
-        ? `/api/temp-images/${imageId}/status`
-        : `/api/tickets/${props.ticketId}/images/${imageId}/status`
+        ? window.asset(`api/temp-images/${imageId}/status`)
+        : window.asset(`api/tickets/${props.ticketId}/images/${imageId}/status`)
       
       const response = await fetch(url, {
         headers: {
@@ -821,7 +821,7 @@ const reloadImageComments = async (imageId) => {
     console.log('[reloadImageComments] Visible annotation IDs:', Array.from(annotationIds))
     
     // Fetch all comments for this image (both annotation-linked and image-level)
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/image-comments`, {
+    const response = await fetch(window.asset(`api/tickets/${props.ticketId}/images/${imageId}/annotations/image-comments`), {
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
         'Accept': 'application/json'
@@ -875,7 +875,7 @@ const reloadImageComments = async (imageId) => {
 const createAnnotationComment = async (annotation, content) => {
   try {
     const imageId = annotation.ticket_image_id
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}/comments`, {
+    const response = await fetch(window.asset(`api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}/comments`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -905,7 +905,7 @@ const createAnnotationComment = async (annotation, content) => {
 
 const createAnnotation = async (imageId, annotationData) => {
   try {
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations`, {
+    const response = await fetch(window.asset(`api/tickets/${props.ticketId}/images/${imageId}/annotations`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -950,7 +950,7 @@ const createAnnotation = async (imageId, annotationData) => {
 const updateAnnotation = async (annotation) => {
   try {
     const imageId = annotation.ticket_image_id
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}`, {
+    const response = await fetch(window.asset(`api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -992,7 +992,7 @@ const updateAnnotation = async (annotation) => {
 
 const deleteAnnotation = async (annotation) => {
   try {
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${annotation.ticket_image_id}/annotations/${annotation.id}`, {
+    const response = await fetch(window.asset(`api/tickets/${props.ticketId}/images/${annotation.ticket_image_id}/annotations/${annotation.id}`), {
       method: 'DELETE',
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
@@ -1027,8 +1027,8 @@ const deleteImage = async (image) => {
   
   try {
     const url = props.tempMode
-      ? `/api/temp-images/${image.id}`
-      : `/api/tickets/${props.ticketId}/images/${image.id}`
+      ? window.asset(`api/temp-images/${image.id}`)
+      : window.asset(`api/tickets/${props.ticketId}/images/${image.id}`)
     
     const response = await fetch(url, {
       method: 'DELETE',
@@ -1078,7 +1078,7 @@ const togglePublicAccess = async (image) => {
   try {
     const newPublicState = !image.is_public
     
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${image.id}/public-access`, {
+    const response = await fetch(window.asset(`api/tickets/${props.ticketId}/images/${image.id}/public-access`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1135,7 +1135,7 @@ const rejectAnnotation = async (annotation) => {
 const updateAnnotationStatus = async (annotation, status, reviewNotes = '') => {
   try {
     const imageId = annotation.ticket_image_id
-    const response = await fetch(`/api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}/status`, {
+    const response = await fetch(window.asset(`api/tickets/${props.ticketId}/images/${imageId}/annotations/${annotation.id}/status`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1197,7 +1197,7 @@ const onCanvasCommentAdded = async (imageId, commentData) => {
     } else {
       // Image-level comment (no specific annotation)
       console.log('[onCanvasCommentAdded] Image-level comment (no annotation selected)')
-      const url = `/api/tickets/${props.ticketId}/images/${imageId}/annotations/image-comments`
+      const url = window.asset(`api/tickets/${props.ticketId}/images/${imageId}/annotations/image-comments`)
       console.log('[onCanvasCommentAdded] Posting to:', url)
       
       const response = await fetch(url, {

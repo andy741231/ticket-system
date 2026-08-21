@@ -216,11 +216,11 @@ const loadMentionableUsers = async () => {
     
     if (props.isPublic && props.imageId && props.publicToken) {
       // External user context - use public endpoint
-      url = `/api/public/annotations/${props.imageId}/mentionable-users?token=${props.publicToken}`;
+      url = window.asset(`api/public/annotations/${props.imageId}/mentionable-users?token=${props.publicToken}`);
       console.log('[MentionAutocomplete] Using public endpoint:', url);
     } else if (props.ticketId) {
       // Internal user context - use ticket endpoint
-      url = `/api/tickets/${props.ticketId}/mentionable-users`;
+      url = window.asset(`api/tickets/${props.ticketId}/mentionable-users`);
       // Add include_external parameter if requested
       if (props.includeExternalUsers) {
         url += '?include_external=true';

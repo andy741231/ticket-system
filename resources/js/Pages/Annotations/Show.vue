@@ -53,7 +53,7 @@ const checkExternalUserSession = async () => {
     checkingSession.value = true;
     try {
         // Use axios instead of fetch for better CSRF token handling across all browsers
-        const response = await window.axios.get(`/external-auth/annotations/${props.image.id}/check-session`);
+        const response = await window.axios.get(window.asset(`external-auth/annotations/${props.image.id}/check-session`));
         
         if (response.data.authenticated) {
             externalUser.value = response.data.user;
@@ -148,8 +148,8 @@ const loadAnnotations = async () => {
         loading.value = true;
         
         const url = props.isPublic 
-            ? `/api/public/annotations/${props.image.id}?token=${props.publicToken}`
-            : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations`;
+            ? window.asset(`api/public/annotations/${props.image.id}?token=${props.publicToken}`)
+            : window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations`);
             
         // Use axios instead of fetch for better CSRF token handling across all browsers
         const response = await window.axios.get(url);
@@ -175,8 +175,8 @@ const createAnnotation = async (annotationData) => {
 
     try {
         const url = props.isPublic 
-            ? `/api/public/annotations/${props.image.id}?token=${props.publicToken}`
-            : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations`;
+            ? window.asset(`api/public/annotations/${props.image.id}?token=${props.publicToken}`)
+            : window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations`);
             
         // Use axios instead of fetch for better CSRF token handling across all browsers
         const response = await window.axios.post(url, annotationData);
@@ -202,8 +202,8 @@ const updateAnnotation = async (annotation) => {
 
     try {
         const url = props.isPublic
-            ? `/api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`
-            : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`;
+            ? window.asset(`api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`)
+            : window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`);
             
         // Use axios instead of fetch for better CSRF token handling across all browsers
         const response = await window.axios.put(url, {
@@ -227,8 +227,8 @@ const updateAnnotation = async (annotation) => {
 const deleteAnnotation = async (annotation) => {
     try {
         const url = props.isPublic 
-            ? `/api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`
-            : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`;
+            ? window.asset(`api/public/annotations/${props.image.id}/${annotation.id}?token=${props.publicToken}`)
+            : window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}`);
             
         // Use axios instead of fetch for better CSRF token handling across all browsers
         await window.axios.delete(url);
@@ -255,8 +255,8 @@ const loadComments = async () => {
 
         // 1) Image-level comments (both public and auth)
         const imageUrl = props.isPublic
-            ? `/api/public/annotations/${props.image.id}/image-comments?token=${props.publicToken}`
-            : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`;
+            ? window.asset(`api/public/annotations/${props.image.id}/image-comments?token=${props.publicToken}`)
+            : window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`);
         console.log('[loadComments] Fetching image-level comments from:', imageUrl);
         
         try {
@@ -273,8 +273,8 @@ const loadComments = async () => {
         console.log('[loadComments] Fetching comments for', visibleAnnotations.length, 'annotations');
         for (const annotation of visibleAnnotations) {
             const url = props.isPublic 
-                ? `/api/public/annotations/${props.image.id}/annotations/${annotation.id}/comments?token=${props.publicToken}`
-                : `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}/comments`;
+                ? window.asset(`api/public/annotations/${props.image.id}/annotations/${annotation.id}/comments?token=${props.publicToken}`)
+                : window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${annotation.id}/comments`);
             
             try {
                 // Use axios instead of fetch for better CSRF token handling across all browsers
@@ -307,15 +307,15 @@ const addComment = async (commentData) => {
         if (props.isPublic) {
             // Public view supports both annotation-level and image-level comments
             if (commentData.annotation_id) {
-                url = `/api/public/annotations/${props.image.id}/annotations/${commentData.annotation_id}/comments?token=${props.publicToken}`;
+                url = window.asset(`api/public/annotations/${props.image.id}/annotations/${commentData.annotation_id}/comments?token=${props.publicToken}`);
             } else {
-                url = `/api/public/annotations/${props.image.id}/image-comments?token=${props.publicToken}`;
+                url = window.asset(`api/public/annotations/${props.image.id}/image-comments?token=${props.publicToken}`);
             }
         } else {
             if (commentData.annotation_id) {
-                url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${commentData.annotation_id}/comments`;
+                url = window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${commentData.annotation_id}/comments`);
             } else {
-                url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`;
+                url = window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments`);
             }
         }
 
@@ -352,16 +352,16 @@ const updateComment = async (comment) => {
             // Check if it's an annotation-level or image-level comment
             const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
             if (isAnnotationScoped) {
-                url = `/api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`;
+                url = window.asset(`api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`);
             } else {
-                url = `/api/public/annotations/${props.image.id}/image-comments/${comment.id}?token=${props.publicToken}`;
+                url = window.asset(`api/public/annotations/${props.image.id}/image-comments/${comment.id}?token=${props.publicToken}`);
             }
         } else {
             const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
             if (isAnnotationScoped) {
-                url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}`;
+                url = window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}`);
             } else {
-                url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments/${comment.id}`;
+                url = window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments/${comment.id}`);
             }
         }
 
@@ -386,16 +386,16 @@ const deleteComment = async (comment) => {
             // Check if it's an annotation-level or image-level comment
             const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
             if (isAnnotationScoped) {
-                url = `/api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`;
+                url = window.asset(`api/public/annotations/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}?token=${props.publicToken}`);
             } else {
-                url = `/api/public/annotations/${props.image.id}/image-comments/${comment.id}?token=${props.publicToken}`;
+                url = window.asset(`api/public/annotations/${props.image.id}/image-comments/${comment.id}?token=${props.publicToken}`);
             }
         } else {
             const isAnnotationScoped = annotations.value.some(a => a.id === comment.annotation_id);
             if (isAnnotationScoped) {
-                url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}`;
+                url = window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/${comment.annotation_id}/comments/${comment.id}`);
             } else {
-                url = `/api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments/${comment.id}`;
+                url = window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/annotations/image-comments/${comment.id}`);
             }
         }
 
@@ -489,7 +489,7 @@ const togglePublicAccess = async () => {
         const newPublicState = !props.image.is_public;
         
         // Use axios instead of fetch for better CSRF token handling across all browsers
-        const response = await window.axios.put(`/api/tickets/${props.ticket.id}/images/${props.image.id}/public-access`, {
+        const response = await window.axios.put(window.asset(`api/tickets/${props.ticket.id}/images/${props.image.id}/public-access`), {
             is_public: newPublicState,
             public_access_level: 'annotate' // Always full access when public
         });

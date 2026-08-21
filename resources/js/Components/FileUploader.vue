@@ -96,8 +96,8 @@ const onFilesSelected = async (e) => {
         files.forEach(f => formData.append('files[]', f));
 
         const url = props.tempMode
-            ? '/api/temp-files'
-            : (props.ticketId ? `/api/tickets/${props.ticketId}/files` : null);
+            ? window.asset('api/temp-files')
+            : (props.ticketId ? window.asset(`api/tickets/${props.ticketId}/files`) : null);
 
         if (!url) {
             throw new Error('Missing upload context. Provide temp-mode or ticket-id.');
@@ -126,8 +126,8 @@ const removeFile = async (file) => {
     try {
         errorMsg.value = '';
         const url = props.tempMode
-            ? `/api/temp-files/${file.id}`
-            : (props.ticketId ? `/api/tickets/${props.ticketId}/files/${file.id}` : null);
+            ? window.asset(`api/temp-files/${file.id}`)
+            : (props.ticketId ? window.asset(`api/tickets/${props.ticketId}/files/${file.id}`) : null);
 
         if (!url) throw new Error('Missing removal context. Provide temp-mode or ticket-id.');
 

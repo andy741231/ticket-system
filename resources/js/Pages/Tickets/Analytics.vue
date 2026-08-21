@@ -62,7 +62,7 @@ async function fetchAnalytics() {
         if (selectedTags.value.length > 0) params.append('tags', selectedTags.value.join(','));
         if (props.canManage && selectedAssignees.value.length > 0) params.append('assignee', selectedAssignees.value.join(','));
         
-        const response = await fetch(`/api/tickets/analytics/data?${params.toString()}`, {
+        const response = await fetch(window.asset(`api/tickets/analytics/data?${params.toString()}`), {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         });
         const result = await response.json();

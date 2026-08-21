@@ -118,7 +118,7 @@ function safeParseJson(val) {
         ? route('image.upload')
         : (typeof window !== 'undefined' && typeof window.route === 'function')
           ? window.route('image.upload')
-          : '/api/image-upload';
+          : window.asset('api/image-upload');
 
       await axios.post(uploadUrl, formData, {
         headers: {
@@ -2227,7 +2227,7 @@ async function deleteImageFromServer(imageUrl) {
       ? route('image.delete')
       : (typeof window !== 'undefined' && typeof window.route === 'function')
         ? window.route('image.delete')
-        : '/api/image-delete';
+        : window.asset('api/image-delete');
     
     const payload = { url: imageUrl };
     if (props.campaignId) {
@@ -2374,7 +2374,7 @@ async function cropAndSaveImage() {
       ? route('image.upload')
       : (typeof window !== 'undefined' && typeof window.route === 'function')
         ? window.route('image.upload')
-        : '/api/image-upload';
+        : window.asset('api/image-upload');
     const resp = await axios.post(uploadUrl, formData, {
       headers: {
         ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
@@ -2457,7 +2457,7 @@ async function cropAndSaveImage() {
         ? route('image.upload')
         : (typeof window !== 'undefined' && typeof window.route === 'function')
           ? window.route('image.upload')
-          : '/api/image-upload';
+          : window.asset('api/image-upload');
       
       const resp = await axios.post(uploadUrl, formData, {
         headers: {
@@ -2535,7 +2535,7 @@ async function deleteLogoFromLibrary(logo) {
   if (!confirm(`Delete logo "${logo.filename}"?`)) return;
   try {
     const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
-    await axios.delete(`/api/newsletter/logos/${encodeURIComponent(logo.filename)}`, {
+    await axios.delete(window.asset(`api/newsletter/logos/${encodeURIComponent(logo.filename)}`), {
       headers: {
         ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
         Accept: 'application/json',
@@ -2553,7 +2553,7 @@ async function renameLogoFromLibrary(logo) {
   if (!newName || newName === logo.filename) return;
   try {
     const csrf = document.head.querySelector('meta[name="csrf-token"]')?.content;
-    await axios.put(`/api/newsletter/logos/${encodeURIComponent(logo.filename)}/rename`, { new_name: newName }, {
+    await axios.put(window.asset(`api/newsletter/logos/${encodeURIComponent(logo.filename)}/rename`), { new_name: newName }, {
       headers: {
         ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
         Accept: 'application/json',

@@ -425,7 +425,7 @@ const proofAnnotations = ref([]);
 // Load proof images on mount
 const loadProofImages = async () => {
     try {
-        const response = await fetch(`/api/tickets/${props.ticket.id}/images`, {
+        const response = await fetch(window.asset(`api/tickets/${props.ticket.id}/images`), {
             headers: {
                 'Accept': 'application/json'
             }
@@ -444,7 +444,7 @@ const loadProofImages = async () => {
 const loadProofAnnotations = async () => {
     try {
         for (const image of proofImages.value) {
-            const response = await fetch(`/api/tickets/${props.ticket.id}/images/${image.id}/annotations`, {
+            const response = await fetch(window.asset(`api/tickets/${props.ticket.id}/images/${image.id}/annotations`), {
                 headers: {
                     'Accept': 'application/json'
                 }
@@ -481,7 +481,7 @@ const submitProof = async () => {
         let response;
         
         if (proofUploadType.value === 'url') {
-            response = await fetch(`/api/tickets/${props.ticket.id}/images/from-url`, {
+            response = await fetch(window.asset(`api/tickets/${props.ticket.id}/images/from-url`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -494,7 +494,7 @@ const submitProof = async () => {
             const formData = new FormData();
             formData.append('file', proofFile.value);
             
-            response = await fetch(`/api/tickets/${props.ticket.id}/images/from-file`, {
+            response = await fetch(window.asset(`api/tickets/${props.ticket.id}/images/from-file`), {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
@@ -507,7 +507,7 @@ const submitProof = async () => {
         if (response.ok) {
             const data = await response.json();
             // Redirect to annotation page
-            window.open(`/annotations/${data.data.id}`, '_blank');
+            window.open(window.asset(`annotations/${data.data.id}`), '_blank');
             
             // Close modal and refresh
             showProofModal.value = false;
@@ -526,7 +526,7 @@ const submitProof = async () => {
 
 // Open annotation page
 const openAnnotationPage = (image) => {
-    window.open(`/annotations/${image.id}`, '_blank');
+    window.open(window.asset(`annotations/${image.id}`), '_blank');
 };
 
 // Handle file selection

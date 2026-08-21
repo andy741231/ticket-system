@@ -33,7 +33,7 @@ const requestVerification = async () => {
     error.value = null;
 
     try {
-        const response = await fetch(`/external-auth/annotations/${props.imageId}/request-verification`, {
+        const response = await fetch(window.asset(`external-auth/annotations/${props.imageId}/request-verification`), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

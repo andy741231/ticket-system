@@ -269,7 +269,7 @@ const submitProof = async () => {
     try {
         uploadError.value = null
         
-        const baseUrl = props.tempMode ? '/api/temp-images' : `/api/tickets/${props.ticketId}/images`
+        const baseUrl = props.tempMode ? window.asset('api/temp-images') : window.asset(`api/tickets/${props.ticketId}/images`)
 
         if (uploadType.value === 'url') {
             if (!proofUrl.value || !proofUrl.value.trim()) {
@@ -372,8 +372,8 @@ const pollCapture = async (imageId) => {
     const maxAttempts = 60
     let attempts = 0
     const statusUrl = props.tempMode 
-        ? `/api/temp-images/${imageId}/status`
-        : `/api/tickets/${props.ticketId}/images/${imageId}/status`
+        ? window.asset(`api/temp-images/${imageId}/status`)
+        : window.asset(`api/tickets/${props.ticketId}/images/${imageId}/status`)
 
     while (attempts < maxAttempts) {
         try {

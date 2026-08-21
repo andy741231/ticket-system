@@ -64,7 +64,7 @@ const showProofModal = ref(false);
 // Load proof images for this ticket
 const loadProofImages = async () => {
     try {
-        const response = await axios.get(`/api/tickets/${props.ticket.id}/images`);
+        const response = await axios.get(window.asset(`api/tickets/${props.ticket.id}/images`));
         proofImages.value = response.data.data || [];
     } catch (error) {
         console.error('Error loading proof images:', error);
@@ -79,7 +79,7 @@ const getAnnotationCount = (imageId) => {
 
 // Open annotation page (uses existing route /annotations/{image})
 const openAnnotationPage = (image) => {
-    window.open(`/annotations/${image.id}`, '_blank');
+    window.open(window.asset(`annotations/${image.id}`), '_blank');
 };
 
 // Track per-image deleting state
@@ -93,7 +93,7 @@ const deleteProofImage = async (image) => {
 
     deletingProof.value = { ...deletingProof.value, [image.id]: true };
     try {
-        await axios.delete(`/api/tickets/${props.ticket.id}/images/${image.id}`);
+        await axios.delete(window.asset(`api/tickets/${props.ticket.id}/images/${image.id}`));
         await loadProofImages();
     } catch (e) {
         console.error('Failed to delete proof image:', e);
