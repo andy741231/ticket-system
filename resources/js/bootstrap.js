@@ -2,13 +2,12 @@ import axios from 'axios';
 import { route } from '../../vendor/tightenco/ziggy';
 window.axios = axios;
 
-// Provide an asset() helper similar to Laravel's, using the runtime Ziggy config
-// so that URLs respect APP_URL (e.g. https://uhph.uh.edu/hub) under subpath deployments.
+// Provide an asset() helper similar to Laravel's, using the request-derived app URL
+// so that URLs respect the actual mount point (e.g. https://uhph.uh.edu/hub).
 window.asset = (path) => {
-    const baseUrl = (typeof window !== 'undefined' && window.Ziggy && window.Ziggy.url)
-        ? window.Ziggy.url.replace(/\/$/, '')
-        : '';
-    return `${baseUrl}/${(path || '').replace(/^\//, '')}`;
+    const appUrl = document.querySelector('meta[name="app-url"]')?.content;
+    const baseUrl = appUrl || window.Ziggy?.url || window.location.origin;
+    return `${baseUrl.replace(/\/$/, '')}/${(path || '').replace(/^\//, '')}`;
 };
 
 // Set default headers for all axios requests

@@ -4,6 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="app-url" content="{{ request()->root() }}">
         <link rel="icon" href="https://placehold.co/60/c8102e/ffffff?text=UHPH">
         <title inertia>{{ config('app.name') }}</title>
 
