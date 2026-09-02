@@ -37,12 +37,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Always generate HTTPS URLs when the app runs in production or the
-        // request itself arrived over HTTPS (directly or via a trusted proxy).
-        // This prevents mixed-content errors on generated URLs and redirects.
+        // Always generate HTTPS URLs outside local/testing environments.
+        // This prevents mixed-content errors on generated URLs and redirects
+        // (e.g. logout -> Location header), regardless of proxy header handling.
         $request = $this->app->bound('request') ? $this->app['request'] : null;
 
-        if (config('app.env') === 'production' || $request?->isSecure()) {
+        if (! app()->environment('local', 'testing')) {
             // Normalize an http:// APP_URL to https so the forced root can never
             // leak insecure URLs into redirects (e.g. logout -> Location header).
             URL::forceRootUrl(preg_replace('#^http://#i', 'https://', (string) config('app.url')));
