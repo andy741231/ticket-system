@@ -57,6 +57,10 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Redirect to the login route instead of '/': the app root maps to a
+        // filesystem directory, so the web server issues its own slash-redirect
+        // with an absolute http:// URL behind a TLS-terminating proxy, causing
+        // mixed-content errors on the Inertia XHR that follows the redirect.
+        return redirect()->route('login');
     }
 }
