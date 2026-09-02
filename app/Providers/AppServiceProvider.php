@@ -9,10 +9,12 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Models\Invite;
 use App\Models\Document;
+use App\Models\Newsletter\Subscriber;
 use App\Policies\TicketPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\InvitePolicy;
 use App\Policies\DocumentPolicy;
+use App\Policies\SubscriberPolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
@@ -35,13 +37,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // In production, always generate HTTPS URLs to avoid mixed content
-        if (config('app.env') === 'production') {
+        // Always generate HTTPS URLs when the app runs in production or the
+        // request itself arrived over HTTPS (directly or via a trusted proxy).
+        // This prevents mixed-content errors on generated URLs and redirects.
+        $request = $this->app->bound('request') ? $this->app['request'] : null;
+
+        if (config('app.env') === 'production' || $request?->isSecure()) {
+            // Normalize an http:// APP_URL to https so the forced root can never
+            // leak insecure URLs into redirects (e.g. logout -> Location header).
+            URL::forceRootUrl(preg_replace('#^http://#i', 'https://', (string) config('app.url')));
             URL::forceScheme('https');
-            URL::forceRootUrl(config('app.url'));
-            
+
             // Force HTTPS for all routes
-            $this->app['request']->server->set('HTTPS', 'on');
+            $request?->server->set('HTTPS', 'on');
         }
 
         Vite::prefetch(concurrency: 3);
@@ -51,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Invite::class, InvitePolicy::class);
         Gate::policy(Document::class, DocumentPolicy::class);
+        Gate::policy(Subscriber::class, SubscriberPolicy::class);
 
         // Delegate string-based abilities to PermissionService (with team context)
         Gate::before(function ($user, string $ability) {
