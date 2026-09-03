@@ -1732,6 +1732,14 @@ function getBlockHtml(type, data) {
     return blockData.padding || '15px 12px';
   };
   
+  const formatPlainText = (value) => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/\r\n|\r|\n/g, '<br>');
+
   const getBlockStyles = (blockData) => {
     try {
       const styles = [];
@@ -1846,8 +1854,8 @@ function getBlockHtml(type, data) {
         const logoImg = `<img src="${data.logo}" alt="${data.logoAlt || 'Logo'}" style="max-width: ${data.logoSize || '150px'}; height: auto; padding: ${data.logoPadding || '10px'}; display: block; margin-left: ${data.logoAlignment === 'left' ? '0' : data.logoAlignment === 'right' ? 'auto' : 'auto'}; margin-right: ${data.logoAlignment === 'left' ? 'auto' : data.logoAlignment === 'right' ? '0' : 'auto'};" />`;
         logoHtml = data.logoUrl ? `<a href="${data.logoUrl}" style="display: block; text-align: ${data.logoAlignment || 'center'}; margin: 0 0 20px 0;">${logoImg}</a>` : `<div style="margin: 0 0 20px 0; text-align: ${data.logoAlignment || 'center'};">${logoImg}</div>`;
       }
-      const titleHtml = data.title ? `<h1 style="margin: 0; font-size: ${data.titleSize || '28px'}; font-weight: ${data.titleBold ? '700' : '300'};">${data.title}</h1>` : '';
-      const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: ${data.subtitleSize || '14px'};">${data.subtitle}</p>` : '';
+      const titleHtml = data.title ? `<h1 style="margin: 0; font-size: ${data.titleSize || '28px'}; font-weight: ${data.titleBold ? '700' : '300'}; line-height: 1.2;">${formatPlainText(data.title)}</h1>` : '';
+      const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: ${data.subtitleSize || '14px'};">${formatPlainText(data.subtitle)}</p>` : '';
       const headerStyles = getBlockStyles(data);
       return `<div class="header-block" style="color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0; ${headerStyles}">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
     case 'text':
@@ -4024,57 +4032,64 @@ function insertTokenIntoEditor(token) {
     </div>
 
     <!-- Header Editor Modal -->
-    <div v-if="showHeaderEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg shadow-xl w-[40rem] max-w-full max-h-[90vh] flex flex-col">
+    <div v-if="showHeaderEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="header-editor-title" class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg shadow-xl w-[40rem] max-w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] flex flex-col">
         <!-- Modal header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 class="text-lg font-medium">Edit Header</h3>
-          <button type="button" @click="cancelHeaderEdit" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" aria-label="Close header editor">
+        <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 id="header-editor-title" class="text-lg font-medium">Edit Header</h3>
+          <button type="button" @click="cancelHeaderEdit" class="-mr-2 p-2 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Close header editor">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
         <!-- Modal body -->
-        <div class="p-6 space-y-6 overflow-y-auto">
+        <div class="p-4 sm:p-6 space-y-6 overflow-y-auto">
           <!-- Content -->
           <section aria-labelledby="header-editor-content-heading">
             <h4 id="header-editor-content-heading" class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">Content</h4>
-            <div class="space-y-4">
+            <div class="space-y-5">
               <div>
-                <div class="flex items-center justify-between mb-1">
-                  <label for="header-title-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
-                  <div class="flex items-center gap-2">
-                    <button
-                      type="button"
-                      @click="headerTitleBold = !headerTitleBold"
-                      :aria-pressed="headerTitleBold"
-                      aria-label="Toggle bold title"
-                      title="Bold"
-                      :class="headerTitleBold
-                        ? 'w-7 h-7 flex items-center justify-center text-sm font-bold bg-blue-600 hover:bg-blue-700 border border-blue-600 rounded text-white transition-colors'
-                        : 'w-7 h-7 flex items-center justify-center text-sm font-bold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors'"
-                    >B</button>
-                    <div class="flex items-center gap-1" role="group" aria-label="Title font size">
-                      <span class="text-xs text-gray-500 dark:text-gray-400 mr-1">Font size</span>
-                      <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, -2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease title font size">A-</button>
-                      <span class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-400 tabular-nums">{{ headerTitleSize }}</span>
-                      <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, 2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase title font size">A+</button>
-                    </div>
+                <label for="header-title-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                <textarea
+                  id="header-title-input"
+                  v-model="headerTitle"
+                  rows="3"
+                  aria-describedby="header-title-help"
+                  class="w-full min-h-[5.5rem] resize-y p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="Newsletter Title (optional)"
+                ></textarea>
+                <p id="header-title-help" class="mt-1 text-xs text-gray-500 dark:text-gray-400">Press Enter to start a new line.</p>
+                <div class="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-2" role="group" aria-label="Title formatting">
+                  <button
+                    type="button"
+                    @click="headerTitleBold = !headerTitleBold"
+                    :aria-pressed="headerTitleBold"
+                    aria-label="Toggle bold title"
+                    title="Bold"
+                    :class="headerTitleBold
+                      ? 'w-8 h-8 flex items-center justify-center text-sm font-bold bg-blue-600 hover:bg-blue-700 border border-blue-600 rounded text-white transition-colors'
+                      : 'w-8 h-8 flex items-center justify-center text-sm font-bold bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors'"
+                  >B</button>
+                  <div class="h-5 w-px bg-gray-300 dark:bg-gray-600" aria-hidden="true"></div>
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Font size</span>
+                  <div class="flex items-center gap-1" role="group" aria-label="Title font size">
+                    <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, -2, 16, 60)" class="w-8 h-8 flex items-center justify-center text-xs font-semibold bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease title font size">A-</button>
+                    <output class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-300 tabular-nums" aria-live="polite">{{ headerTitleSize }}</output>
+                    <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, 2, 16, 60)" class="w-8 h-8 flex items-center justify-center text-xs font-semibold bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase title font size">A+</button>
                   </div>
                 </div>
-                <input id="header-title-input" v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Newsletter Title (optional)" />
               </div>
               <div>
-                <div class="flex items-center justify-between mb-1">
-                  <label for="header-subtitle-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Subtitle</label>
+                <label for="header-subtitle-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subtitle</label>
+                <input id="header-subtitle-input" v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded focus:border-blue-500 focus:ring-blue-500" placeholder="Your weekly dose of updates (optional)" />
+                <div class="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-2" role="group" aria-label="Subtitle formatting">
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-300">Font size</span>
                   <div class="flex items-center gap-1" role="group" aria-label="Subtitle font size">
-                    <span class="text-xs text-gray-500 dark:text-gray-400 mr-1">Font size</span>
-                    <button type="button" @click="headerSubtitleSize = stepHeaderFontSize(headerSubtitleSize, -2, 10, 32)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease subtitle font size">A-</button>
-                    <span class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-400 tabular-nums">{{ headerSubtitleSize }}</span>
-                    <button type="button" @click="headerSubtitleSize = stepHeaderFontSize(headerSubtitleSize, 2, 10, 32)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase subtitle font size">A+</button>
+                    <button type="button" @click="headerSubtitleSize = stepHeaderFontSize(headerSubtitleSize, -2, 10, 32)" class="w-8 h-8 flex items-center justify-center text-xs font-semibold bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease subtitle font size">A-</button>
+                    <output class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-300 tabular-nums" aria-live="polite">{{ headerSubtitleSize }}</output>
+                    <button type="button" @click="headerSubtitleSize = stepHeaderFontSize(headerSubtitleSize, 2, 10, 32)" class="w-8 h-8 flex items-center justify-center text-xs font-semibold bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase subtitle font size">A+</button>
                   </div>
                 </div>
-                <input id="header-subtitle-input" v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Your weekly dose of updates (optional)" />
               </div>
             </div>
           </section>
@@ -4113,7 +4128,7 @@ function insertTokenIntoEditor(token) {
                 <label for="header-logo-url" class="block text-xs text-gray-600 dark:text-gray-300 mb-1">Logo Click URL</label>
                 <input id="header-logo-url" v-model="headerLogoUrl" type="text" class="w-full p-1 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="https://example.com" />
               </div>
-              <div class="grid grid-cols-3 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label for="header-logo-alignment" class="block text-xs text-gray-600 dark:text-gray-300 mb-1">Alignment</label>
                   <select id="header-logo-alignment" v-model="headerLogoAlignment" class="w-full p-1 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm">
@@ -4145,9 +4160,9 @@ function insertTokenIntoEditor(token) {
         </div>
 
         <!-- Modal footer -->
-        <div class="flex gap-2 justify-end px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <button type="button" @click="cancelHeaderEdit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</button>
-          <button type="button" @click="saveHeaderChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">Save</button>
+        <div class="flex gap-2 justify-end px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <button type="button" @click="cancelHeaderEdit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-800">Cancel</button>
+          <button type="button" @click="saveHeaderChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800">Save</button>
         </div>
       </div>
     </div>
