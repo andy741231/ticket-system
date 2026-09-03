@@ -241,6 +241,7 @@ const headerTitle = ref('');
 const headerSubtitle = ref('');
 const headerTitleSize = ref('28px');
 const headerSubtitleSize = ref('14px');
+const headerTitleBold = ref(false);
 const headerBackground = ref('');
 const headerTextColor = ref('');
 const headerLogo = ref('');
@@ -292,6 +293,7 @@ const emailBlocks = ref([
       subtitle: 'Your weekly dose of updates',
       titleSize: '28px',
       subtitleSize: '14px',
+      titleBold: false,
       textColor: '#ffffff',
       padding: '30px 12px',
       fullWidth: false,
@@ -308,6 +310,7 @@ const emailBlocks = ref([
       subtitle: 'Your weekly dose of updates',
       titleSize: '28px',
       subtitleSize: '14px',
+      titleBold: false,
       textColor: '#ffffff',
       padding: '30px 12px',
       fullWidth: false,
@@ -491,6 +494,7 @@ function getDefaultEmailStructure() {
           subtitle: 'Your weekly dose of updates',
           titleSize: '28px',
           subtitleSize: '14px',
+          titleBold: false,
           textColor: '#ffffff',
           padding: '30px 12px',
           fullWidth: false,
@@ -1842,7 +1846,7 @@ function getBlockHtml(type, data) {
         const logoImg = `<img src="${data.logo}" alt="${data.logoAlt || 'Logo'}" style="max-width: ${data.logoSize || '150px'}; height: auto; padding: ${data.logoPadding || '10px'}; display: block; margin-left: ${data.logoAlignment === 'left' ? '0' : data.logoAlignment === 'right' ? 'auto' : 'auto'}; margin-right: ${data.logoAlignment === 'left' ? 'auto' : data.logoAlignment === 'right' ? '0' : 'auto'};" />`;
         logoHtml = data.logoUrl ? `<a href="${data.logoUrl}" style="display: block; text-align: ${data.logoAlignment || 'center'}; margin: 0 0 20px 0;">${logoImg}</a>` : `<div style="margin: 0 0 20px 0; text-align: ${data.logoAlignment || 'center'};">${logoImg}</div>`;
       }
-      const titleHtml = data.title ? `<h1 style="margin: 0; font-size: ${data.titleSize || '28px'}; font-weight: 300;">${data.title}</h1>` : '';
+      const titleHtml = data.title ? `<h1 style="margin: 0; font-size: ${data.titleSize || '28px'}; font-weight: ${data.titleBold ? '700' : '300'};">${data.title}</h1>` : '';
       const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: ${data.subtitleSize || '14px'};">${data.subtitle}</p>` : '';
       const headerStyles = getBlockStyles(data);
       return `<div class="header-block" style="color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0; ${headerStyles}">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
@@ -2129,6 +2133,7 @@ function editBlock(blockId) {
       headerSubtitle.value = block.data?.subtitle || '';
       headerTitleSize.value = block.data?.titleSize || '28px';
       headerSubtitleSize.value = block.data?.subtitleSize || '14px';
+      headerTitleBold.value = block.data?.titleBold ?? false;
       headerTextColor.value = block.data?.textColor || '#ffffff';
       headerLogo.value = block.data?.logo || '';
       headerLogoAlt.value = block.data?.logoAlt || '';
@@ -3037,6 +3042,7 @@ function saveHeaderChanges() {
     subtitle: headerSubtitle.value,
     titleSize: headerTitleSize.value,
     subtitleSize: headerSubtitleSize.value,
+    titleBold: headerTitleBold.value,
     textColor: headerTextColor.value,
     logo: headerLogo.value,
     logoAlt: headerLogoAlt.value,
@@ -4037,11 +4043,23 @@ function insertTokenIntoEditor(token) {
               <div>
                 <div class="flex items-center justify-between mb-1">
                   <label for="header-title-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
-                  <div class="flex items-center gap-1" role="group" aria-label="Title font size">
-                    <span class="text-xs text-gray-500 dark:text-gray-400 mr-1">Font size</span>
-                    <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, -2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease title font size">A-</button>
-                    <span class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-400 tabular-nums">{{ headerTitleSize }}</span>
-                    <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, 2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase title font size">A+</button>
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      @click="headerTitleBold = !headerTitleBold"
+                      :aria-pressed="headerTitleBold"
+                      aria-label="Toggle bold title"
+                      title="Bold"
+                      :class="headerTitleBold
+                        ? 'w-7 h-7 flex items-center justify-center text-sm font-bold bg-blue-600 hover:bg-blue-700 border border-blue-600 rounded text-white transition-colors'
+                        : 'w-7 h-7 flex items-center justify-center text-sm font-bold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors'"
+                    >B</button>
+                    <div class="flex items-center gap-1" role="group" aria-label="Title font size">
+                      <span class="text-xs text-gray-500 dark:text-gray-400 mr-1">Font size</span>
+                      <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, -2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease title font size">A-</button>
+                      <span class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-400 tabular-nums">{{ headerTitleSize }}</span>
+                      <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, 2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase title font size">A+</button>
+                    </div>
                   </div>
                 </div>
                 <input id="header-title-input" v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Newsletter Title (optional)" />
