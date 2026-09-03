@@ -239,6 +239,8 @@ const blockEditors = ref({});
 const showHeaderEditor = ref(false);
 const headerTitle = ref('');
 const headerSubtitle = ref('');
+const headerTitleSize = ref('28px');
+const headerSubtitleSize = ref('14px');
 const headerBackground = ref('');
 const headerTextColor = ref('');
 const headerLogo = ref('');
@@ -288,6 +290,8 @@ const emailBlocks = ref([
     data: {
       title: 'Newsletter Title',
       subtitle: 'Your weekly dose of updates',
+      titleSize: '28px',
+      subtitleSize: '14px',
       textColor: '#ffffff',
       padding: '30px 12px',
       fullWidth: false,
@@ -302,6 +306,8 @@ const emailBlocks = ref([
     content: getBlockHtml('header', {
       title: 'Newsletter Title',
       subtitle: 'Your weekly dose of updates',
+      titleSize: '28px',
+      subtitleSize: '14px',
       textColor: '#ffffff',
       padding: '30px 12px',
       fullWidth: false,
@@ -439,6 +445,19 @@ const finalHtmlContent = computed(() => {
           box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           overflow: hidden;
         }
+        /* Drop cap - only for paragraphs explicitly marked with has-dropcap */
+        p.has-dropcap:first-letter {
+          float: left;
+          font-size: 3.5em;
+          line-height: 0.8;
+          margin: 0.1em 0.2em 0 0;
+          color: #333;
+          font-weight: bold;
+          text-transform: uppercase;
+        }
+        p.has-dropcap {
+          overflow: hidden;
+        }
       </style>
     </head>
     <body>
@@ -470,6 +489,8 @@ function getDefaultEmailStructure() {
         data: {
           title: 'Newsletter Title',
           subtitle: 'Your weekly dose of updates',
+          titleSize: '28px',
+          subtitleSize: '14px',
           textColor: '#ffffff',
           padding: '30px 12px',
           fullWidth: false,
@@ -1821,8 +1842,8 @@ function getBlockHtml(type, data) {
         const logoImg = `<img src="${data.logo}" alt="${data.logoAlt || 'Logo'}" style="max-width: ${data.logoSize || '150px'}; height: auto; padding: ${data.logoPadding || '10px'}; display: block; margin-left: ${data.logoAlignment === 'left' ? '0' : data.logoAlignment === 'right' ? 'auto' : 'auto'}; margin-right: ${data.logoAlignment === 'left' ? 'auto' : data.logoAlignment === 'right' ? '0' : 'auto'};" />`;
         logoHtml = data.logoUrl ? `<a href="${data.logoUrl}" style="display: block; text-align: ${data.logoAlignment || 'center'}; margin: 0 0 20px 0;">${logoImg}</a>` : `<div style="margin: 0 0 20px 0; text-align: ${data.logoAlignment || 'center'};">${logoImg}</div>`;
       }
-      const titleHtml = data.title ? `<h1 style="margin: 0; font-size: 28px; font-weight: 300;">${data.title}</h1>` : '';
-      const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">${data.subtitle}</p>` : '';
+      const titleHtml = data.title ? `<h1 style="margin: 0; font-size: ${data.titleSize || '28px'}; font-weight: 300;">${data.title}</h1>` : '';
+      const subtitleHtml = data.subtitle ? `<p style="margin: 10px 0 0 0; opacity: 0.9; font-size: ${data.subtitleSize || '14px'};">${data.subtitle}</p>` : '';
       const headerStyles = getBlockStyles(data);
       return `<div class="header-block" style="color: ${data.textColor || '#ffffff'}; padding: ${getPadding(data)}; text-align: center; border-radius: 8px 8px 0 0; ${headerStyles}">${logoHtml}${titleHtml}${subtitleHtml}</div>`;
     case 'text':
@@ -2106,6 +2127,8 @@ function editBlock(blockId) {
     } else if (block.type === 'header') {
       headerTitle.value = block.data?.title || '';
       headerSubtitle.value = block.data?.subtitle || '';
+      headerTitleSize.value = block.data?.titleSize || '28px';
+      headerSubtitleSize.value = block.data?.subtitleSize || '14px';
       headerTextColor.value = block.data?.textColor || '#ffffff';
       headerLogo.value = block.data?.logo || '';
       headerLogoAlt.value = block.data?.logoAlt || '';
@@ -3002,10 +3025,18 @@ watch(
 );
 
 // Header editor save/cancel
+function stepHeaderFontSize(current, delta, min, max) {
+  const n = parseInt(String(current), 10);
+  const base = Number.isFinite(n) ? n : (delta > 0 ? min : max);
+  return Math.min(max, Math.max(min, base + delta)) + 'px';
+}
+
 function saveHeaderChanges() {
   updateBlockData(editingBlock.value, {
     title: headerTitle.value,
     subtitle: headerSubtitle.value,
+    titleSize: headerTitleSize.value,
+    subtitleSize: headerSubtitleSize.value,
     textColor: headerTextColor.value,
     logo: headerLogo.value,
     logoAlt: headerLogoAlt.value,
@@ -3987,83 +4018,118 @@ function insertTokenIntoEditor(token) {
     </div>
 
     <!-- Header Editor Modal -->
-    <div v-if="showHeaderEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg p-6 w-[40rem] max-w-full max-h-[90vh] overflow-y-auto">
-        <h3 class="text-lg font-medium mb-4">Edit Header</h3>
-        <div class="space-y-4">
-          <!-- Text Color at top -->
-          <div>
-            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Text Color</label>
-            <ColorPicker v-model="headerTextColor" :showAlpha="false" />
-          </div>
-          
-          <!-- Logo Upload Section -->
-          <div class="border-b pb-4">
-            <label class="block text-sm font-medium mb-2">Logo</label>
+    <div v-if="showHeaderEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 rounded-lg shadow-xl w-[40rem] max-w-full max-h-[90vh] flex flex-col">
+        <!-- Modal header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 class="text-lg font-medium">Edit Header</h3>
+          <button type="button" @click="cancelHeaderEdit" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors" aria-label="Close header editor">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <!-- Modal body -->
+        <div class="p-6 space-y-6 overflow-y-auto">
+          <!-- Content -->
+          <section aria-labelledby="header-editor-content-heading">
+            <h4 id="header-editor-content-heading" class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">Content</h4>
+            <div class="space-y-4">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label for="header-title-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+                  <div class="flex items-center gap-1" role="group" aria-label="Title font size">
+                    <span class="text-xs text-gray-500 dark:text-gray-400 mr-1">Font size</span>
+                    <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, -2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease title font size">A-</button>
+                    <span class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-400 tabular-nums">{{ headerTitleSize }}</span>
+                    <button type="button" @click="headerTitleSize = stepHeaderFontSize(headerTitleSize, 2, 16, 60)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase title font size">A+</button>
+                  </div>
+                </div>
+                <input id="header-title-input" v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Newsletter Title (optional)" />
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label for="header-subtitle-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Subtitle</label>
+                  <div class="flex items-center gap-1" role="group" aria-label="Subtitle font size">
+                    <span class="text-xs text-gray-500 dark:text-gray-400 mr-1">Font size</span>
+                    <button type="button" @click="headerSubtitleSize = stepHeaderFontSize(headerSubtitleSize, -2, 10, 32)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Decrease subtitle font size">A-</button>
+                    <span class="text-xs font-medium w-10 text-center text-gray-600 dark:text-gray-400 tabular-nums">{{ headerSubtitleSize }}</span>
+                    <button type="button" @click="headerSubtitleSize = stepHeaderFontSize(headerSubtitleSize, 2, 10, 32)" class="w-7 h-7 flex items-center justify-center text-xs font-semibold bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 transition-colors" aria-label="Increase subtitle font size">A+</button>
+                  </div>
+                </div>
+                <input id="header-subtitle-input" v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Your weekly dose of updates (optional)" />
+              </div>
+            </div>
+          </section>
+
+          <!-- Logo -->
+          <section aria-labelledby="header-editor-logo-heading">
+            <h4 id="header-editor-logo-heading" class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">Logo</h4>
             <div class="space-y-3">
               <input
                 type="file"
                 accept="image/*"
                 @change="handleHeaderLogoUpload"
-                class="w-full p-2 border border-gray-300 rounded"
+                class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-gray-100 dark:file:bg-gray-700 file:text-gray-700 dark:file:text-gray-200 file:text-sm"
               />
               <div>
-                <button type="button" @click="openLogoLibrary" class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded border">Browse Library</button>
+                <button type="button" @click="openLogoLibrary" class="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 transition-colors">Browse Library</button>
               </div>
               <div class="flex items-center gap-2">
-                <input 
-                  v-model="headerLogo" 
-                  type="text" 
-                  class="flex-1 p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" 
-                  placeholder="Logo URL or upload an image" 
+                <input
+                  v-model="headerLogo"
+                  type="text"
+                  class="flex-1 p-2 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm"
+                  placeholder="Logo URL or upload an image"
                 />
-                <button v-if="headerLogo" type="button" @click="headerLogo = ''" class="text-red-600 hover:text-red-800 text-sm">Clear</button>
+                <button v-if="headerLogo" type="button" @click="headerLogo = ''" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">Clear</button>
               </div>
               <div v-if="headerLogo" class="flex items-center gap-3">
-                <img :src="headerLogo" :alt="headerLogoAlt || 'Logo preview'" class="w-16 h-16 object-contain border rounded" />
-                <button type="button" @click="headerLogo = ''" class="text-red-600 hover:text-red-800">Remove</button>
+                <img :src="headerLogo" :alt="headerLogoAlt || 'Logo preview'" class="w-16 h-16 object-contain border border-gray-300 dark:border-gray-600 rounded" />
+                <button type="button" @click="headerLogo = ''" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">Remove</button>
               </div>
               <div>
-                <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Logo Alt Text</label>
-                <input v-model="headerLogoAlt" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="Logo description" />
+                <label for="header-logo-alt" class="block text-xs text-gray-600 dark:text-gray-300 mb-1">Logo Alt Text</label>
+                <input id="header-logo-alt" v-model="headerLogoAlt" type="text" class="w-full p-1 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="Logo description" />
               </div>
               <div>
-                <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Logo Click URL</label>
-                <input v-model="headerLogoUrl" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="https://example.com" />
+                <label for="header-logo-url" class="block text-xs text-gray-600 dark:text-gray-300 mb-1">Logo Click URL</label>
+                <input id="header-logo-url" v-model="headerLogoUrl" type="text" class="w-full p-1 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="https://example.com" />
               </div>
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Alignment</label>
-                  <select v-model="headerLogoAlignment" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm">
+                  <label for="header-logo-alignment" class="block text-xs text-gray-600 dark:text-gray-300 mb-1">Alignment</label>
+                  <select id="header-logo-alignment" v-model="headerLogoAlignment" class="w-full p-1 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm">
                     <option value="left">Left</option>
                     <option value="center">Center</option>
                     <option value="right">Right</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Size</label>
-                  <input v-model="headerLogoSize" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="150px" />
+                  <label for="header-logo-size" class="block text-xs text-gray-600 dark:text-gray-300 mb-1">Size</label>
+                  <input id="header-logo-size" v-model="headerLogoSize" type="text" class="w-full p-1 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="150px" />
                 </div>
                 <div>
-                  <label class="block text-xs dark:text-gray-300 text-gray-600 mb-1">Padding</label>
-                  <input v-model="headerLogoPadding" type="text" class="w-full p-1 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="10px" />
+                  <label for="header-logo-padding" class="block text-xs text-gray-600 dark:text-gray-300 mb-1">Padding</label>
+                  <input id="header-logo-padding" v-model="headerLogoPadding" type="text" class="w-full p-1 border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:bg-gray-800 rounded text-sm" placeholder="10px" />
                 </div>
               </div>
             </div>
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Title</label>
-            <input v-model="headerTitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Newsletter Title (optional)" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1 dark:text-gray-300 text-gray-600">Subtitle</label>
-            <input v-model="headerSubtitle" type="text" class="w-full p-2 border border-gray-300 dark:text-gray-300 dark:bg-gray-800 rounded" placeholder="Your weekly dose of updates (optional)" />
-          </div>
+          </section>
+
+          <!-- Style -->
+          <section aria-labelledby="header-editor-style-heading">
+            <h4 id="header-editor-style-heading" class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">Style</h4>
+            <div>
+              <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Text Color</label>
+              <ColorPicker v-model="headerTextColor" :showAlpha="false" />
+            </div>
+          </section>
         </div>
-        <div class="flex gap-2 mt-4 justify-end">
-          <button type="button" @click="cancelHeaderEdit" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
-          <button type="button" @click="saveHeaderChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+
+        <!-- Modal footer -->
+        <div class="flex gap-2 justify-end px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <button type="button" @click="cancelHeaderEdit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+          <button type="button" @click="saveHeaderChanges" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">Save</button>
         </div>
       </div>
     </div>
