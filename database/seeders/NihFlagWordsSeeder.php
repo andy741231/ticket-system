@@ -6,8 +6,9 @@ use App\Models\DocumentFlagWord;
 use Illuminate\Database\Seeder;
 
 /**
- * Seeds the document_flag_words table with the 235 NIH flagged terms
- * (compiled from Nature's reporting on the NIH text-analysis screening tool)
+ * Seeds the document_flag_words table with 273 NIH flagged terms
+ * (compiled from Nature's reporting on the NIH text-analysis screening tool,
+ * plus an internal "Words to avoid in NIH grant applications" list)
  * along with suggested replacement language for each term.
  *
  * Sources:
@@ -15,6 +16,7 @@ use Illuminate\Database\Seeder;
  *  - https://github.com/stephenturner/nih-flagged-words
  *  - https://www.notus.org/health-science/nih-funding-grants-review-terms-text-analysis-tool-health-equity-racism
  *  - https://thisweekinpublichealth.com/blog/2025/02/04/some-linguistics-suggestions-for-continuing-the-work/
+ *  - List of Words to avoid in NIH grant applications.docx (internal guidance)
  *
  * This seeder OVERWRITES the existing flag word list. Because document_flags
  * has an ON DELETE CASCADE foreign key to document_flag_words, running this
@@ -73,6 +75,7 @@ class NihFlagWordsSeeder extends Seeder
             ['URM', 'population with lower participation rates'],
 
             // ===== DEI: "diversity" + modifier =====
+            ['divers', 'varied / individuals from varied backgrounds (all forms)'],
             ['address diversity', 'address participation gaps'],
             ['advance diversity', 'advance participation'],
             ['advancement diversity', 'participation advancement'],
@@ -239,6 +242,7 @@ class NihFlagWordsSeeder extends Seeder
             ['underrepresented student', 'students from lower-participation populations'],
 
             // ===== DEI: other =====
+            ['inclus', 'broad participation / open to all (all forms)'],
             ['inclusiv', 'broad participation / open to all eligible participants (all forms)'],
             ['recruitment plan', 'staffing plan / talent acquisition plan'],
 
@@ -304,6 +308,48 @@ class NihFlagWordsSeeder extends Seeder
             ['vaccine acceptance', 'immunization uptake'],
             ['vaccine hesitan', 'immunization attitudes / delayed vaccination / vaccine uptake patterns (all forms)'],
             ['vaccine refusal', 'immunization non-uptake / delayed vaccination'],
+
+            // ===== Additional NIH avoid-list terms =====
+            // From "List of Words to avoid in NIH grant applications" (internal guidance).
+            // Doc terms already covered above (climate change, DEI, divers, equit,
+            // gender, inclus, justice, latinx, LGBT, minorit, pregnant individual,
+            // racism, racist, transgender) are intentionally not duplicated.
+            ['abortion', '(omit; or use specific clinical procedure name)'],
+            ['advocacy', 'engagement / outreach efforts'],
+            ['ally', 'supporter / collaborator (or omit)'],
+            ['barrier', 'obstacle / limiting factor / challenge'],
+            ['belonging', 'sense of community / connectedness'],
+            ['bias', 'systematic error / differential measurement'],
+            ['decarbonization', 'emissions reduction'],
+            ['discrimination', 'differential treatment (measurable)'],
+            ['disparity', 'difference / gap in outcomes'],
+            ['dobbs', '(cite legal case only if essential; otherwise omit)'],
+            ['environmental', '(specify: environmental conditions / exposures)'],
+            ['equality', 'equal access / parity'],
+            ['female', 'specify biological sex / women participants'],
+            ['historically', '(omit; or specify timeframe)'],
+            ['implicit', 'unstated / indirect (specify measure)'],
+            ['injustice', 'unfair conditions / documented differential treatment'],
+            ['institutional', 'organizational / system-level'],
+            ['integrate', 'incorporate / combine'],
+            ['integrating', 'incorporating / combining'],
+            ['integration', 'incorporation / combination'],
+            ['lens', 'perspective / framework'],
+            ['male', 'specify biological sex / men participants'],
+            ['marginalized', 'under-resourced / populations with limited access'],
+            ['microaggressions', 'documented interpersonal incidents'],
+            ['neurodiversity', 'neurodevelopmental differences / cognitive variation'],
+            ['nonbinary', '(omit per administration two-sex policy)'],
+            ['oppressed', '(omit; reframe around measurable conditions)'],
+            ['philanthropy', 'charitable giving / foundation funding'],
+            ['prejudice', 'measured bias / documented attitudes'],
+            ['sexual', '(specify context: sexual behavior / sexual health)'],
+            ['sexual harassment', 'documented harassment incidents / workplace misconduct'],
+            ['social', '(specify: community-level / societal factors)'],
+            ['systemic', 'system-level / organizational-level'],
+            ['traumatic', 'distressing / adverse (specify clinical context)'],
+            ['underserved', 'under-resourced / populations with limited access'],
+            ['vulnerable', 'at-risk / higher-risk populations'],
         ];
     }
 }
