@@ -1386,6 +1386,47 @@ function parseHtmlIntoBlocks(htmlContent) {
     }
   };
 
+  // --- Content detection helpers (element itself counts, not only descendants) ---
+  const WRAPPER_TAGS = ['div', 'section', 'main', 'table', 'tbody', 'tr', 'td'];
+  const TABLE_TAGS = ['table', 'tbody', 'tr', 'td'];
+  const IGNORED_LAYOUT_TAGS = ['div', 'p', 'span', 'a', 'br'];
+  const MEANINGFUL_SELECTOR =
+    'hr,table,ul,ol,iframe,video,svg,object,embed,form,button,select,textarea,input,img';
+  const isImgElement = (el) => el?.tagName?.toLowerCase() === 'img';
+  const imageCount = (el) =>
+    (isImgElement(el) ? 1 : 0) +
+    (el.querySelectorAll ? el.querySelectorAll('img').length : 0);
+  const firstImg = (el) => (isImgElement(el) ? el : el.querySelector?.('img') || null);
+  const hasVisibleText = (el) =>
+    ((el?.textContent || '').replace(/\u00a0/g, ' ').trim().length > 0);
+  // Pure container-of-containers that are safe to unwrap. Newsletter containers
+  // and table layout chains always qualify; other wrappers must carry no text
+  // or images at any depth (descendant content counts, not only direct text).
+  const isStructuralWrapper = (el) => {
+    const t = el?.tagName?.toLowerCase();
+    if (!WRAPPER_TAGS.includes(t)) return false;
+    if (el.classList?.contains('header-block')) return false;
+    if (el.classList?.contains('newsletter-container')) return true;
+    const kids = Array.from(el.children || []);
+    if (TABLE_TAGS.includes(t))
+      return kids.every((k) => TABLE_TAGS.includes(k.tagName?.toLowerCase()));
+    if (hasVisibleText(el) || imageCount(el) > 0) return false;
+    return kids.every((k) => WRAPPER_TAGS.includes(k.tagName?.toLowerCase()));
+  };
+  // Meaningful content other than the given img; empty layout wrappers are
+  // transparent and a wrapper that contains the img is recursed into so
+  // siblings of the img (e.g. <hr>) are still seen.
+  const hasContentBesides = (node, imgEl) =>
+    Array.from(node.children || []).some((k) => {
+      if (k === imgEl) return false;
+      const t = k.tagName?.toLowerCase();
+      if (!IGNORED_LAYOUT_TAGS.includes(t)) return true;
+      if (imgEl && k.contains?.(imgEl)) return hasContentBesides(k, imgEl);
+      return hasVisibleText(k) || !!k.querySelector?.(MEANINGFUL_SELECTOR);
+    });
+  const isImageOnly = (el) =>
+    imageCount(el) === 1 && !hasVisibleText(el) && !hasContentBesides(el, firstImg(el));
+
   // Unwrap common wrappers (html/body/single container/table wrappers)
   let root = tempDiv;
   // html -> body
@@ -1395,13 +1436,14 @@ function parseHtmlIntoBlocks(htmlContent) {
     if (body) root = body;
     console.log('Unwrapped to <body>');
   }
-  // Iteratively unwrap single-child containers to reach meaningful children
+  // Iteratively unwrap single-child containers to reach meaningful children.
+  // Content-bearing wrappers (text, images, mixed content, header-block) are
+  // kept whole so their layout (padding/background) and inner markup survive.
   let unwraps = 0;
   while (unwraps < 5 && root.children && root.children.length === 1) {
     const only = root.children[0];
     const t = only.tagName?.toLowerCase();
-    // Known wrappers: div/section/main/table/tbody/tr/td
-    if (['div', 'section', 'main', 'table', 'tbody', 'tr', 'td'].includes(t)) {
+    if (WRAPPER_TAGS.includes(t) && isStructuralWrapper(only)) {
       root = only;
       unwraps++;
       console.log('Unwrapped wrapper level', unwraps, 'tag:', t);
@@ -1441,7 +1483,8 @@ function parseHtmlIntoBlocks(htmlContent) {
     }];
   }
 
-  // If still a single giant wrapper, try one level deeper split by significant nodes (e.g., sections within a div)
+  // If still a single giant wrapper, try one level deeper split by significant nodes (e.g., sections within a div).
+  // Never split content-bearing elements (paragraphs, headings, mixed divs, header-block).
   if (candidates.length === 1) {
     const deeper = candidates[0];
     const deepTag = deeper.tagName?.toLowerCase();
@@ -1455,7 +1498,7 @@ function parseHtmlIntoBlocks(htmlContent) {
     } else {
       deepChildren = Array.from(deeper.children);
     }
-    if (deepChildren.length > 1) {
+    if (deepChildren.length > 1 && isStructuralWrapper(deeper)) {
       console.log('Performed secondary unwrap. New candidate count:', deepChildren.length);
       candidates = deepChildren;
     }
@@ -1515,9 +1558,14 @@ function parseHtmlIntoBlocks(htmlContent) {
     const tagName = element.tagName?.toLowerCase() || 'div';
     const innerHTML = element.innerHTML || '';
     const outerHTML = element.outerHTML || innerHTML || '';
+    const explicitHeader = !!element.classList?.contains('header-block');
+    const imageOnly = isImageOnly(element);
+    // Elements that bear images but are not pure image blocks fall through to
+    // text so embedded images are never dropped by the heuristics below.
+    const imageBearing = imageCount(element) > 0 && !imageOnly;
 
-    if (element.querySelector('h1, h2, h3, h4, h5, h6')) {
-      // Header-like
+    if (explicitHeader || (!imageBearing && element.querySelector('h1, h2, h3, h4, h5, h6'))) {
+      // Header-like (explicit .header-block always wins, incl. logo images)
       const heading = element.querySelector('h1, h2, h3, h4, h5, h6');
       const title = heading?.textContent?.trim() || '';
       const subtitle = (element.textContent || '').replace(title, '').trim();
@@ -1534,8 +1582,9 @@ function parseHtmlIntoBlocks(htmlContent) {
         editable: true,
         locked: false
       });
-    } else if (element.querySelector('img')) {
-      const img = element.querySelector('img');
+    } else if (imageOnly) {
+      const img = firstImg(element);
+      const imgStyle = img?.style || {};
       blocks.push({
         id: generateBlockId(),
         type: 'image',
@@ -1543,13 +1592,20 @@ function parseHtmlIntoBlocks(htmlContent) {
         data: {
           src: img?.getAttribute('src') || '',
           alt: img?.getAttribute('alt') || 'Image',
-          width: '100%',
-          height: 'auto'
+          width: img?.getAttribute('width') || imgStyle.width || '100%',
+          height: img?.getAttribute('height') || imgStyle.height || 'auto',
+          class: img?.getAttribute('class') || '',
+          style: img?.getAttribute('style') || '',
+          // Keep authored wrapper padding (e.g. <div style="padding:..">),
+          // not the img's own padding.
+          ...(!isImgElement(element) && element.style?.padding
+            ? { padding: element.style.padding }
+            : {})
         },
         editable: true,
         locked: false
       });
-    } else if (tagName === 'hr') {
+    } else if (!imageBearing && tagName === 'hr') {
       blocks.push({
         id: generateBlockId(),
         type: 'divider',
@@ -1558,7 +1614,7 @@ function parseHtmlIntoBlocks(htmlContent) {
         editable: true,
         locked: false
       });
-    } else if (isButtonLike(element)) {
+    } else if (!imageBearing && isButtonLike(element)) {
       const link = element.querySelector('a');
       blocks.push({
         id: generateBlockId(),
@@ -1573,7 +1629,7 @@ function parseHtmlIntoBlocks(htmlContent) {
         editable: true,
         locked: false
       });
-    } else if (/(unsubscribe|copyright|&copy;|all rights reserved)/i.test(innerHTML)) {
+    } else if (!imageBearing && /(unsubscribe|copyright|&copy;|all rights reserved)/i.test(innerHTML)) {
       blocks.push({
         id: generateBlockId(),
         type: 'footer',
@@ -1586,7 +1642,7 @@ function parseHtmlIntoBlocks(htmlContent) {
         editable: true,
         locked: false
       });
-    } else if (/Image Placeholder/i.test(innerHTML)) {
+    } else if (!imageBearing && /Image Placeholder/i.test(innerHTML)) {
       // Recognize our image placeholder markup as an image block (no src yet)
       blocks.push({
         id: generateBlockId(),
@@ -1602,14 +1658,24 @@ function parseHtmlIntoBlocks(htmlContent) {
         locked: false
       });
     } else {
+      // Text (incl. mixed text+image containers, paragraphs, headings, lists).
+      // Content elements keep their outerHTML so <p>/heading boundaries stay
+      // intact in the editor; layout containers contribute innerHTML plus
+      // inline layout styles mapped onto supported block data keys.
+      const isLayoutContainer = WRAPPER_TAGS.includes(tagName);
+      const inline = element.style || {};
+      const inlineBg = inline.backgroundColor || inline.background;
       blocks.push({
         id: generateBlockId(),
         type: 'text',
         content: outerHTML,
         data: {
-          content: innerHTML,
+          content: isLayoutContainer ? innerHTML : outerHTML,
           background: safeStyle(element, 'backgroundColor', 'transparent'),
-          padding: '15px 12px'
+          padding: inline.padding || '15px 12px',
+          ...(inline.margin ? { margin: inline.margin } : {}),
+          ...(inline.color ? { color: inline.color } : {}),
+          ...(inlineBg ? { blockBackground: inlineBg } : {})
         },
         editable: true,
         locked: false
@@ -1789,7 +1855,10 @@ function getBlockHtml(type, data) {
       if (child && child.style !== undefined) {
         // Build styles using style object properties instead of string manipulation
         const tagName = child.tagName.toLowerCase();
-        
+
+        // Never rewrite authored margins on top-level images (e.g. floated imgs)
+        if (tagName === 'img') return;
+
         // Preserve existing styles except margins
         const existingStyles = {};
         const currentStyle = child.getAttribute('style') || '';
@@ -1865,7 +1934,7 @@ function getBlockHtml(type, data) {
       const textColor = data.color || '#666666';
       const textContent = addMarginResets(data.content || '<p>Click to edit this text...</p>');
       const textPadding = data.padding !== undefined ? data.padding : '15px 35px';
-      return `<div style="margin: ${textMargin}; padding: ${textPadding}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${textColor}; ${textStyles}">${textContent}</div>`;
+      return `<div style="display: flow-root; margin: ${textMargin}; padding: ${textPadding}; font-size: ${data.fontSize || '16px'}; line-height: ${data.lineHeight || '1.6'}; color: ${textColor}; ${textStyles}">${textContent}</div>`;
     case 'heading':
       data = data || {};
       const headingStyles = getBlockStyles(data);
@@ -1918,9 +1987,31 @@ function getBlockHtml(type, data) {
       const borderRadius = data.fullWidth ? '0' : (data.borderRadius || '8px');
       const imgPadding = data.fullWidth ? '0' : (data.padding || '0 35px');
       const imageStyles = getBlockStyles(data);
+      // Rebuild <img> from preserved authored attributes: numeric dimensions
+      // become px CSS + HTML attrs; %/auto keep their units; authored inline
+      // styles are appended last so author CSS wins over the defaults.
+      const escAttr = (v) => String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const cssDim = (v) => {
+        const s = String(v ?? '').trim();
+        if (!s) return '';
+        return /^\d+$/.test(s) ? `${s}px` : s;
+      };
+      const imgWidthCss = cssDim(data.width) || '100%';
+      const imgHeightCss = cssDim(data.height) || 'auto';
+      const imgWidthAttr = /^\d+$/.test(String(data.width ?? '').trim())
+        ? ` width="${escAttr(String(data.width).trim())}"` : '';
+      const imgHeightAttr = /^\d+$/.test(String(data.height ?? '').trim())
+        ? ` height="${escAttr(String(data.height).trim())}"` : '';
+      const imgClassAttr = data.class ? ` class="${escAttr(data.class)}"` : '';
+      const authorImgStyle = String(data.style || '').trim();
+      const imgStyleAttr = `width: ${imgWidthCss}; max-width: 100%; height: ${imgHeightCss}; border-radius: ${borderRadius}; display: block;${authorImgStyle ? ` ${authorImgStyle}` : ''}`;
       return data.src ?
-        `<div style="padding: ${imgPadding}; ${imageStyles}"><img src="${data.src}" alt="${data.alt || 'Image'}" style="width: 100%; max-width: 100%; height: auto; border-radius: ${borderRadius}; display: block;" /></div>` :
-        `<div style="padding: ${imgPadding}; ${imageStyles}"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
+        `<div style="display: flow-root; padding: ${imgPadding}; ${imageStyles}"><img src="${escAttr(data.src)}" alt="${escAttr(data.alt || 'Image')}"${imgWidthAttr}${imgHeightAttr}${imgClassAttr} style="${escAttr(imgStyleAttr)}" /></div>` :
+        `<div style="display: flow-root; padding: ${imgPadding}; ${imageStyles}"><div style="width: 100%; height: ${data.height || '200px'}; background: linear-gradient(45deg, #e8f2ff 0%, #f0f8ff 100%); border: 2px dashed #cce7ff; border-radius: ${borderRadius}; display: flex; align-items: center; justify-content: center; color: #667eea; font-size: 14px; cursor: pointer;">Image Placeholder (Click to upload)</div></div>`;
     case 'button':
       const buttonBg = data.buttonBackground || '#c8102e';
       const buttonWrapperStyles = getBlockStyles(data);
@@ -2828,7 +2919,7 @@ function saveTextChanges() {
     if (blk && blk.type === 'text') {
       updateBlockData(editingBlock.value, {
         content: textModalContent.value,
-        padding: '15px 35px',
+        padding: blk.data?.padding || '15px 35px',
       });
     } else if (blk && blk.type === 'heading') {
       updateBlockData(editingBlock.value, {
@@ -3305,6 +3396,7 @@ function insertTokenIntoEditor(token) {
                       : 'hover:ring-1 hover:ring-gray-300'
                   }`"
                   class="cursor-pointer"
+                  style="display: flow-root;"
                   v-html="block.content"
                   @click.capture="handleCanvasClick($event, block)"
                   @dblclick="editBlock(block.id)"

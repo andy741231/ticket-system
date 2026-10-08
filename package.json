@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:newsletter-editor": "node scripts/newsletter-editor-regression.mjs"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^1.0.0",

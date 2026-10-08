@@ -185,8 +185,10 @@ const editor = useEditor({
         class: 'text-blue-600 hover:underline',
       },
     }),
-    // Enable Image extension with resizable attributes; paste of images is still prevented via handlePaste below
-    ResizableImage,
+    // Enable Image extension with resizable attributes; inline so an <img>
+    // stays inside its paragraph instead of splitting it. Paste of images is
+    // still prevented via handlePaste below.
+    ResizableImage.configure({ inline: true }),
     Table.configure({
       resizable: true,
       HTMLAttributes: {
