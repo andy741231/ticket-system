@@ -159,10 +159,11 @@ const SFC_INTERNALS = [
 const VIRTUAL_PREFIX = '\0harness-sfc:';
 
 function harnessSfcPlugin() {
+  const norm = (p) => p.replace(/\\/g, '/');
   const targetBySpecifier = new Map();
   for (const file of SFC_INTERNALS) {
-    targetBySpecifier.set('@/' + path.relative(resourcesJs, file), file);
-    targetBySpecifier.set(file, file);
+    targetBySpecifier.set('@/' + norm(path.relative(resourcesJs, file)), file);
+    targetBySpecifier.set(norm(file), file);
   }
   let counter = 0;
   const virtualToFile = new Map();
@@ -170,7 +171,7 @@ function harnessSfcPlugin() {
     name: 'harness-sfc',
     enforce: 'pre',
     resolveId(source) {
-      const file = targetBySpecifier.get(source);
+      const file = targetBySpecifier.get(norm(source));
       if (!file) return null;
       // Virtual id must NOT end in ".vue" or @vitejs/plugin-vue would pick it
       // up and try to re-parse the generated JS as an SFC.
@@ -346,8 +347,9 @@ async function main() {
     const twOut = path.join(workDir, 'tailwind-out.css');
     fs.writeFileSync(twIn, '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n');
     execFileSync(
-      path.join(repoRoot, 'node_modules/.bin/tailwindcss'),
-      ['-c', 'tailwind.config.js', '-i', twIn, '-o', twOut],
+      process.execPath,
+      [path.join(repoRoot, 'node_modules/tailwindcss/lib/cli.js'),
+       '-c', 'tailwind.config.js', '-i', twIn, '-o', twOut],
       { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] }
     );
     tailwindCss = fs.readFileSync(twOut, 'utf8');
@@ -364,7 +366,7 @@ async function main() {
   // Bare imports (vue, tiptap, ...) resolve by walking up from the entry; link
   // the project's node_modules into the temp root.
   const nmLink = path.join(workDir, 'node_modules');
-  if (!fs.existsSync(nmLink)) fs.symlinkSync(path.join(repoRoot, 'node_modules'), nmLink, 'dir');
+  if (!fs.existsSync(nmLink)) fs.symlinkSync(path.join(repoRoot, 'node_modules'), nmLink, 'junction');
 
   const result = await build({
     configFile: false,
