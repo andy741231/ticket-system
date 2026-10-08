@@ -86,13 +86,69 @@ written to a unique directory per run under
 `$TMPDIR/newsletter-editor-regression-*/evidence/` - prior runs are kept.
 Exit code is non-zero if any assertion fails.
 
-## Limitations
+## Sent-email image alignment (follow-up fix)
 
-- **Offline only**: no Laravel server, no database. The structure
+Separate defect found in the *sent* email path: the editor writes
+`class="float-left mr-4 mb-2"` on images, which renders correctly in the
+editor/preview because the app ships Tailwind (`.float-left{float:left}`).
+`NewsletterMail` however emitted the raw `emails.newsletter` view with no CSS
+inliner and no `.float-left` rule, so in the received email the image had
+`float: none` and rendered as a baseline-aligned inline image - text started
+at the *bottom* edge of the image instead of wrapping at its top right.
+
+Verified offline against the frozen campaign-238 snapshot (browser geometry):
+raw saved HTML -> img `float:none`, first text line ~296px below the image
+top; same HTML with the utility rule present or inlined -> text wraps at the
+image top right.
+
+Fixes:
+
+- `app/Services/NewsletterHtmlFormatter.php` - `format()` runs the send-path
+  HTML through the already-installed `TijsVerkoyen\CssToInlineStyles` with an
+  img-scoped utility stylesheet (`img.float-left`, `img.float-right`,
+  `img.float-none`, `img.mr-4`, `img.ml-4`, `img.mb-2`, `img.mx-auto`,
+  `img.block`, `img.w-full`). Authored inline styles are appended last so
+  they still win. Empty input is returned unchanged.
+- `app/Mail/NewsletterMail.php` - `content()` formats
+  `addTrackingAndPersonalization(...)` output, so previously saved campaigns
+  are corrected on future sends with no DB change/resave.
+- `resources/js/Components/WYSIWYG/EmailEditor.vue` - `insertImage` now emits
+  matching inline `style` for each position preset (left/right/center/
+  full-width) so newly inserted images carry their layout in the HTML itself.
+
+Tests:
+
+- `tests/Unit/NewsletterHtmlFormatterTest.php` - pure PHPUnit, no Laravel
+  boot, synthetic HTML only; covers all presets, author-override precedence,
+  non-img class scoping, structure/mark/UTF-8/comment/token survival, empty
+  input, idempotency, plus `NewsletterMail::content()` integration with
+  in-memory Campaign/Subscriber and stubbed `url`/`config` container
+  bindings (tracking on and off). Run: `vendor/bin/phpunit
+  tests/Unit/NewsletterHtmlFormatterTest.php`.
+- `scripts/newsletter-editor-regression.mjs` gained insertImage preset
+  assertions (class + inline style, width attrs, reopen survival,
+  full-width emits `width: 100%` with no fixed attrs).
+- Offline browser check on the frozen snapshot HTML (before/after
+  formatter, no app CSS): artifact under
+  `/tmp/newsletter-238-align-repro/evidence/`.
+
+Client limitations: the browser evidence proves wrapped text for browsers;
+classic Windows Outlook does not reliably support CSS floats (its Word
+renderer) - guaranteed side-by-side layout there would need a table-based
+approach, which is out of scope. Emails already sent cannot be repaired;
+this only corrects future sends.
+
+- Production inspection used an explicitly authorized read-only query for
+  campaign 238's saved structure and HTML in database `ticket`. Credentials
+  were not logged, `.env` was not changed, and no production records were
+  modified. Subsequent reproduction used only that frozen local snapshot.
+
+## Source-fix verification limitations
+
+- **Offline source-editor tests**: no Laravel server or database. The structure
   serialization round-trip is tested frontend-only (JSON -> `modelValue` ->
   `applyStructure`); the server-side save/reopen path (DB persistence) is
-  intentionally *skipped* - no local DB is confirmed and `.env` must not be
-  read.
+  intentionally *skipped* - no local DB was confirmed for these tests.
 - Email-client rendering (Outlook etc.) is out of scope; preview assertions
   cover browser rendering only.
 - Header/footer/logo *regeneration* is outside this fix's scope: a parsed

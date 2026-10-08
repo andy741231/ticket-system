@@ -530,18 +530,25 @@ const insertImage = (imageUrl) => {
   if (!editor?.value || !imageUrl) return;
   
   let className = '';
+  // Mirror each preset as inline CSS so sent emails (no app stylesheet)
+  // render the same layout the editor shows.
+  let imgStyle = '';
   switch (selectedImagePosition.value) {
     case 'float-left':
       className = 'float-left mr-4 mb-2';
+      imgStyle = 'float: left; margin-right: 1rem; margin-bottom: 0.5rem;';
       break;
     case 'float-right':
       className = 'float-right ml-4 mb-2';
+      imgStyle = 'float: right; margin-left: 1rem; margin-bottom: 0.5rem;';
       break;
     case 'center':
       className = 'mx-auto block';
+      imgStyle = 'display: block; margin-left: auto; margin-right: auto;';
       break;
     case 'full-width':
       className = 'w-full';
+      imgStyle = 'width: 100%;';
       break;
     default:
       className = '';
@@ -571,6 +578,7 @@ const insertImage = (imageUrl) => {
   }
 
   const attrs = { src: imageUrl, class: className };
+  if (imgStyle) attrs.style = imgStyle;
   if (widthAttr) attrs.width = widthAttr;
   if (!imageLockRatio.value && heightAttr) attrs.height = heightAttr;
 

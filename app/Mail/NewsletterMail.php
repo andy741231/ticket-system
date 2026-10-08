@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Newsletter\Campaign;
 use App\Models\Newsletter\Subscriber;
+use App\Services\NewsletterHtmlFormatter;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -43,7 +44,9 @@ class NewsletterMail extends Mailable
         return new Content(
             view: 'emails.newsletter',
             with: [
-                'htmlContent' => $this->addTrackingAndPersonalization($this->campaign->html_content),
+                'htmlContent' => (new NewsletterHtmlFormatter())->format(
+                    $this->addTrackingAndPersonalization($this->campaign->html_content)
+                ),
             ],
         );
     }

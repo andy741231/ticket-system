@@ -1063,6 +1063,47 @@ async function main() {
     await page.screenshot({ path: path.join(evidenceDir, 'emaileditor-standalone.png') });
 
     // =========================================================================
+    // insertImage presets: class + mirrored inline style so sent mail keeps
+    // the layout without the app stylesheet.
+    // =========================================================================
+    const insertChecks = await page.evaluate(() => {
+      const s = window.__harness.editorRef.value.$.setupState;
+      const ed = s.editor && s.editor.getHTML ? s.editor : s.editor?.value;
+      const imgTag = (h) => (h.match(/<img[^>]*>/) || [])[0] || '';
+      const out = {};
+      const insert = (position, preset) => {
+        ed.commands.setContent('<p>Intro text.</p>');
+        // setupState is proxyRefs: plain assignment writes through to the ref.
+        s.selectedImagePosition = position;
+        s.sizePreset = preset;
+        s.insertImage('https://synthetic.test/face.png');
+        return ed.getHTML();
+      };
+      out.left = insert('float-left', 'small');
+      out.leftReopen = (ed.commands.setContent(out.left), ed.getHTML());
+      out.right = insert('float-right', 'small');
+      out.center = insert('center', 'medium');
+      out.full = insert('full-width', 'large');
+      out.none = insert('none', 'original');
+      for (const k of Object.keys(out)) out[k] = imgTag(out[k]);
+      return out;
+    });
+    evidence('insertimage-presets.json', insertChecks);
+    {
+      const ic = insertChecks;
+      check('insert: float-left class kept', /class="float-left mr-4 mb-2"/.test(ic.left), ic.left);
+      check('insert: float-left inline style', /style="[^"]*float:\s*left/.test(ic.left) && /margin-right:\s*1rem/.test(ic.left) && /margin-bottom:\s*0\.5rem/.test(ic.left), ic.left);
+      check('insert: small preset width=200', /width="200"/.test(ic.left), ic.left);
+      check('insert: float-left survives reopen', /float:\s*left/.test(ic.leftReopen) && /width="200"/.test(ic.leftReopen) && ic.leftReopen.includes('float-left'), ic.leftReopen);
+      check('insert: float-right inline style', /float:\s*right/.test(ic.right) && /margin-left:\s*1rem/.test(ic.right) && /class="float-right ml-4 mb-2"/.test(ic.right), ic.right);
+      check('insert: center inline style', /margin-left:\s*auto/.test(ic.center) && /display:\s*block/.test(ic.center) && /class="mx-auto block"/.test(ic.center), ic.center);
+      check('insert: center medium width=400', /width="400"/.test(ic.center), ic.center);
+      check('insert: full-width css only', /width:\s*100%/.test(ic.full) && /class="w-full"/.test(ic.full), ic.full);
+      check('insert: full-width no fixed attrs', !/width="\d+"/.test(ic.full) && !/height="\d+"/.test(ic.full), ic.full);
+      check('insert: none preset no style/float', !/float/.test(ic.none) && !/style=/.test(ic.none), ic.none);
+    }
+
+    // =========================================================================
     // Toolbar geometry on case6 (real Tailwind): each group >0 height and each
     // hover activates THAT block's toolbar at right-edge+8 / top. Runs on the
     // freshly imported canvas (flow-root on the v-html wrapper) and again on
