@@ -1,5 +1,8 @@
 <?php
 
+use App\Console\Commands\PruneAppLogs;
+use App\Console\Commands\PurgeNewsletterTempUploads;
+use App\Console\Commands\PurgeTempFiles;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -41,6 +44,26 @@ return Application::configure(basePath: dirname(__DIR__))
             ->name('scheduler:heartbeat')
             ->everyMinute()
             ->withoutOverlapping();
+
+        // Prune expired user permission overrides hourly
+        $schedule->command('rbac:prune-overrides')
+            ->hourly()
+            ->runInBackground();
+
+        // Purge temporary newsletter uploads daily at 2am
+        $schedule->command(PurgeNewsletterTempUploads::class, ['--days' => 3])
+            ->dailyAt('02:00')
+            ->runInBackground();
+
+        // Clean up other temp files daily at 3am
+        $schedule->command(PurgeTempFiles::class, ['--days' => 3])
+            ->dailyAt('03:00')
+            ->runInBackground();
+
+        // Prune and rotate application log files daily at 1am
+        $schedule->command(PruneAppLogs::class)
+            ->dailyAt('01:00')
+            ->runInBackground();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         // Trust proxy/load balancer headers (including X-Forwarded-Proto) so HTTPS is respected

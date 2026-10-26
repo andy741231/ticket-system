@@ -32,17 +32,7 @@ class ProcessScheduledSends extends Command
         $limit = (int) $this->option('limit');
         $this->info("Processing up to {$limit} scheduled sends...");
 
-        // Timezone debugging information
         $now = now()->utc();
-        $localNow = now();
-        
-        $this->info("Timezone Debug Info:");
-        $this->info("  PHP timezone: " . date_default_timezone_get());
-        $this->info("  Laravel app timezone: " . config('app.timezone'));
-        $this->info("  Current local time: {$localNow}");
-        $this->info("  Current UTC time: {$now}");
-        $this->info("  Time difference: " . $localNow->diffInHours($now) . " hours");
-
         $processed = 0;
 
         // Check for pending sends that should be processed
