@@ -1117,6 +1117,23 @@ class CampaignController extends Controller
                 }
                 try {
                     $parsed = parse_url($url);
+                    // New format: base64 destination is carried in the ?u= query param.
+                    if (!empty($parsed['query'])) {
+                        $queryParams = [];
+                        parse_str($parsed['query'], $queryParams);
+                        $uParam = $queryParams['u'] ?? null;
+                        if (is_string($uParam)) {
+                            $b64 = strtr($uParam, '-_', '+/');
+                            $pad = strlen($b64) % 4;
+                            if ($pad) { $b64 .= str_repeat('=', 4 - $pad); }
+                            $orig = base64_decode($b64, true);
+                            if ($orig && preg_match('#^https?://#i', $orig)) {
+                                return 'href=' . $quote . $orig . $quote;
+                            }
+                            // u present but not a valid http(s) destination
+                            return 'href=' . $quote . '#' . $quote;
+                        }
+                    }
                     $path = $parsed['path'] ?? '';
                     $parts = array_values(array_filter(explode('/', $path)));
                     $idx = null;

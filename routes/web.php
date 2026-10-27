@@ -47,9 +47,16 @@ $publicRoutes = function () {
     Route::get('preferences/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'preferences'])->name('preferences');
     Route::post('preferences/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'updatePreferences'])->name('preferences.update');
     Route::get('track-open/{campaign}/{subscriber}/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'trackOpen'])->name('track-open');
+    // Short path + ?u=/?t= query params: keeps tracked links under the IIS
+    // http.sys 260-char path-segment limit (UrlSegmentMaxLength), which
+    // rejects longer segments with a kernel-level HTTP 400 before PHP.
+    Route::get('track-click/{campaign}/{subscriber}', [\App\Http\Controllers\Newsletter\PublicController::class, 'trackClick'])->name('track-click');
+    // Legacy path format: required for tracked links already embedded in
+    // previously sent emails. Long ones remain dead on IIS (kernel 400) —
+    // nothing PHP-side can resurrect them.
     Route::get('track-click/{campaign}/{subscriber}/{url}/{token}', [\App\Http\Controllers\Newsletter\PublicController::class, 'trackClick'])
         ->where('url', '.*')
-        ->name('track-click');
+        ->name('track-click.legacy');
 };
 
 // Register routes under both /newsletter/ and /newsletter/public/ for backward compatibility

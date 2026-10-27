@@ -139,8 +139,18 @@ class PublicController extends Controller
         ]);
     }
 
-    public function trackClick(Request $request, $campaign, $subscriber, $url, $token)
+    public function trackClick(Request $request, $campaign, $subscriber, $url = null, $token = null)
     {
+        // New format: base64 destination + token arrive as ?u= & ?t= query
+        // params (path-segment format breaks on IIS http.sys >260-char
+        // segments). Legacy positional params still supported for old emails.
+        $url = $url ?? $request->query('u');
+        $token = $token ?? $request->query('t');
+
+        if (!is_string($url) || !is_string($token) || $url === '' || $token === '') {
+            abort(404);
+        }
+
         $decodedUrl = base64_decode($url);
         
         // Verify token

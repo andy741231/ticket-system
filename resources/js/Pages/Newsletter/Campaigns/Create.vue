@@ -458,9 +458,16 @@ function stripTrackingFromHtml(html) {
 
     try {
       const u = new URL(url, window.location.origin);
+      // New format: base64 destination is carried in the ?u= query param.
+      const qp = u.searchParams.get('u');
+      if (qp !== null) {
+        const original = decodeBase64Safe(qp);
+        const href = original && /^https?:\/\//i.test(original) ? original : '#';
+        return `href=${quote}${href}${quote}`;
+      }
       const parts = u.pathname.split('/').filter(Boolean);
       const idx = parts.findIndex((p) => p.toLowerCase() === 'track-click');
-      // Expecting: .../track-click/{campaign}/{subscriber}/{base64}[/{token}]
+      // Legacy format: .../track-click/{campaign}/{subscriber}/{base64}[/{token}]
       const base64Part = (idx !== -1 && parts.length > idx + 3) ? parts[idx + 3] : null;
       const original = base64Part ? decodeBase64Safe(base64Part) : null;
       const href = original && /^https?:\/\//i.test(original) ? original : '#';

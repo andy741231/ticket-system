@@ -144,11 +144,14 @@ class NewsletterMail extends Mailable
                         return $matches[0];
                     }
 
+                    // Query-string format (?u= & ?t=): keeps the base64 payload out
+                    // of the path so IIS http.sys's 260-char segment cap cannot 400 it.
+                    // Non-URI params are appended by Laravel as an RFC3986 query string.
                     $trackingUrl = route('newsletter.public.track-click', [
                         'campaign' => $this->campaign->id,
                         'subscriber' => $this->subscriber->id,
-                        'url' => base64_encode($originalUrl),
-                        'token' => hash('sha256', $this->campaign->id . $this->subscriber->id . $originalUrl . config('app.key'))
+                        'u' => base64_encode($originalUrl),
+                        't' => hash('sha256', $this->campaign->id . $this->subscriber->id . $originalUrl . config('app.key'))
                     ]);
 
                     return '<a ' . str_replace($originalUrl, $trackingUrl, $matches[1]) . '>';
@@ -208,9 +211,26 @@ class NewsletterMail extends Mailable
                 if ($url === '' || !preg_match('#/newsletter/(public/)?track-click/#i', $url)) {
                     return $m[0];
                 }
-                // Try to parse and extract base64 segment: /track-click/{campaign}/{subscriber}/{base64}[/{token}]
+                // Try to parse and extract base64: new ?u= query format first,
+                // then legacy /track-click/{campaign}/{subscriber}/{base64}[/{token}]
                 try {
                     $parsed = parse_url($url);
+                    if (!empty($parsed['query'])) {
+                        $queryParams = [];
+                        parse_str($parsed['query'], $queryParams);
+                        $uParam = $queryParams['u'] ?? null;
+                        if (is_string($uParam)) {
+                            $b64 = strtr($uParam, '-_', '+/');
+                            $pad = strlen($b64) % 4;
+                            if ($pad) { $b64 .= str_repeat('=', 4 - $pad); }
+                            $orig = base64_decode($b64, true);
+                            if ($orig && preg_match('#^https?://#i', $orig)) {
+                                return 'href=' . $quote . $orig . $quote;
+                            }
+                            // u present but not a valid http(s) destination
+                            return 'href=' . $quote . '#' . $quote;
+                        }
+                    }
                     $path = $parsed['path'] ?? '';
                     $parts = array_values(array_filter(explode('/', $path)));
                     $idx = null;
