@@ -9,6 +9,7 @@ use App\Models\Newsletter\Campaign;
 use App\Models\Newsletter\Group;
 use App\Models\Newsletter\Subscriber;
 use App\Models\Newsletter\SubscriptionNotificationEmail;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
@@ -148,18 +149,24 @@ class PublicController extends Controller
             abort(404);
         }
 
-        $campaignModel = Campaign::find($campaign);
-        $subscriberModel = Subscriber::find($subscriber);
+        // Analytics is best-effort: a recording failure must not prevent a
+        // valid destination redirect.
+        try {
+            $campaignModel = Campaign::find($campaign);
+            $subscriberModel = Subscriber::find($subscriber);
 
-        if ($campaignModel && $subscriberModel) {
-            AnalyticsEvent::create([
-                'campaign_id' => $campaign,
-                'subscriber_id' => $subscriber,
-                'event_type' => 'clicked',
-                'link_url' => $decodedUrl,
-                'user_agent' => $request->userAgent(),
-                'ip_address' => $request->ip(),
-            ]);
+            if ($campaignModel && $subscriberModel) {
+                AnalyticsEvent::create([
+                    'campaign_id' => $campaign,
+                    'subscriber_id' => $subscriber,
+                    'event_type' => 'clicked',
+                    'link_url' => $decodedUrl,
+                    'user_agent' => $request->userAgent(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
+        } catch (QueryException $e) {
+            report($e);
         }
 
         return redirect($decodedUrl);
