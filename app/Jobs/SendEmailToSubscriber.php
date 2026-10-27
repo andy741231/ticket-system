@@ -113,6 +113,29 @@ class SendEmailToSubscriber implements ShouldQueue
                 'error' => $e->getMessage(),
             ]);
 
+            // Surface the real error on the campaign so the UI "Error Details"
+            // box can show it (getLastErrorAttribute reads metadata['last_error']
+            // first). Same shape as Campaign::recordError(), but WITHOUT setting
+            // status='failed' — this campaign may still have sends in flight and
+            // checkCampaignCompletion() below owns the final status. Nested try
+            // guarantees reporting can never break failure accounting.
+            try {
+                $metadata = $campaign->metadata ?? [];
+                $metadata['last_error'] = [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                    'time' => now()->toDateTimeString(),
+                ];
+                $campaign->update(['metadata' => $metadata]);
+            } catch (\Throwable $reportingError) {
+                \Log::warning('Failed to record campaign error metadata', [
+                    'campaign_id' => $campaign->id,
+                    'error' => $reportingError->getMessage(),
+                ]);
+            }
+
             // Ensure campaign completion is evaluated even on failures
             $this->checkCampaignCompletion($campaign);
 
