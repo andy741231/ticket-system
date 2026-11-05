@@ -4,7 +4,7 @@ Guidance for AI agents and developers working in this repository.
 
 ## Project Overview
 
-"UHPH Hub" — a Laravel 12 + Inertia.js + Vue 3 ticket/helpdesk application for University of Houston Public Health. Uses Vite + Tailwind for the frontend, Spatie Permission for RBAC, and a custom `campus_smtp` mailer.
+"UHPH Hub" — a Laravel 12 + Inertia.js + Vue 3 ticket/helpdesk application for University of Houston Population Health. Uses Vite + Tailwind for the frontend, Spatie Permission for RBAC, and a custom `campus_smtp` mailer.
 
 ## Tech Stack
 

@@ -1,6 +1,6 @@
 # UHPH Hub
 
-Internal helpdesk and communications hub for University of Houston Public Health. Built with Laravel 12, Inertia.js, and Vue 3.
+Internal helpdesk and communications hub for University of Houston Population Health. Built with Laravel 12, Inertia.js, and Vue 3.
 
 ## Features
 
