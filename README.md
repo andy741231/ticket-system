@@ -1,71 +1,70 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# UHPH Hub
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Internal helpdesk and communications hub for University of Houston Public Health. Built with Laravel 12, Inertia.js, and Vue 3.
 
-## About Laravel
+## Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Ticketing system** — tickets with assignments, comments, file attachments, due dates, and status tracking
+- **RBAC** — role-based access control via Spatie Laravel Permission, including per-user permission overrides
+- **Newsletter campaigns** — template editor (TipTap rich text), subscriber/group management, scheduled sends, and click tracking
+- **Annotations** — document annotation system with image/PDF support (see `docs/ANNOTATION_SYSTEM.md`)
+- **Image processing** — Intervention Image + ImageMagick
+- **Document conversion** — DOCX→PDF via LibreOffice (`app/Services/DocxToPdfConverter.php`)
+- **Screenshots** — optional Puppeteer/Chrome integration (see `docs/PUPPETEER_SETUP.md`)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Requirements
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP ^8.2 with Composer
+- Node.js + npm
+- MySQL
+- ImageMagick (`convert`/`magick` binary) for image features
+- LibreOffice (`soffice`) for DOCX→PDF conversion
+- Optional: Redis/Memcached (defaults to file/database drivers — not required locally)
 
-## Learning Laravel
+## Getting Started
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+```bash
+# Install dependencies
+composer install
+npm install
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+# Configure environment
+cp example.env .env
+php artisan key:generate
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+# Update DB_* credentials in .env, then:
+php artisan migrate --seed
 
-## Laravel Sponsors
+# Run the app (server + queue + logs + vite)
+composer run dev
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+The app is served at `http://localhost:8000`. See `AGENTS.md` for detailed agent/developer guidance.
 
-### Premium Partners
+### Environment Notes
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+- `example.env` is the committed template — never commit a real `.env`
+- **Mail**: `campus_smtp` (`post-office.uh.edu`) only works inside the UH network. Off-campus developers should set `MAIL_MAILER=log` or configure an external SMTP relay
+- **`MAGICK_PATH`**: directory containing the ImageMagick binary, if not on the default PATH
+- **RBAC seeding**: `RBAC_USE_PRODUCTION_SEEDER=true` + `RBAC_SEED_CREATE_ADMIN=true` creates roles/permissions and an admin user on `migrate --seed`
 
-## Contributing
+## Development
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+composer test                    # PHPUnit tests
+vendor/bin/pint                  # PHP code style
+npm run build                    # production frontend build
+npm run test:newsletter-editor   # newsletter editor regression script
+```
 
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## RBAC Documentation
-
-See the project’s RBAC guide for architecture, permissions, middleware, and frontend gating patterns:
+## Documentation
 
 - [RBAC Guide](docs/RBAC.md)
-  - [Implementation Status](docs/RBAC.md#implementation-status)
-  - [Deployment Checklist](docs/RBAC.md#deployment-checklist)
+- [Annotation System](docs/ANNOTATION_SYSTEM.md)
+- [Puppeteer Setup](docs/PUPPETEER_SETUP.md)
+- [External User Authentication](docs/EXTERNAL_USER_AUTHENTICATION.md)
+- Additional feature notes in `docs/`
 
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-abc
