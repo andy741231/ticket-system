@@ -44,7 +44,23 @@ php artisan queue:listen --tries=1   # needed for queued mail/newsletters
 
 Assets: `npm run build` for production build; `npm run test:newsletter-editor` for the newsletter editor regression script.
 
-Scheduled tasks (recurring campaigns, scheduled sends, log/temp cleanup — see `bootstrap/app.php`) need the scheduler running locally: `php artisan schedule:work`. Without it, scheduled newsletter sends won't fire in dev.
+Scheduled tasks (recurring campaigns, scheduled sends, log/temp cleanup — see `bootstrap/app.php`) need the scheduler running. For local dev, run `php artisan schedule:work` in a terminal — without it, scheduled newsletter sends won't fire in dev.
+
+**Production scheduling** — trigger `php artisan schedule:run` once per minute from the OS:
+
+Linux (crontab, run as the web user, e.g. `crontab -e -u www-data`):
+```cron
+* * * * * cd /var/www/hub && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Windows Server (Task Scheduler — `schtasks`, or create via GUI: Program = `php`, Arguments = `artisan schedule:run`, Start in = project dir, trigger = every 1 minute):
+```powershell
+schtasks /Create /TN "UHPH Hub Scheduler" /SC MINUTE /MO 1 `
+  /TR "\"C:\php\php.exe\" \"C:\inetpub\wwwroot\hub\artisan\" schedule:run" `
+  /RU "IIS AppPool\DefaultAppPool" /F
+```
+
+Adjust the PHP binary path, project path, and user account to match the deployment.
 
 ### Useful custom commands
 
